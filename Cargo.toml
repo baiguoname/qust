@@ -1,0 +1,9 @@
+[package]
+name = "qust"
+version = "0.1.0"
+edition = "2021"
+authors = ["baiguo<aruster@qq.com>"]
+description = "A crate for finance quantative reserach"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
