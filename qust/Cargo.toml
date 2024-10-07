@@ -1,6 +1,6 @@
 [package]
 name = "qust"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 authors = ["baiguo<aruster@qq.com>"]
 description = "A crate for finance quantative reserach"
