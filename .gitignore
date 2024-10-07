@@ -1,1 +1,8 @@
 /target
+/data
+/notebook
+/Cargo.lock
+target
+*tmpdir
+*data
+*logs

@@ -1,0 +1,21 @@
+[package]
+name = "qust-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+qust-derive = { path = "../qust-derive", version = ">=0.1"}
+qust-ds = { path = "../qust-ds", version = ">=0.1" }
+qust = { path = "../qust", version = ">=0.1" }
+serde = { workspace = true }
+chrono = { workspace = true}
+anyhow = { workspace = true }
+tokio = { workspace = true }
+ctp-futures = "0.1.0"
+log = "0.4.22"
+encoding = "0.2.33"
+simple-error = "0.3.1"
+memchr = "2.7.4"
+toml = { version = "0.8.19" }
+futures = "0.3.31"
+regex = "1.11.0"

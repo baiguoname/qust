@@ -1,0 +1,20 @@
+[package]
+name = "qust-stra"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+qust-derive = { path = "../qust-derive", version = ">=0.1" }
+qust-ds = { path = "../qust-ds", version = ">=0.1" }
+qust = { path = "../qust", version = ">=0.1" }
+qust-api = { path = "../qust-api", version = ">=0.1"}
+lazy_static = { workspace = true}
+serde = { workspace = true}
+serde_json = { workspace = true }
+itertools = { workspace = true }
+typetag = { workspace = true }
+chrono = { workspace = true }
+log = { workspace = true }
+tokio = { workspace = true }
+rand = "0.8.5"
+ta = { version = "0.5.0" }

@@ -1,0 +1,21 @@
+[package]
+name = "qust-io"
+version = "0.1.0"
+edition = "2021"
+authors = ["baiguo<aruster@qq.com>"]
+description = "a part of crate qust"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+qust = { path = "../qust", version = "*" }
+qust-ds = { path = "../qust-ds", version = "*"  }
+lazy_static = { workspace = true }
+serde_json = { workspace = true }
+itertools = { workspace = true }
+itertools-num = { workspace = true }
+chrono = { workspace = true }
+num-traits = { workspace = true }
+plotters = { version = "^0.3.4", default_features = true, features = ["evcxr", "all_series", "all_elements"] }
+csv = { version = ">= 0.0.0" }
+ndarray = { version = "0.16.1" }
+ndarray-stats = { version = "0.6.0" }
