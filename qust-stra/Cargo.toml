@@ -2,12 +2,15 @@
 name = "qust-stra"
 version = "0.1.0"
 edition = "2021"
+authors = ["baiguo<aruster@qq.com>"]
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 qust-derive = { path = "../qust-derive", version = ">=0.1" }
 qust-ds = { path = "../qust-ds", version = ">=0.1" }
 qust = { path = "../qust", version = ">=0.1" }
 qust-api = { path = "../qust-api", version = ">=0.1"}
+qust-io = { path = "../qust-io", version = ">=0.1"}
 lazy_static = { workspace = true}
 serde = { workspace = true}
 serde_json = { workspace = true }

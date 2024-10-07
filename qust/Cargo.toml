@@ -5,6 +5,9 @@ edition = "2021"
 authors = ["baiguo<aruster@qq.com>"]
 description = "A crate for finance quantative reserach"
 license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/qust/"
+repository = "https://github.com/baiguoname/qust"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -1,7 +1,6 @@
-use std::path::Path;
-
+#![allow(async_fn_in_trait)]
 use csv::StringRecord;
-use qust::prelude::{dt, KlineData, PriceOri, TickData};
+use qust::prelude::{dt, Di, KlineData, PriceOri, TickData, Tri};
 
 
 trait ReadRecord {
@@ -11,7 +10,7 @@ trait ReadRecord {
 
 pub trait ReadCsv {
     type Output;
-    fn read_csv(&self, path: impl AsRef<Path>) -> Self::Output;
+    async fn read_csv(&self, path: &str) -> Self::Output;
 }
 
 pub struct DiReader<T> {
@@ -58,8 +57,7 @@ impl ReadRecord for DiReaderRecord {
 
 impl ReadCsv for DiReader<usize> {
     type Output = PriceOri;
-    fn read_csv(&self, path: impl AsRef<Path>) -> Self::Output {
-        let mut reader = csv::Reader::from_path(path).unwrap();
+    async fn read_csv(&self, path: &str) -> Self::Output {
         let di_reader_record = DiReaderRecord {
             t: self.t,
             o: self.o,
@@ -71,10 +69,23 @@ impl ReadCsv for DiReader<usize> {
         };
         let skip_n = if self.has_header { 1 } else { 0 };
         let mut price_ori = PriceOri::with_capacity(100_000);
-        for record in reader.records().skip(skip_n) {
-            let record = record.unwrap();
-            let kline_data = di_reader_record.read_record(&record);
-            price_ori.update(&kline_data);
+        if path.contains("https") {
+            let response = reqwest::get(path).await.unwrap().text().await.unwrap();
+            let mut reader = csv::ReaderBuilder::new()
+                .has_headers(self.has_header)
+                .from_reader(response.as_bytes());
+            for record in reader.records().skip(skip_n) {
+                let record = record.unwrap();
+                let kline_data = di_reader_record.read_record(&record);
+                price_ori.update(&kline_data);
+            }
+        } else {
+            let mut reader = csv::Reader::from_path(path).unwrap();
+            for record in reader.records().skip(skip_n) {
+                let record = record.unwrap();
+                let kline_data = di_reader_record.read_record(&record);
+                price_ori.update(&kline_data);
+            }
         }
         price_ori.shrink_to_fit();
         price_ori
@@ -128,8 +139,7 @@ impl ReadRecord for TickReaderRecord {
 
 impl ReadCsv for TickReader<usize> {
     type Output = Vec<TickData>;
-    fn read_csv(&self, path: impl AsRef<Path>) -> Self::Output {
-        let mut reader = csv::Reader::from_path(path).unwrap();
+    async fn read_csv(&self, path: &str) -> Self::Output {
         let tick_reader_record = TickReaderRecord {
             t: self.t,
             c: self.c,
@@ -141,12 +151,59 @@ impl ReadCsv for TickReader<usize> {
             t_format: self.t_format.unwrap_or("%Y-%m-%dT%H:%M:%S%.f"),
         };
         let mut res = Vec::with_capacity(100000);
-        for record in reader.records() {
-            let record = record.unwrap();
-            let tick_data = tick_reader_record.read_record(&record);
-            res.push(tick_data);
+        if path.contains("https") {
+            let response = reqwest::get(path).await.unwrap().text().await.unwrap();
+            let mut reader = csv::ReaderBuilder::new()
+                .has_headers(self.has_header)
+                .from_reader(response.as_bytes());
+            for record in reader.records() {
+                let record = record.unwrap();
+                let tick_data = tick_reader_record.read_record(&record);
+                res.push(tick_data);
+            }
+        } else {
+            let mut reader = csv::Reader::from_path(path).unwrap();
+            for record in reader.records() {
+                let record = record.unwrap();
+                let tick_data = tick_reader_record.read_record(&record);
+                res.push(tick_data);
+            }
         }
         res.shrink_to_fit();
         res
     }
+}
+
+const remote_kline_url: &str = "https://raw.githubusercontent.com/baiguoname/qust/refs/heads/main/examples/git_test/kline_data.csv";
+const remote_tick_url: &str = "https://raw.githubusercontent.com/baiguoname/qust/refs/heads/main/examples/git_test/tick_data.csv"; 
+
+pub async fn read_remote_kline_data() -> Di {
+    let di_reader: DiReader<usize> = DiReader {
+        t: 0,
+        o: 1,
+        h: 2,
+        l: 3,
+        c: 4,
+        v: 5,
+        t_format: None,
+        has_header: true,
+    };
+    di_reader.read_csv(remote_kline_url).await.to_di(qust::prelude::aler, qust::prelude::rl5m.tri_box())
+}
+
+pub async fn read_remote_tick_data() -> Vec<TickData> {
+    let tick_reader = TickReader {
+        t: 0,
+        c: 1,
+        v: 2,
+        ask1: 3,
+        bid1: 4,
+        ask1_v: 5,
+        bid1_v: 6,
+        t_format: None,
+        has_header:true,
+    };
+    tick_reader
+        .read_csv(remote_tick_url)
+        .await
 }

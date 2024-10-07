@@ -11,6 +11,7 @@ serde = { version =  ">= 1.0.136", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 regex = ">=1.10.4"
 ta = { version = "0.5.0" }
+tokio = { version = "1.39.3", features = ["full"] }
 
 
 [evcxr]
