@@ -10,8 +10,8 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 syn = "2.0"
 quote = "1.0"
-proc-macro2 = "*"
-synstructure = "*"
+proc-macro2 = "1.0.87"
+synstructure = "0.13.1"
 
 [lib]
 proc-macro = true

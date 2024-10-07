@@ -7,8 +7,8 @@ description = "a part of crate qust"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-qust = { path = "../qust", version = "*" }
-qust-ds = { path = "../qust-ds", version = "*"  }
+qust = { path = "../qust", version = ">=0.1" }
+qust-ds = { path = "../qust-ds", version = ">=0.1"  }
 lazy_static = { workspace = true }
 serde_json = { workspace = true }
 itertools = { workspace = true }
