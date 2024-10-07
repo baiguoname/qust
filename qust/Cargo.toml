@@ -12,8 +12,8 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-qust-derive = { path = "../qust-derive", version = "*" }
-qust-ds = { path = "../qust-ds", version = "*" }
+qust-derive = { path = "../qust-derive", version = ">=0.1" }
+qust-ds = { path = "../qust-ds", version = ">=0.1" }
 chrono = { workspace = true }
 itertools = { workspace = true }
 num-traits = { workspace = true }
