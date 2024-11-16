@@ -7,6 +7,5 @@ target
 *data
 *logs
 /stra
-/stra/*
 /getdata
 /Cargo.lock
