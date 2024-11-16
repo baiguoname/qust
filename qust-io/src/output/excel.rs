@@ -1,11 +1,14 @@
 #![allow(unused_imports)]
 use std::fmt::Display;
 use num_traits::Num;
+use polars_io::SerWriter;
+use qust::live::bt::WithDi;
 use qust_ds::prelude::*;
-use qust::{ prelude::{ PnlRes, PriceOri, PriceTick, PriceArc, Di, Pms, cs2, Ptm }, sig::distra::Aee };
+use qust::prelude::*;
 use std::sync::Arc;
 use csv;
 use crate::prelude::StatsRes;
+use polars::prelude::{ CsvWriter, DataFrame, DataType, Expr };
 
 /* #region To Index */
 pub struct Index<T>(pub Vec<T>);
@@ -45,6 +48,7 @@ impl<T: Num + Clone> ToValue<u16, ()> for [T] {
         Value(vec![self.to_vec()])
     }
 }
+
 
 impl<T: Clone> ToValue<u32, ()> for [Arc<Vec<T>>] {
     type T = T;
@@ -310,20 +314,27 @@ impl<T: Display, N: Display> ToCsv for Df<T, Vec<N>> {
     }
 }
 
-#[derive(Clone)]
-pub struct WithDi<'a, T>(pub &'a Di, pub T);
+impl ToCsv for DataFrame {
+    fn to_csv<P: AsRef<Path>>(self, path: P) {
+        let mut df = self;
+        let mut file = std::fs::File::create(path.as_ref()).unwrap();
+        CsvWriter::new(&mut file)
+            .finish(&mut df)
+            .unwrap();
+    }
+}
 
 impl IntoDf for WithDi<'_, Pms> {
     type Index = String;
     type Value = v32;
     fn to_df(self) -> Df<Self::Index, Self::Value> {
-        let pms_str = self.1.debug_string();
+        let pms_str = self.data.debug_string();
         let index = if pms_str.contains("FillCon") || pms_str.ends_with("ori"){
-            self.0.t().to_index()
+            self.info.t().to_index()
         } else {
-            self.0.calc(&self.1.dcon).t.to_index()
+            self.info.calc(&self.data.dcon).t.to_index()
         };
-        (index, self.0.calc(self.1).to_value()).to_df()
+        (index, self.info.calc(self.data).to_value()).to_df()
     }
 }
 
@@ -331,9 +342,9 @@ impl IntoDf for WithDi<'_, PnlRes<dt>> {
     type Index = String;
     type Value = v32;
     fn to_df(self) -> Df<Self::Index, Self::Value> {
-        let mut df = self.1.to_df();
-        let pv = self.0.pcon.ticker.info().pv;
-        let num = izip!(df.value[2].iter(), self.0.c().iter())
+        let mut df = self.data.to_df();
+        let pv = self.info.pcon.ticker.info().pv;
+        let num = izip!(df.value[2].iter(), self.info.c().iter())
             .map(|(x, y)| 1000. * x / y / pv)
             .collect_vec();
         df.value.push(num);
@@ -346,7 +357,7 @@ impl IntoDf for WithDi<'_, Ptm> {
     type Index = String;
     type Value = v32;
     fn to_df(self) -> Df<Self::Index, Self::Value> {
-        WithDi(self.0, self.0.pnl(&self.1, cs2)).to_df()
+        WithInfo { data: self.info.pnl(&self.data, cs2), info: self.info }.to_df()
     }
 }
 
@@ -478,5 +489,51 @@ impl IntoDf for Aee<Aee<Di>> {
     type Value = Vec<String>;
     fn to_df(self) -> Df<Self::Index, Self::Value> {
         self.0.0.pcon.price.pip(Aee).pip(Aee).to_df()
+    }
+}
+
+
+pub trait EvcxrDisplay {
+    fn evcxr_display(&self);
+}
+
+impl EvcxrDisplay for DataFrame {
+    fn evcxr_display(&self) {
+        let mut html = String::new();
+        html.push_str("<table>");
+        let data = self.debug_string();
+        let datas = data.split_once('\n').unwrap();
+        println!("{}", datas.0);
+        datas
+            .1
+            .split_once('\n')
+            .unwrap()
+            .1
+            .split('│')
+            .for_each(|x| {
+                if x.contains('┆') {
+                    html.push_str("<tr>");
+                    x.split('┆')
+                        .for_each(|x| {
+                            if !x.contains("---") {
+                                html.push_str("<td>");
+                                html.push_str(x);
+                                html.push_str("</td>");
+                            }
+                        });
+                    html.push_str("</tr>");
+                } else if !x.contains("─────") && 
+                    !x.contains("═════") &&
+                    !x.contains("---") &&
+                    x.len() > 2 {
+                    html.push_str("<tr>");
+                    html.push_str("<td>");
+                    html.push_str(x);
+                    html.push_str("</td>");
+                    html.push_str("</tr>");
+                }
+            });
+        html.push_str("</table>");
+        println!("EVCXR_BEGIN_CONTENT text/html\n{}\nEVCXR_END_CONTENT", html)
     }
 }

@@ -33,8 +33,13 @@ impl Di {
             pass_num: self.pcon.price.ki.iter().skip(1).map(|ki| ((ki.pass_last + ki.pass_this) as f32 / 120.)).collect_vec(),
             ptm_res,
         };
-        pnl_res_pre_info.convert_to_pnl()
+        pnl_res_pre_info.into_pnl_res()
     }
+}
+
+
+pub trait IntoPnlRes {
+    fn into_pnl_res(self) -> PnlRes<dt>;
 }
 
 pub struct PnlResPreInfo<'a> {
@@ -47,8 +52,8 @@ pub struct PnlResPreInfo<'a> {
     pub ptm_res: &'a PtmRes,
 }
 
-impl PnlResPreInfo<'_> {
-    pub fn convert_to_pnl(self) -> PnlRes<dt> {
+impl IntoPnlRes for PnlResPreInfo<'_> {
+    fn into_pnl_res(self) -> PnlRes<dt> {
         let c = self.c;
         let comm = self.comm;
         let ticker_info = self.ticker.info();

@@ -775,3 +775,36 @@ impl<T: Clone + Hash + std::cmp::Eq> LeakData for std::collections::HashMap<T, S
             })
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WithInfo<T, N> {
+    pub data: T,
+    pub info: N,
+}
+
+pub trait WithInfoTrait: Sized {
+    fn with_info<T>(self, info: T) -> WithInfo<Self, T> {
+        WithInfo {
+            data: self,
+            info,
+        }
+    }
+}
+impl<T> WithInfoTrait for T {}
+
+
+pub trait GenUniqueId {
+    fn gen_unique_id(&self, n: usize) -> String 
+    where
+        Self: std::fmt::Debug,
+    {
+       use sha2::{Sha256, Digest}; 
+       let input = format!("{self:?}");
+       let mut hasher = Sha256::new();
+        hasher.update(input);
+        let result = hasher.finalize();
+        hex::encode(result).chars().take(n).collect()
+    }
+}
+
+impl<T> GenUniqueId for T {}

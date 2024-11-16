@@ -14,15 +14,22 @@ pub mod output {
     pub mod show;
 }
 
+pub mod transform {
+    pub mod pl_util;
+}
+
 pub mod prelude {
     pub use crate::{
         input::{ ticks::*, read_csv::* },
         output::{
-            excel::{IntoDf, ToIndex, ToValue, ToValueString, ToCsv, WithDi, ConcatDf},
+            excel::{IntoDf, ToIndex, ToValue, ToValueString, ToCsv, ConcatDf, EvcxrDisplay},
             plot::*,
             profile::*,
             array::*,
             show::*,
+        },
+        transform::{
+            pl_util::*,
         }
     };
 

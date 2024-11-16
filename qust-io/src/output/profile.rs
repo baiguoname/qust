@@ -3,8 +3,9 @@ use qust::prelude::*;
 use crate::prelude::ToArray;
 use ndarray_stats::CorrelationExt;
 use ndarray::{Array2, Axis};
+use serde::{ Serialize, Deserialize };
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct StatsRes {
     pub ret: f32,
     pub sr: f32,

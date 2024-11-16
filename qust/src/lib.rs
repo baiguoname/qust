@@ -56,27 +56,25 @@ pub mod sig {
 
 pub mod live {
     pub mod order_types;
-    pub mod bt_kline;
-    pub mod bt_tick;
-    pub mod cond_ops;
     pub mod live_ops;
     pub mod match_ops;
     pub mod algo;
     pub mod thread_manger;
-    pub mod cond2;
     pub mod live_run;
+    pub mod cross;
+    pub mod trend;
+    pub mod bt;
 
     pub mod prelude {
         pub use super::{
+            bt::*,
             order_types::*,
-            bt_kline::*,
-            bt_tick::*,
-            cond_ops::*,
             live_ops::*,
             match_ops::*,
             algo::*,
-            cond2::*,
             live_run::*,
+            cross::prelude::*,
+            trend::prelude::*,
         };
     }
 }

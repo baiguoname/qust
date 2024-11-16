@@ -12,34 +12,35 @@ use super::utiles::*;
 
 
 pub trait ApiConvert<T> {
-    fn api_convert(self) -> T;
+    fn api_convert(self) -> Option<T>;
 }
 
-pub trait GetInstrumentID {
-    fn get_instrument_id(&self) -> [i8; 81];
-}
-
-impl ApiConvert<DataReceive> for DepthMarketDataField {
-    fn api_convert(self) -> DataReceive {
-        TickData {
+impl ApiConvert<DataRecv> for (sstr, DepthMarketDataField) {
+    fn api_convert(self) -> Option<DataRecv> {
+        let contract = self.0;
+        let depth_data = self.1;
+        let tick_data = TickData {
             t: {
-                let c = format!("{} {}.{}", self.TradingDay.to_str_0(), self.UpdateTime.to_str_0(), self.UpdateMillisec);
+                let c = format!("{} {}.{}", depth_data.TradingDay.to_str_0(), depth_data.UpdateTime.to_str_0(), depth_data.UpdateMillisec);
                 dt::parse_from_str(&c, "%Y%m%d %H:%M:%S%.f").expect(&c)
             },
-            c     : self.LastPrice as f32,
-            v     : self.Volume as f32,
-            bid1  : self.BidPrice1 as f32,
-            ask1  : self.AskPrice1 as f32,
-            bid1_v: self.BidVolume1 as f32,
-            ask1_v: self.AskVolume1 as f32,
+            c     : depth_data.LastPrice as f32,
+            v     : depth_data.Volume as f32,
+            bid1  : depth_data.BidPrice1 as f32,
+            ask1  : depth_data.AskPrice1 as f32,
+            bid1_v: depth_data.BidVolume1 as f32,
+            ask1_v: depth_data.AskVolume1 as f32,
             ct    : 0,
-        }.into()
+        };
+        Some(DataRecv::TickData(contract, tick_data))
     }
 }
 
-impl GetInstrumentID for DepthMarketDataField {
-    fn get_instrument_id(&self) -> [i8; 81] {
-        self.InstrumentID
+impl ApiConvert<DataRecv> for (&CtpQueryRes, DepthMarketDataField) {
+    fn api_convert(self) -> Option<DataRecv> {
+        let istm = self.1.InstrumentID;
+        let contract =  *self.0.contract_ticker_map.get(&istm)?;
+        (contract, self.1).api_convert()
     }
 }
 
@@ -58,7 +59,7 @@ pub enum CtpOrderAction {
 }
 
 impl ApiConvert<CtpOrderAction> for OrderSendWithAcco<'_> {
-    fn api_convert(self) -> CtpOrderAction {
+    fn api_convert(self) -> Option<CtpOrderAction> {
         use OrderAction::*;
         match self.order_input.is_to_cancel {
             false => {
@@ -70,12 +71,12 @@ impl ApiConvert<CtpOrderAction> for OrderSendWithAcco<'_> {
                 req.InstrumentID = *self.contract;
                 let (dire, action, num, price) = match self.order_input.order_action {
                     No           => (THOST_FTDC_D_Buy as i8, THOST_FTDC_OF_Open as i8, 0, 0.),
-                    LoOpen(i, p)    => (THOST_FTDC_D_Buy as i8, THOST_FTDC_OF_Open as i8, i, p as f64),
-                    ShOpen(i, p)    => (THOST_FTDC_D_Sell as i8, THOST_FTDC_OF_Open as i8, i, p as f64),
-                    LoClose(i, p)   => (THOST_FTDC_D_Buy as i8, THOST_FTDC_OF_CloseToday as i8, i, p as f64),
-                    ShClose(i, p)   => (THOST_FTDC_D_Sell as i8, THOST_FTDC_OF_CloseToday as i8, i, p as f64),
-                    LoCloseYd(i, p) => (THOST_FTDC_D_Buy as i8, THOST_FTDC_OF_CloseYesterday as i8, i, p as f64),
-                    ShCloseYd(i, p) => (THOST_FTDC_D_Sell as i8, THOST_FTDC_OF_CloseYesterday as i8, i, p as f64),
+                    LoOpen(i, p)    => (THOST_FTDC_D_Buy as i8, THOST_FTDC_OF_Open as i8, i as i32, p as f64),
+                    ShOpen(i, p)    => (THOST_FTDC_D_Sell as i8, THOST_FTDC_OF_Open as i8, i as i32, p as f64),
+                    LoClose(i, p)   => (THOST_FTDC_D_Buy as i8, THOST_FTDC_OF_CloseToday as i8, i as i32, p as f64),
+                    ShClose(i, p)   => (THOST_FTDC_D_Sell as i8, THOST_FTDC_OF_CloseToday as i8, i as i32, p as f64),
+                    // LoCloseYd(i, p) => (THOST_FTDC_D_Buy as i8, THOST_FTDC_OF_CloseYesterday as i8, i as i32, p as f64),
+                    // ShCloseYd(i, p) => (THOST_FTDC_D_Sell as i8, THOST_FTDC_OF_CloseYesterday as i8, i as i32, p as f64),
                 };
                 req.Direction           = dire;
                 req.CombOffsetFlag[0]   = action;
@@ -103,96 +104,131 @@ impl ApiConvert<CtpOrderAction> for OrderSendWithAcco<'_> {
                 req.ExchangeID = self.order_input.exchange_id.unwrap();
                 CtpOrderAction::CancelOrder(req)
             }
-        }
+        }.pip(Some)
     }
 }
 
-impl ApiConvert<DataReceive> for OrderField {
-    fn api_convert(self) -> DataReceive {
+impl ApiConvert<DataRecv> for OrderField {
+    fn api_convert(self) -> Option<DataRecv> {
         let order_status = match self.OrderStatus as u8 as char {
-            '0' => OrderStatus::AllTraded,
-            '1' | '3' => OrderStatus::PartTradedQueueing(self.VolumeTraded),
-            '5' => OrderStatus::Canceled(self.VolumeTraded),
+            '0' => {
+                let volume_traded = match self.Direction as u8 as char {
+                    '0' => self.VolumeTraded as f32,
+                    '1' => -(self.VolumeTraded as f32),
+                    _ => panic!("dire not implement"),
+                };
+                OrderStatus::AllTraded(volume_traded)
+            }
+            '1' | '3' => OrderStatus::PartTradedQueueing(self.VolumeTraded as f32),
+            '5' => OrderStatus::Canceled(self.VolumeTraded as f32),
             'a' => OrderStatus::NotTouched,
             other => OrderStatus::Unknown(other),
         };
-        OrderReceive {
+        OrderRecv {
             // order_ref: gb18030_cstr_to_str_i8(&self.OrderRef).to_string(),
             id: gb18030_cstr_to_str_i8(&self.InvestUnitID).to_string(),
+            contract: gb18030_cstr_to_str_i8(&self.InstrumentID).to_string(),
             // order_ref: i8_array_to_string(&self.OrderRef),
             order_status,
             update_time: {
-                // let c = format!("{} {}", self.TradingDay.to_str_0(), gb18030_cstr_to_str_i8(&self.UpdateTime));
-                // dt::parse_from_str(&c, "%Y%m%d %H:%M:%S").expect(&c)
-                Default::default()
+                let c = format!("{} {}", self.TradingDay.to_str_0(), gb18030_cstr_to_str_i8(&self.InsertTime));
+                dt::parse_from_str(&c, "%Y%m%d %H:%M:%S").expect(&c)
+                // Default::default()
             },
             order_ref: Some(self.OrderRef),
             front_id: Some(self.FrontID),
             session_id: Some(self.SessionID),
             exchange_id: Some(self.ExchangeID),
-        }.into()
+        }.pip(DataRecv::OrderRecv).pip(Some)
     }
 }
 
-impl GetInstrumentID for OrderField {
-    fn get_instrument_id(&self) -> [i8; 81] {
-        self.InstrumentID
+impl ApiConvert<DataRecv> for Vec<OrderField> {
+    fn api_convert(self) -> Option<DataRecv> {
+        let mut res = vec![];
+        for k in self.into_iter() {
+            let data_recv = k.api_convert()?;
+            if let DataRecv::OrderRecv(order_recv) = data_recv {
+                res.push(order_recv);
+            };
+        }
+        res.sort_by(|a, b| a.update_time.partial_cmp(&b.update_time).unwrap());
+        Some(DataRecv::OrderRecvHis(res))
     }
 }
 
-impl ApiConvert<DataReceive> for OnRspOrderInsertPacket {
-    fn api_convert(self) -> DataReceive {
+impl ApiConvert<DataRecv> for OnRspOrderInsertPacket {
+    fn api_convert(self) -> Option<DataRecv> {
         let order_input_field = self.p_input_order.unwrap();
         let id = gb18030_cstr_to_str_i8(&order_input_field.OrderRef).to_string();
         let order_status = match self.p_rsp_info.unwrap().ErrorID {
             0 => OrderStatus::Inserted,
             other => OrderStatus::InsertError(other),
         };
-        OrderReceive {
+        OrderRecv {
             id,
             order_status,
+            contract: gb18030_cstr_to_str_i8(&order_input_field.InstrumentID).to_string(),
             update_time: Default::default(),
             order_ref: Some(order_input_field.OrderRef),
             front_id: None,
             session_id: None,
             exchange_id: Some(order_input_field.ExchangeID),
-        }.into()
+        }.pip(DataRecv::OrderRecv).pip(Some)
     }
 }
 
-impl GetInstrumentID for OnRspOrderInsertPacket {
-    fn get_instrument_id(&self) -> [i8; 81] {
-        self.p_input_order.unwrap().InstrumentID
+impl<T: ApiConvert<DataRecv>> ApiConvert<DataRecv> for (&CtpQueryRes, T) {
+    fn api_convert(self) -> Option<DataRecv> {
+        self.1.api_convert()
     }
+
 }
 
 #[derive(Default)]
 pub struct CtpQueryRes {
     pub trading_account: RwLock<TradingAccountField>,
     pub instrument_info: RwLock<hm<IstmId, InstrumentField>>,
-    pub contract_data_receive_map: hm<IstmId, DataReceiveOn>, 
+    pub contract_data_receive_map: hm<DataRecvId, NotifyDataRecv>, 
     pub contract_ticker_map: hm<IstmId, &'static str>,
 }
 
 impl CtpQueryRes {
-    pub fn send_data_receive<T>(&self, data: T)
+
+    pub fn send_data_recv<T>(&self, data: T)
     where
-        T: GetInstrumentID + ApiConvert<DataReceive>,
+         for<'l> (&'l Self, T): ApiConvert<DataRecv>,
     {
-        let istm = data.get_instrument_id();
-        let ticker = match self.contract_ticker_map.get(&istm) {
-            Some(ticker) => ticker,
-            None => {
-                loge!("ctp", "{:?} not found in ticker_contract_map", istm.to_str_v());
-                println!("ctp: {:?} not found in ticker_contract_map", istm.to_str_v());
-                return;
-            }
+        let Some(data_recv) = (self, data).api_convert() else {
+            return;
         };
-        let data_receive = data.api_convert();
-        loge!(ticker, "ctp have a  data receive: {:?}", data_receive);
-        if let Some(data_receive_on) = self.contract_data_receive_map.get(&istm) {
-            data_receive_on.push(data_receive);
-            data_receive_on.notify_all();
+        match &data_recv {
+            DataRecv::TickData(c, _) => {
+                for (k, data_recv_on) in self.contract_data_receive_map.iter() {
+                    if *c == k.tick_data_id {
+                        data_recv_on.push(data_recv.clone());
+                        data_recv_on.notify_all();
+                    }
+                }
+            }
+            DataRecv::OrderRecv(order_recv) => {
+                for (k, data_recv_on) in self.contract_data_receive_map.iter() {
+                    if order_recv.id.len() < ORDER_RET_ID_LEN {
+                        return;
+                    }
+                    if order_recv.id[..ORDER_RET_ID_LEN] == k.order_return_id {
+                        data_recv_on.push(data_recv.clone());
+                        data_recv_on.notify_all();
+                    }
+                }
+            }
+            DataRecv::OrderRecvHis(_) => {
+                for (_, data_recv_on) in self.contract_data_receive_map.iter() {
+                    data_recv_on.push(data_recv.clone());
+                    data_recv_on.notify_all();
+                }
+            }
         }
+
     }
 }

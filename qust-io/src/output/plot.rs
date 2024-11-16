@@ -353,7 +353,7 @@ impl Plot<i32, da, f32> for PnlRes<da> {
 
 impl Plot<i32, dt, f32> for PnlRes<dt> {
     fn plot(&self) -> evcxr::SVGWrapper {
-        let p: PlotWithText<_, _> = (&self.0, self.1[0].cumsum()).into();
+        let p: PlotWithText<_, _> = (&self.0, self.1[0].cumsum(), None, self.da().stats().to_string()).into();
         p.plot()
     }
 }

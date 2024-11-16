@@ -6,6 +6,8 @@ use qust_ds::prelude::*;
 use qust_derive::*;
 use dyn_clone::{clone_trait_object, DynClone};
 
+use super::prelude::VertSlice;
+
 #[typetag::serde(tag = "ForeTaCalc", content = "value")]
 pub trait ForeTaCalc: DynClone + Send + Sync + std::fmt::Debug + 'static {
     fn fore_ta_calc(&self, da: Vec<&[f32]>, di: &Di) -> vv32;
@@ -55,9 +57,20 @@ impl ForeTaCalc for Rank {
 impl ForeTaCalc for Convert {
     fn fore_ta_calc(&self, da: Vec<&[f32]>, di: &Di) -> vv32 {
         // let res = (di.last_dcon(), self.clone()).vert_back(di, da);
-        let res = di.last_dcon().vert_back(di, da);
-        // res.unwrap().ffill()
-        res.unwrap()
+        let res = di.last_dcon().vert_back(di, VertSlice::Slice(da));
+        match res.unwrap() {
+            VertSlice::Slice(data) => {
+                data.map(|x| x.to_vec())
+            }
+            VertSlice::Ov(data) => {
+                data.map(|x| {
+                    x.ffill(f32::NAN)
+                    // let mut res = x.ffill(f32::NAN);
+                    // res.ffill();
+                    // res
+                })
+            }
+        }
     }
 }
 
@@ -67,9 +80,10 @@ pub struct FillCon(pub Convert);
 #[typetag::serde]
 impl ForeTaCalc for FillCon {
     fn fore_ta_calc(&self, da: Vec<&[f32]>, _di: &Di) -> vv32 {
-        let mut res = self.0.fore_ta_calc(da, _di);
-        res.iter_mut().for_each(|x| x.ffill());
-        res
+        self.0.fore_ta_calc(da, _di)
+        // let mut res = self.0.fore_ta_calc(da, _di);
+        // res.iter_mut().for_each(|x| x.ffill());
+        // res
     }
 }
 

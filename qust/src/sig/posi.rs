@@ -4,11 +4,11 @@ use std::collections::HashSet;
 // use crate::prelude::{vol_pms, ori};
 
 pub type TsigRes = (Vec<Open>, Vec<Exit>);
-pub type StpRes = (
-    Vec<PosiWeight<Hold>>,
-    Vec<PosiWeight<Open>>,
-    Vec<PosiWeight<Exit>>,
-);
+pub struct StpRes  {
+    pub(super) hold: Vec<PosiWeight<Hold>>,
+    pub(super) open: Vec<PosiWeight<Open>>,
+    pub(super) exit: Vec<PosiWeight<Exit>>,
+}
 pub type PtmRes = (Vec<NormHold>, Vec<NormOpen>, Vec<NormExit>);
 pub struct PtmResState {
     pub ptm_res: PtmRes,
@@ -42,7 +42,7 @@ pub enum Dire {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Hold {
+pub(super) enum Hold {
     Lo(usize),
     Sh(usize),
     No,

@@ -47,11 +47,15 @@ impl GenDi {
         &self,
         ticker: &[Ticker],
         range: ForCompare<T>,
-    ) -> Vec<PriceTick> {
+    ) -> hm<Ticker, PriceTick> {
+        let mut res = hm::new();
         ticker
             .iter()
-            .map(|x| self.get_tick(*x, range.clone()).unwrap())
-            .collect_vec()
+            .for_each(|x| {
+                let res_part = self.get_tick(*x, range.clone()).unwrap();
+                res.insert(*x, res_part);
+            });
+        res
     }
 
     pub fn get_tick_data_vec<T: Fromt<da> + PartialOrd>(

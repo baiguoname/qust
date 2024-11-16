@@ -6,3 +6,6 @@ target
 *tmpdir
 *data
 *logs
+/stra
+/getdata
+/Cargo.lock

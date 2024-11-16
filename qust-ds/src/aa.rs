@@ -351,6 +351,18 @@ pub trait Unique<'a, T: 'a>: AsRef<[T]> {
         let position = self.as_ref().iter().position(f)?;
         Some(self.as_ref()[position].clone())
     }
+
+    fn check_all<F>(&self, f: F) -> bool
+    where
+        F: Fn(&T) -> bool,
+    {
+        for x in self.as_ref() {
+            if !f(x) {
+                return false;
+            }
+        }
+        true
+    }
 }
 impl<'a, T: 'a> Unique<'a, T> for [T] {}
 impl<'a, T: 'a> Unique<'a, T> for Vec<T> {}
@@ -360,6 +372,9 @@ pub fn init_a_matrix<T>(inner_size: usize, outer_size: usize) -> Vec<Vec<T>> {
         ::repeat_with(|| Vec::with_capacity(inner_size))
         .take(outer_size)
         .collect_vec()
+}
+pub fn repeat_to_vec<T: FnMut() -> A, A>(f: T, size: usize) -> Vec<A> {
+    std::iter::repeat_with(f).take(size).collect_vec()
 }
 /* #endregion */
 
@@ -530,17 +545,17 @@ impl Reindex {
 /* #endregion */
 
 /* #region fillna */
-pub trait Fillna<T: Copy> {
+pub trait Fillna<T: Clone> {
     fn fillna(&self, data: T) -> Vec<T>;
     fn ffill(&self, data: T) -> Vec<T>;
 }
 
-impl<T: Copy> Fillna<T> for [Option<T>] {
+impl<T: Clone> Fillna<T> for [Option<T>] {
     fn fillna(&self, data: T) -> Vec<T> {
         self.iter()
-            .map(|&x| match x {
-                Some(i) => i,
-                None => data,
+            .map(|x| match x {
+                Some(i) => i.clone(),
+                None => data.clone(),
             })
             .collect()
     }
@@ -548,13 +563,10 @@ impl<T: Copy> Fillna<T> for [Option<T>] {
         let mut res = Vec::with_capacity(self.len());
         let mut last_data = data;
         for data in self.iter() {
-            match data {
-                Some(i) => {
-                    last_data = *i;
-                }
-                None => {}
-            };
-            res.push(last_data);
+            if let Some(i) = data {
+                last_data = i.clone();
+            }
+            res.push(last_data.clone());
         }
         res
     }

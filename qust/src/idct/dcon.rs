@@ -185,56 +185,70 @@ impl Convert {
     }
 }
 
+type ov32 = Vec<Option<f32>>;
+
+pub enum VertSlice<'a> {
+    Slice(Vec<&'a [f32]>),
+    Ov(Vec<ov32>)
+}
+
+
 pub trait VertBack {
-    fn vert_back(&self, di: &Di, res: Vec<&[f32]>) -> Option<vv32>;
+    fn vert_back<'a>(&self, di: &Di, res: VertSlice<'a>) -> Option<VertSlice<'a>>;
 }
 
 impl VertBack for Convert {
-    fn vert_back(&self, di: &Di, res: Vec<&[f32]>) -> Option<vv32> {
+    fn vert_back<'a>(&self, di: &Di, res: VertSlice<'a>) -> Option<VertSlice<'a>> {
+        let price_now = di.calc(self);
+        let res_pre = match &price_now.finished {
+            None => res,
+            Some(finished_vec) => {
+                match res {
+                    VertSlice::Slice(data) => {
+                        data
+                            .into_iter()
+                            .map(|x_one| {
+                                let mut res_step = vec![None; finished_vec.len()];
+                                let mut v_iter = x_one.iter();
+                                finished_vec.iter().enumerate()
+                                    .for_each(|(i, x)| {
+                                        if x.into() {
+                                            res_step[i] = Some(*(v_iter.next().unwrap()));
+                                        }
+                                    });
+                                res_step
+                            })
+                            .collect_vec()
+                            .pip(VertSlice::Ov)
+                    }
+                    VertSlice::Ov(data) => {
+                        data
+                            .into_iter()
+                            .map(|x_one| {
+                                let mut res_step = vec![None; finished_vec.len()];
+                                let mut v_iter = x_one.into_iter();
+                                finished_vec.iter().enumerate()
+                                    .for_each(|(i, x)| {
+                                        if x.into() {
+                                            res_step[i] = v_iter.next().unwrap();
+                                        }
+                                    });
+                                res_step
+                            })
+                            .collect_vec()
+                            .pip(VertSlice::Ov)
+                    }
+                }
+            }
+        };
         match self {
             PreNow(pre, now) => {
-                let price_now = di.calc(self);
-                let res_pre = match &price_now.finished {
-                    None => res.map(|x| x.to_vec()),
-                    Some(finished_vec) => res
-                        .iter()
-                        .map(|x| {
-                            let mut res_pre = vec![f32::NAN; finished_vec.len()];
-                            let mut v_iter = x.iter();
-                            finished_vec.iter().enumerate().for_each(|(i, x)| {
-                                if x.into() {
-                                    res_pre[i] = *v_iter.next().unwrap();
-                                }
-                            });
-                            res_pre
-                        })
-                        .collect_vec(),
-                };
                 match (*pre.clone(), *now.clone()) {
                     (Tf(_, _), _) => Some(res_pre),
-                    (pre_n, _) => pre_n.vert_back(di, res_pre.iter().map(|x| &x[..]).collect_vec()),
+                    (pre_n, _) => pre_n.vert_back(di, res_pre),
                 }
             }
-            _ => {
-                let price_now = di.calc(self);
-                match &price_now.finished {
-                    None => res.map(|x| x.to_vec()).into(),
-                    Some(finished_vec) => res
-                        .iter()
-                        .map(|x| {
-                            let mut res_pre = vec![f32::NAN; finished_vec.len()];
-                            let mut v_iter = x.iter();
-                            finished_vec.iter().enumerate().for_each(|(i, x)| {
-                                if x.into() {
-                                    res_pre[i] = *v_iter.next().unwrap();
-                                }
-                            });
-                            res_pre
-                        })
-                        .collect_vec()
-                        .into(),
-                }
-            }
+            _ => Some(res_pre),
         }
     }
 }

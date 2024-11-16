@@ -3,7 +3,7 @@ use std::thread;
 
 use crate::prelude::TickData;
 
-use super::prelude::HoldLocal;
+use super::prelude::Hold;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
@@ -28,9 +28,9 @@ impl ThreadPool {
         ThreadPool { workers, sender }
     }
 
-    pub fn execute<F>(&self, f: F, tick_data: Arc<TickData>, hold_local: Arc<HoldLocal>)
+    pub fn execute<F>(&self, f: F, tick_data: Arc<TickData>, hold_local: Arc<Hold>)
     where
-        F: FnOnce(&TickData, &HoldLocal) + Send + 'static,
+        F: FnOnce(&TickData, &Hold) + Send + 'static,
     {
         let job = Box::new(move || f(&tick_data, &hold_local));
         self.sender.send(job).unwrap();
@@ -72,7 +72,7 @@ impl Drop for ThreadPool {
 pub fn main() {
     let pool = ThreadPool::new(4);
     let tick_data = Arc::new(TickData::default());
-    let hold_local = Arc::new(HoldLocal::default());
+    let hold_local = Arc::new(Hold::default());
     for i in 0..8 {
         pool.execute(move |tick_data, _hold_local| {
             println!("Executing task {}, tick_data: {:?}", i, tick_data);

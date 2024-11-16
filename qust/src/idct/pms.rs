@@ -35,7 +35,7 @@ impl std::fmt::Debug for PmsVert {
 
 use std::ops::Add;
 
-use super::fore::ForeTaCalc;
+use super::{fore::ForeTaCalc, prelude::TaBox};
 
 impl Add for Convert {
     type Output = Convert;
@@ -61,6 +61,17 @@ impl<T: Ta + Clone> Add<T> for Pre {
             dcon: self.0,
             part: self.1,
             fore: Box::new(rhs),
+        }
+    }
+}
+
+impl Add<TaBox> for Pre {
+    type Output = Pms;
+    fn add(self, rhs: TaBox) -> Self::Output {
+        PmsType {
+            dcon: self.0,
+            part: self.1,
+            fore: rhs
         }
     }
 }

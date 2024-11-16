@@ -1,10 +1,13 @@
 #![allow(clippy::map_entry, clippy::borrowed_box, unused_macros, non_snake_case)]
 use crate::{
-    idct::prelude::*, prelude::{BtDiKline, KtnVar, PtmResRecord}, sig::{
+    idct::prelude::*, live::trend::api::CondType2, sig::{
         cond::*,
         posi::{Open, *},
     }, trade::prelude::*
 };
+use crate::live::trend::cond::PtmResRecord;
+use crate::live::trend::cond::KtnVar;
+use crate::live::trend::cond::BtDiKline;
 use qust_ds::prelude::*;
 use qust_derive::*;
 use dyn_clone::clone_trait_object;
@@ -12,7 +15,6 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
-use crate::live::cond_ops::*;
 
 type LiveSigUpDate<'a> = Box<dyn FnMut(&'a Di) + 'a>;
 
@@ -178,7 +180,7 @@ impl LiveSig for Stp {
         let h_res = Vec::with_capacity(len);
         let o_res = Vec::with_capacity(len);
         let e_res = Vec::with_capacity(len);
-        RwLock::new((h_res, o_res, e_res))
+        RwLock::new(StpRes { hold: h_res, open: o_res, exit: e_res })
     }
 
     fn update(&self, di: &Di, data: &RwLock<Self::R>) {
@@ -192,17 +194,17 @@ impl LiveSig for Stp {
                     .read()
                     .unwrap()
                     .1;
-                for i in res.0.len()..o_vec.len() {
-                    let hold = if i > 1 { &res.0[i - 1].0 } else { &Hold::No };
+                for i in res.hold.len()..o_vec.len() {
+                    let hold = if i > 1 { &res.hold[i - 1].0 } else { &Hold::No };
                     let hold_open = hold.add_open(&o_vec[i]);
                     let hold = hold_open.0;
                     let open = hold_open.1;
                     let hold_exit = hold.add_exit(&e_vec[i]);
                     let hold = hold_exit.0;
                     let exit = hold_exit.1;
-                    res.0.push(PosiWeight(hold, 1f32));
-                    res.1.push(PosiWeight(open, 1f32));
-                    res.2.push(PosiWeight(exit, 1f32));
+                    res.hold.push(PosiWeight(hold, 1f32));
+                    res.open.push(PosiWeight(open, 1f32));
+                    res.exit.push(PosiWeight(exit, 1f32));
                 }
             }
             Stp::StpWeight(stp, cond_weight) => {
@@ -210,11 +212,11 @@ impl LiveSig for Stp {
                 let b1 = di.calc(cond_weight);
                 let tsig_res = b0.downcast_ref::<RwLock<StpRes>>().unwrap().read().unwrap();
                 let weight = b1.downcast_ref::<RwLock<v32>>().unwrap().read().unwrap();
-                for i in res.0.len()..tsig_res.1.len() {
+                for i in res.hold.len()..tsig_res.open.len() {
                     let w = weight[i];
-                    res.0.push(PosiWeight(tsig_res.0[i].0.clone(), w));
-                    res.1.push(PosiWeight(tsig_res.1[i].0.clone(), w));
-                    res.2.push(PosiWeight(tsig_res.2[i].0.clone(), w));
+                    res.hold.push(PosiWeight(tsig_res.hold[i].0.clone(), w));
+                    res.open.push(PosiWeight(tsig_res.open[i].0.clone(), w));
+                    res.exit.push(PosiWeight(tsig_res.exit[i].0.clone(), w));
                 }
             }
         }
@@ -276,8 +278,8 @@ impl LiveSig for Ptm {
                 let b = di.calc(stp);
                 let sigr = b.downcast_ref::<RwLock<StpRes>>().unwrap().read().unwrap();
                 let f = money.register(di);
-                for i in res.ptm_res.0.len()..sigr.0.len() {
-                    let h = sigr.0[i].to_norm();
+                for i in res.ptm_res.0.len()..sigr.hold.len() {
+                    let h = sigr.hold[i].to_norm();
                     let hold_now = f(&h, i);
                     let (open_now, exit_now) = hold_now.sub_norm_hold(&res.state);
                     res.ptm_res.0.push(hold_now.clone());
@@ -292,8 +294,8 @@ impl LiveSig for Ptm {
                 let sigr0 = b0.downcast_ref::<RwLock<StpRes>>().unwrap().read().unwrap();
                 let sigr1 = b1.downcast_ref::<RwLock<StpRes>>().unwrap().read().unwrap();
                 let f = money.register(di);
-                for i in res.ptm_res.0.len()..sigr0.0.len() {
-                    let h = sigr0.0[i].to_norm().add_norm_hold(&sigr1.0[i].to_norm());
+                for i in res.ptm_res.0.len()..sigr0.hold.len() {
+                    let h = sigr0.hold[i].to_norm().add_norm_hold(&sigr1.hold[i].to_norm());
                     let hold_now = f(&h, i);
                     let (open_now, exit_now) = hold_now.sub_norm_hold(&res.state);
                     res.ptm_res.0.push(hold_now.clone());

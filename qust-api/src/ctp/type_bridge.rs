@@ -18,6 +18,8 @@ pub(super) type QryTradingAccountField     = CThostFtdcQryTradingAccountField;
 pub(super) type InvestorPositionField      = CThostFtdcInvestorPositionField;
 pub(super) type TradingAccountField        = CThostFtdcTradingAccountField;
 pub(super) type QryInvestorPositionField   = CThostFtdcQryInvestorPositionField;
+pub(super) type QryInvestorPositionDetailField = CThostFtdcQryInvestorPositionDetailField;
+pub(super) type InvestorPositionDetailField = CThostFtdcInvestorPositionDetailField;
 pub(super) type OrderField                 = CThostFtdcOrderField;
 pub(super) type InputOrderField            = CThostFtdcInputOrderField;
 pub(super) type InputOrderActionField      = CThostFtdcInputOrderActionField;
@@ -27,6 +29,7 @@ pub(super) type UserLogoutField            = CThostFtdcUserLogoutField;
 pub(super) type ReqAuthenticateField       = CThostFtdcReqAuthenticateField;
 pub(super) type SettlementInfoConfirmField = CThostFtdcSettlementInfoConfirmField;
 pub(super) type QryTradeField              = CThostFtdcQryTradeField;
+pub(super) type OnRspTradeField = CThostFtdcTradeField;
 pub(super) type RspInfoField               = CThostFtdcRspInfoField;
 pub(super) type OnRspOrderInsertPacket     = CThostFtdcTraderSpiOnRspOrderInsertPacket;
 
@@ -193,7 +196,8 @@ impl SeeString for CThostFtdcInputOrderField {
 impl SeeString for CThostFtdcInvestorPositionField {
     fn see_string(&self) -> String {
         format!(
-            "Position: contract: {:<6} PositionDate: {} YdPosition: {:<4} AllPosition: {:<4} Position: {:<4} PosiDirection: {:<6?} OpenVolume: {:<4} CloseVolume: {:<4}",
+            "Position: id: {}, contract: {:<6} PositionDate: {} YdPosition: {:<4} AllPosition: {:<4} Position: {:<4} PosiDirection: {:<6?} OpenVolume: {:<4} CloseVolume: {:<4}",
+            gb18030_cstr_to_str_i8(&self.InvestUnitID),
             self.InstrumentID.to_str_0(),
             self.PositionDate,
             self.YdPosition,
@@ -206,16 +210,39 @@ impl SeeString for CThostFtdcInvestorPositionField {
     }
 }
 
+impl SeeString for InvestorPositionDetailField {
+    fn see_string(&self) -> String {
+        format!(
+            "Position: id: {}, contract: {:<6} CloseVolume: {}",
+            gb18030_cstr_to_str_i8(&self.InvestUnitID),
+            self.InstrumentID.to_str_0(),
+            self.CloseVolume,
+        )
+    }
+}
+
 impl SeeString for CThostFtdcOrderField {
     fn see_string(&self) -> String {
         format!(
-            "RntOrder: contract: {:<7} Direction: {:<5?} OrderStatusCtp: {:<20?} VolumeTraded: {:<4} ToTalOrignalVolume: {:<4} LimitPrice: {:.0}",
+            "RntOrder: id: {}  contract: {:<7} Direction: {:<5?} OrderStatusCtp: {:<20?} VolumeTraded: {:<4} ToTalOrignalVolume: {:<4} LimitPrice: {:.0}",
+            self.InvestUnitID.to_str_0(),
             self.InstrumentID.to_str_0(),
             Direction::from_ctp_type(self.Direction),
             OrderStatusCtp::from_ctp_type(self.OrderStatus),
             self.VolumeTraded,
             self.VolumeTotalOriginal,
             self.LimitPrice,
+        )
+    }
+}
+
+impl SeeString for OnRspTradeField {
+    fn see_string(&self) -> String {
+        format!(
+            "TradeField: contract: {} id {}, Volume {}",
+            self.InstrumentID.to_str_0(),
+            self.InvestUnitID.to_str_0(),
+            self.Volume,
         )
     }
 }

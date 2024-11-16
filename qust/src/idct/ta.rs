@@ -497,7 +497,7 @@ impl Ta for EffRatio {
             .collect_vec()
             .roll(RollFunc::Sum, RollOps::N(self.1));
         let res = izip!(diff_data.iter(), vol.iter())
-            .map(|(x, &y)| if y == 0. { 0. } else { 100. * x / y })
+            .map(|(x, &y)| if y == 0. { f32::NAN } else { 100. * x / y })
             .collect_vec();
         vec![res]
     }

@@ -1,3 +1,4 @@
+use qust::live::bt::{ApiType, RetFnApi};
 use qust::prelude::*;
 use qust_ds::prelude::*;
 use qust_derive::*;
@@ -186,14 +187,14 @@ impl ApiType for TwoMaTickOrderAction {
             let long_value = long_ma.next(c);
             let hold = stream_api.hold.sum();
             let mut res = OrderAction::No;
-            if hold == 0 {
+            if hold == 0. {
                 match last_short_value != 0. && last_short_value < last_long_value && short_value >= long_value {
                     true => {
-                        res = OrderAction::LoOpen(1, stream_api.tick_data.bid1);
+                        res = OrderAction::LoOpen(1., stream_api.tick_data.bid1);
                     }
                     false => (),
                 }
-            } else if hold > 0 && short_value < long_value {
+            } else if hold > 0. && short_value < long_value {
                 res = OrderAction::ShClose(hold, stream_api.tick_data.ask1);
             }
             last_short_value = short_value;
@@ -213,11 +214,11 @@ impl CondType4 for TwoMaTickOrderAction {
             let i = stream_cond_type1.di_kline_state.di_kline.i;
             let hold = stream_cond_type1.stream_api.hold.sum();
             let mut res = OrderAction::No;
-            if hold == 0 {
+            if hold == 0. {
                 if tick_data.c > ma_ta_res[0][i] && ma_ta_res[0][i-1] < ma_ta_res[1][i-1] {
-                    res = OrderAction::LoOpen(1, tick_data.bid1);
+                    res = OrderAction::LoOpen(1., tick_data.bid1);
                 }
-            } else if hold > 0 && tick_data.c < ma_ta_res[0][i] {
+            } else if hold > 0. && tick_data.c < ma_ta_res[0][i] {
                 res = OrderAction::ShClose(hold, tick_data.ask1);
             }
             res

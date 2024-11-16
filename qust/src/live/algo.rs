@@ -1,96 +1,195 @@
-#![allow(unused_imports)]
-use crate::loge;
-use crate::prelude::{TickData, Ticker};
+use crate::prelude::{Dire, TickData, ToNum };
+use super::order_types::*;
+use super::bt::*;
 use qust_ds::prelude::*;
 use qust_derive::*;
 use dyn_clone::{clone_trait_object, DynClone};
-use serde::{Deserialize, Serialize};
 
-use super::prelude::{HoldLocal, LiveTarget, OrderAction, RetFnAlgo };
-use crate::sig::prelude::ToNum;
+pub type OrderTargetAndPrice = WithDire<(f32, f32)>;
+pub type RetFnAlgo = Box<dyn FnMut(&StreamAlgo) -> OrderAction +  'static>;
+pub type WithAlgoBox<T> = WithInfo<T, AlgoBox>;
 
-#[clone_trait]
-pub trait Algo {
-    fn algo(&self, ticker: Ticker) -> RetFnAlgo;
-}
 
-#[ta_derive]
-pub struct TargetSimple;
-
-#[typetag::serde]
-impl Algo for TargetSimple {
-    fn algo(&self, _ticker: Ticker) -> RetFnAlgo {
-        Box::new(move |stream_algo| {
-            use OrderAction::*;
-            let target = stream_algo.live_target.to_num() as i32;
-            let hold_local = stream_algo.stream_api.hold;
-            let tick_data = stream_algo.stream_api.tick_data;
-            let gap = target - hold_local.sum();
-            match (gap, target, hold_local.yd_sh, hold_local.yd_lo, hold_local.td_sh, hold_local.td_lo) {
-                (0, ..) => No,
-                (_, 0.., 1.., ..) => LoCloseYd(hold_local.yd_sh, tick_data.bid1),
-                (_, 0.., 0, _, 1.., _) => LoClose(hold_local.td_sh, tick_data.bid1),
-                (0.., 0.., 0, _, 0, _) => LoOpen(gap, tick_data.bid1),
-                (..=-1, 0.., 0, 1.., 0, 0..) => {
-                    if hold_local.yd_lo >= -gap {
-                        ShCloseYd(-gap, tick_data.ask1)
-                    } else {
-                        ShCloseYd(hold_local.yd_lo, tick_data.ask1)
-                    }
-                }
-                (..=-1, 0.., 0, 0, 0, 1..) => ShClose(-gap, tick_data.ask1),
-                (_, ..=-1, _, 1.., ..) => ShCloseYd(hold_local.yd_lo, tick_data.ask1),
-                (_, ..=-1, _, 0, _, 1..) => ShClose(hold_local.td_lo, tick_data.ask1),
-                (..=-1, ..=-1, _, 0, _, 0) => ShOpen(-gap, tick_data.ask1),
-                (0.., ..=-1, 1.., 0, 0.., 0) => {
-                    if hold_local.yd_sh >= gap {
-                        LoCloseYd(gap, tick_data.bid1)
-                    } else {
-                        LoCloseYd(hold_local.yd_sh, tick_data.bid1)
-                    }
-                }
-                (0.., ..=-1, 0, 0, 1.., 0) => LoClose(gap, tick_data.bid1),
-                _ => panic!("something action wrong"),
-            }
-        })
-    }
-}
-
-#[ta_derive]
-#[derive(Default)]
-pub struct TargetPriceDum {
-    original_price: f32,
-    exit_counts: usize,
-    last_action: OrderAction,
-    n_thre: usize,
-    open_counts: usize,
-    n_thre_open: usize,
-}
-
-impl TargetPriceDum {
-    pub fn from_n_thre(n: usize, n_open: usize) -> Self {
-        Self {
-            n_thre: n,
-            n_thre_open: n_open,
-            ..Default::default()
+impl ToNum for OrderTargetAndPrice {
+    fn to_num(&self) -> f32 {
+        match self.info {
+            Dire::Lo => self.data.0,
+            Dire::Sh => -self.data.0
         }
     }
 }
 
+pub struct StreamAlgo<'a> {
+    pub stream_api: StreamApiType<'a>,
+    pub order_target: OrderTarget,
+}
 
-#[ta_derive]
-pub struct AlgoTargetAndPrice;
+#[derive(Debug, Clone)]
+pub struct StreamOrderTarget {
+    pub tick_data: TickData,
+    pub hold: Hold,
+    pub num_price: OrderTarget,
+}
 
+
+#[clone_trait]
+pub trait Algo {
+    fn algo(&self) -> RetFnAlgo;
+}
+
+#[ta_derive2]
+pub struct AlgoTarget;
 
 #[typetag::serde]
-impl Algo for AlgoTargetAndPrice {
-    fn algo(&self, ticker:Ticker) -> RetFnAlgo {
-        Box::new(move |stream_algo| {
-            let LiveTarget::OrderAction(target) = &stream_algo.live_target else { 
-                panic!("wrong match algo: {} {:?}", ticker, stream_algo.live_target);
-            };
-            target.clone()
+impl Algo for AlgoTarget {
+    fn algo(&self) -> RetFnAlgo {
+        Box::new(move |stream| {
+            let target = stream.order_target.to_num();
+            let hold = stream.stream_api.hold.sum();
+            let gap = target - hold;
+            let mut res = OrderAction::No;
+            let tick_data = stream.stream_api.tick_data;
+            if gap == 0. {
+                return res;
+            }
+            if gap > 0. {
+                if hold < 0. {
+                    res = OrderAction::LoClose(-hold, tick_data.bid1);
+                } else if hold >= 0. {
+                    res = OrderAction::LoOpen(gap, tick_data.bid1);
+                }
+            } else if gap < 0. {
+                if hold > 0. {
+                    res = OrderAction::ShClose(hold, tick_data.ask1);
+                } else if hold <= 0. {
+                    res = OrderAction::ShOpen(-gap, tick_data.ask1);
+                }
+            }
+            res
         })
     }
 }
 
+
+#[ta_derive2]
+pub struct AlgoTargetQuik;
+
+#[typetag::serde]
+impl Algo for AlgoTargetQuik {
+    fn algo(&self) -> RetFnAlgo {
+        Box::new(move |stream| {
+            let target = stream.order_target.to_num();
+            let hold = stream.stream_api.hold.sum();
+            let gap = target - hold;
+            let mut res = OrderAction::No;
+            let tick_data = stream.stream_api.tick_data;
+            if gap == 0. {
+                return res;
+            }
+            if gap > 0. {
+                if hold < 0. {
+                    res = OrderAction::LoClose(-hold, tick_data.ask1);
+                } else if hold >= 0. {
+                    res = OrderAction::LoOpen(gap, tick_data.ask1);
+                }
+            } else if gap < 0. {
+                if hold > 0. {
+                    res = OrderAction::ShClose(hold, tick_data.bid1);
+                } else if hold <= 0. {
+                    res = OrderAction::ShOpen(-gap, tick_data.bid1);
+                }
+            }
+            res
+        })
+    }
+}
+
+// impl Algo for AlgoTarget {
+//     type Output = OrderActionTarget;
+//     fn algo(&self) -> FnMutBox<'static, StreamOrderTarget, Self::Output> {
+//         Box::new(move |stream| {
+//             let target = stream.num_price.to_num();
+//             let hold = stream.hold.sum();
+//             let gap = target - hold;
+//             let mut res = OrderActionTarget::No;
+//             if gap == 0. {
+//                 return res;
+//             }
+//             if gap > 0. {
+//                 if hold < 0. {
+//                     res = OrderActionTarget::LoClose(-hold);
+//                 } else if hold >= 0. {
+//                     res = OrderActionTarget::LoOpen(gap);
+//                 }
+//             } else if gap < 0. {
+//                 if hold > 0. {
+//                     res = OrderActionTarget::ShClose(hold);
+//                 } else if hold <= 0. {
+//                     res = OrderActionTarget::ShOpen(-gap);
+//                 }
+//             }
+//             res
+//         })
+        
+//     }
+// }
+
+// pub struct AlgoTargetAndPrice;
+
+// impl Algo for AlgoTargetAndPrice {
+//     fn algo(&self) -> FnMutBox<'static, StreamOrderTarget, OrderAction> {
+//         let mut algo_target = AlgoTarget.algo();
+//         Box::new(move |stream| {
+//             let tick_data = stream.tick_data.clone();
+//             let order_action_target = algo_target(stream);
+//             match order_action_target {
+//                 OrderActionTarget::No => {
+//                     OrderAction::No
+//                 }
+//                 OrderActionTarget::LoOpen(i) => {
+//                     OrderAction::LoOpen(i, tick_data.bid1)
+//                 }
+//                 OrderActionTarget::LoClose(i) => {
+//                     OrderAction::LoClose(i, tick_data.bid1)
+//                 }
+//                 OrderActionTarget::ShOpen(i) => {
+//                     OrderAction::ShOpen(i, tick_data.ask1)
+//                 }
+//                 OrderActionTarget::ShClose(i) => {
+//                     OrderAction::ShClose(i, tick_data.ask1)
+//                 }
+//             }
+//         })
+//     }
+// }
+
+
+// pub struct AlgoTargetAndPrice2;
+
+// impl Algo for AlgoTargetAndPrice2 {
+//     type Output = OrderAction;
+//     fn algo(&self) -> FnMutBox<'static, StreamOrderTarget, Self::Output> {
+//         let mut algo_target = AlgoTarget.algo();
+//         Box::new(move |stream| {
+//             let tick_data = stream.tick_data.clone();
+//             let order_action_target = algo_target(stream);
+//             match order_action_target {
+//                 OrderActionTarget::No => {
+//                     OrderAction::No
+//                 }
+//                 OrderActionTarget::LoOpen(i) => {
+//                     OrderAction::LoOpen(i, tick_data.ask1)
+//                 }
+//                 OrderActionTarget::LoClose(i) => {
+//                     OrderAction::LoClose(i, tick_data.ask1)
+//                 }
+//                 OrderActionTarget::ShOpen(i) => {
+//                     OrderAction::ShOpen(i, tick_data.bid1)
+//                 }
+//                 OrderActionTarget::ShClose(i) => {
+//                     OrderAction::ShClose(i, tick_data.bid1)
+//                 }
+//             }
+//         })
+//     }
+// }

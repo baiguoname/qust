@@ -3,7 +3,7 @@
 use qust:: { prelude::*, std_prelude::* };
 use ctp_futures::md_api::MdApi;
 use ctp_futures::trader_api::TraderApi;
-use ctp_futures::{ md_api, trader_api as td_api};
+use ctp_futures::{ md_api, trader_api as td_api, CThostFtdcQryOrderField};
 use futures::{StreamExt, executor::block_on};
 use super::config::CtpAccountConfig;
 use super::utiles::*;
@@ -44,6 +44,7 @@ pub struct Ctp {
     td_req_interval: Mutex<Instant>,
     need_reconnect_md: Mutex<bool>,
     need_reconnect_td: Mutex<bool>,
+    order_his: Mutex<Vec<OrderField>>,
 }
 
 impl Ctp {
@@ -66,6 +67,7 @@ impl Ctp {
             td_req_interval: Mutex::new(Instant::now()),
             need_reconnect_md: Mutex::new(false),
             need_reconnect_td: Mutex::new(false),
+            order_his: Mutex::new(Default::default()),
         }
     }
 
@@ -127,7 +129,6 @@ impl Ctp {
         let mut req = QryInvestorPositionField::default();
         set_cstr_from_str_truncate_i8(&mut req.BrokerID, self.ca.broker_id.as_str());
         set_cstr_from_str_truncate_i8(&mut req.InvestorID, self.ca.account.as_str());
-        // let mut res = 0;
         match self.td_req_interval.try_lock() {
             Ok(ref mut t_last) => {
                 let t_elapsed = t_last.elapsed().as_millis() as u64;
@@ -142,6 +143,29 @@ impl Ctp {
             }
         }
         // res
+    }
+
+    fn req_qry_position_detail(&self) -> i32 {
+        let mut req = QryInvestorPositionDetailField::default();
+        set_cstr_from_str_truncate_i8(&mut req.BrokerID, self.ca.broker_id.as_str());
+        set_cstr_from_str_truncate_i8(&mut req.InvestorID, self.ca.account.as_str());
+        self.td.lock().unwrap().req_qry_investor_position_detail(&mut req, self.td_accu())
+    }
+
+    fn req_qry_his_trade(&self) -> i32 {
+        let mut req = QryTradeField::default();
+        set_cstr_from_str_truncate_i8(&mut req.BrokerID, self.ca.broker_id.as_str());
+        set_cstr_from_str_truncate_i8(&mut req.InvestorID, self.ca.account.as_str());
+        set_cstr_from_str_truncate_i8(&mut req.InstrumentID, "eb2501");
+        println!("aaa");
+        self.td.lock().unwrap().req_qry_trade(&mut req, self.td_accu())
+    }
+
+    fn req_qry_his_order(&self) -> i32 {
+        let mut req = CThostFtdcQryOrderField::default();
+        set_cstr_from_str_truncate_i8(&mut req.BrokerID, self.ca.broker_id.as_str());
+        set_cstr_from_str_truncate_i8(&mut req.InvestorID, self.ca.account.as_str());
+        self.td.lock().unwrap().req_qry_order(&mut req, self.td_accu())
     }
 
     fn _req_update_positions_istmid(&self, instrumentid: IstmId) -> i32 {
@@ -305,7 +329,7 @@ impl Ctp {
                 }
                 OnRtnDepthMarketData(ref md) => {
                     let market_data: DepthMarketDataField = md.p_depth_market_data.unwrap();
-                    self.query_res.send_data_receive(market_data);
+                    self.query_res.send_data_recv(market_data);
                 }
                 OnRspUnSubMarketData(ref p) => {
                     loge!("ctp", "unsubmarketdata res: {}", p.p_rsp_info.unwrap().ErrorMsg.to_str_0());
@@ -388,7 +412,9 @@ impl Ctp {
                     loge!("ctp", "settlement info confirm");
                     let result = self.req_update_trading_account();
                     sleep2(1);
-                    let result = self.req_update_positions();
+                    // let result = self.req_update_positions();
+                    // let result = self.req_qry_his_trade();
+                    // self.req_qry_position_detail();
                 }
                 OnRspQryTradingAccount(ref p) => {
                     if let Some(taf) = p.p_trading_account {
@@ -396,15 +422,8 @@ impl Ctp {
                     }
                 }
                 OnRspQryInvestorPositionDetail(ref detail) => {
-                    if detail.b_is_last {
-                        sleep2(1);
-                        let mut req = QryInvestorPositionField::default();
-                        set_cstr_from_str_truncate_i8(&mut req.BrokerID, broker_id);
-                        set_cstr_from_str_truncate_i8(&mut req.InvestorID, account);
-                        let result = self.td
-                            .lock()
-                            .unwrap()
-                            .req_qry_investor_position(&mut req, self.td_accu());
+                    if let Some(p) = detail.p_investor_position_detail {
+                        println!("{:?}", p.see_string());
                     }
                 }
                 OnRspQryInvestorPosition(ref p) => {
@@ -416,18 +435,19 @@ impl Ctp {
                     }
                 }
                 OnRspQryOrder(ref p) => {
+                    if let Some(g) = p.p_order {
+                        let p_order: OrderField = p.p_order.unwrap();
+                        self.order_his.lock().unwrap().push(p_order);
+                    }
                     if p.b_is_last {
-                        let mut req = QryTradeField::default();
-                        set_cstr_from_str_truncate_i8(&mut req.BrokerID, broker_id);
-                        set_cstr_from_str_truncate_i8(&mut req.InvestorID, account);
-                        sleep2(1);
-                        let result = { self.td.lock().unwrap().req_qry_trade(&mut req, self.td_accu()) };
-                        if result != 0 {
-                        }
+                        let zz = &mut self.order_his.lock().unwrap();
+                        let mut kk = vec![];
+                        kk.append(zz);
+                        self.query_res.send_data_recv(kk);
                     }
                 }
                 OnRspOrderInsert(ref p) => {
-                    self.query_res.send_data_receive(p.clone());
+                    self.query_res.send_data_recv(p.clone());
                     let g: RspInfoField = p.p_rsp_info.unwrap();
                     if g.ErrorID != 0 {
                         println!(
@@ -441,7 +461,7 @@ impl Ctp {
                 }
                 OnRtnOrder(ref p) => {
                     let p_order: OrderField = p.p_order.unwrap();
-                    self.query_res.send_data_receive(p_order);
+                    self.query_res.send_data_recv(p_order);
                 }
                 OnRspQryInstrument(ref p) => {
                     if p.b_is_last {
@@ -449,7 +469,12 @@ impl Ctp {
                         self.update_qry_instrument(res);
                     }
                 }
-                OnRtnTrade(ref _p) => {}
+                OnRtnTrade(ref p) => {
+                    println!("{:?}", p);
+                    if let Some(p) = p.p_trade {
+                        println!("{}", p.see_string());
+                    }
+                }
                 OnRtnInstrumentStatus(ref p) => {
                 }
                 OnRspOrderAction(ref _p) => {}
@@ -463,31 +488,38 @@ impl Ctp {
         }
     }
 
-    pub fn start_spy_on_data_send(&self, trade_api: Arc<TradeApi>) -> Option<()> {
+    pub fn start_spy_on_data_send(&self, trade_api: TradeApi) -> Option<()> {
         let contract = trade_api.contract;
         let instrumentid = contract.into_istm_id();
-        let ticker = self.query_res.contract_ticker_map.get(&instrumentid)?;
+        let ticker = self.query_res.contract_ticker_map.get(&instrumentid)?.extract_ticker()?.0;
         loge!("spy", "ctp start holder nitification: {}", contract);
         loop {
-            let (guard, is_started) = trade_api
+            let (mut guard, is_started) = trade_api
                 .data_send
-                .wait_or_exit(&format!("ctp stop holder notification: {}", contract));
+                .wait_or_exit_vec(&format!("ctp stop holder notification: {}", contract));
             if !is_started { 
                 break; 
             }
-            let order_send = guard.clone();
+            let mut order_send = guard.clone();
+            guard.clear();
+            drop(guard);
+            let Some(order_send) = order_send.pop_back() else {
+                continue;
+            };
             if order_send.id.is_empty() {
                 loge!(ticker, "windows wrong: somehow be notified when start tradeapi");
                 continue;
             }
             loge!(ticker, "ctp get a order_action_price notify: {:?}", order_send);
-            let mut order = OrderSendWithAcco {
+            let Some(mut order) = OrderSendWithAcco {
                 contract: &instrumentid,
                 invester_id: &self.ca.account,
                 order_input: order_send.clone(),
                 broker_id: self.ca.broker_id.as_str(),
                 account: self.ca.account.as_str(),
-            }.api_convert();
+            }.api_convert() else { 
+                continue;
+            };
             let req_order_res = self.req_order(&mut order);
             loge!(ticker, "ctp req a order, res: {req_order_res} -- {:?}", order);
         }
@@ -504,14 +536,14 @@ impl CtpApi {
 
     pub fn new(
         account: CtpAccountConfig, 
-        trade_api_vec: Vec<Arc<TradeApi>>,
+        trade_api_vec: Vec<TradeApi>,
     ) -> Self {
         let (contract_data_receive_map, contract_ticker_map) = trade_api_vec
             .into_iter()
             .fold((hm::new(), hm::new()), |mut accu, trade_api| {
                 let istm_id = trade_api.contract.into_istm_id();
-                accu.0.insert(istm_id, trade_api.data_receive.clone());
-                accu.1.insert(istm_id, trade_api.ticker.into());
+                accu.0.insert(trade_api.data_recv_id.clone(), trade_api.data_recv.clone());
+                accu.1.insert(istm_id, trade_api.contract);
                 accu
             });
         let query_res = CtpQueryRes {
@@ -552,7 +584,7 @@ impl CtpApi {
         sleep2(1);
     }
 
-    pub fn start_spy_on_data_send(&self, trade_api: Vec<Arc<TradeApi>>) {
+    pub fn start_spy_on_data_send(&self, trade_api: Vec<TradeApi>) {
         trade_api
             .into_iter()
             .for_each(|x| {
@@ -564,22 +596,25 @@ impl CtpApi {
      }
 
     pub fn start_spy_on_data_receive(&self) {
+        self.ctp.req_qry_his_order();
+        sleep2(2);
         self.ctp.subsecribe_market_data_all();
     }
 }
 
 impl ServiceApi for CtpApi {
-    fn start(&self, trade_api: Vec<Arc<TradeApi>>) -> Result<()> {
+    fn start(&self, trade_api: Vec<TradeApi>) -> Result<()> {
         loge!("ctp", "api version {}", self.ctp.get_api_version().unwrap());
         self.init_service();
         self.login().map_err(|err| anyhow::anyhow!(format!("{err:?}")))?;
         self.start_spy_on_data_send(trade_api);
         sleep2(1);
         self.start_spy_on_data_receive();
+        sleep2(1);
         Ok(())
     }
 
-    fn stop(&self, _trade_api: Vec<Arc<TradeApi>>) -> Result<()> {
+    fn stop(&self, _trade_api: Vec<TradeApi>) -> Result<()> {
         self.ctp.un_subseribe_market_data_all();
         self.logout();
         Ok(())
@@ -591,6 +626,7 @@ pub async fn run_ctp<T: ServiceApi>(running_api: RunningApi<T, CtpApi>) {
     use super::time_manager::*;
 
     let mut running_api = running_api;
+    running_api.init().unwrap();
     let mut time_manager = TimeManager::default();
     let sleep_n = 100;
     for _ in 0..10000 {
@@ -627,7 +663,7 @@ pub async fn run_ctp<T: ServiceApi>(running_api: RunningApi<T, CtpApi>) {
 }
 
 pub fn running_api_ctp(stra_api: StraApi, account: CtpAccountConfig) -> RunningApi<StraApi, CtpApi> {
-    let trade_api_vec = stra_api.get_trade_api_vec1();
+    let trade_api_vec = stra_api.get_trade_api_vec();
     let ctp_api = CtpApi::new(account, trade_api_vec.clone());
     RunningApi {
         stra_api,

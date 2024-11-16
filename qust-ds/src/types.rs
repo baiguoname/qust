@@ -20,3 +20,4 @@ pub type avdt = Arc<vdt>;
 pub type avda = Arc<vda>;
 pub type vv<T> = Vec<Vec<T>>;
 pub type hm<K, V> = std::collections::HashMap<K, V>;
+pub type sstr = &'static str;

@@ -1,7 +1,29 @@
 use qust_derive::*;
+use crate::trade::prelude::*;
 use serde::{ Serialize, Deserialize };
-use super::cond_ops::*;
 use super::order_types::*;
+use super::bt::*;
+use dyn_clone::{clone_trait_object, DynClone};
+use qust_ds::prelude::*;
+
+
+
+pub type WithMatchBox<T> = WithInfo<T, BtMatchBox>;
+
+
+#[derive(Debug)]
+pub struct StreamBtMatch<'a> {
+    pub tick_data: &'a TickData,
+    pub hold: &'a mut Hold,
+    pub order_action: &'a OrderAction,
+}
+
+pub type RetFnBtMatch<'a> = Box<dyn FnMut(StreamBtMatch) -> Option<TradeInfo> + 'a>;
+
+#[clone_trait]
+pub trait BtMatch {
+    fn bt_match(&self) -> RetFnBtMatch;
+}
 
 #[ta_derive2]
 pub struct MatchSimple;
@@ -18,28 +40,28 @@ impl BtMatch for MatchSimple {
             LoOpen(i, price) => {
                 if tick_data.c <= price {
                     res = Some(TradeInfo { time: tick_data.t, action: LoOpen(i, price) });
-                    hold.td_lo += i;
+                    hold.lo += i;
                 }
             }
             LoClose(i, price) => {
                 if tick_data.c <= price {
                     // res = Some(TradeInfo { time: tick_data.t, action: LoClose(i, tick_data.c) });
                     res = Some(TradeInfo { time: tick_data.t, action: LoClose(i, price) });
-                    hold.td_sh -= i;
+                    hold.sh -= i;
                 }
             }
             ShOpen(i, price) => {
                 if tick_data.c >= price {
                     // res = Some(TradeInfo { time: tick_data.t, action: ShOpen(i, tick_data.c) });
                     res = Some(TradeInfo { time: tick_data.t, action: ShOpen(i, price) });
-                    hold.td_sh += i;
+                    hold.sh += i;
                 }
             }
             ShClose(i, price) => {
                 if tick_data.c >= price {
                     // res = Some(TradeInfo { time: tick_data.t, action: ShClose(i, tick_data.c) });
                     res = Some(TradeInfo { time: tick_data.t, action: ShClose(i, price) });
-                    hold.td_lo -= i;
+                    hold.lo -= i;
                 }
             }
             _ => { }
@@ -75,28 +97,28 @@ impl BtMatch for MatchSimnow {
                     if tick_data.ask1 <= price {
                         let match_price = middle_value(price, tick_data.c, tick_data.ask1);
                         res = Some(TradeInfo { time: tick_data.t, action: LoOpen(i, match_price)});
-                        hold.td_lo += i;
+                        hold.lo += i;
                     }
                 }
                 LoClose(i, price) => {
                     if tick_data.ask1 <= price {
                         let match_price = middle_value(price, tick_data.c, tick_data.ask1);
                         res = Some(TradeInfo { time: tick_data.t, action: LoClose(i, match_price)});
-                        hold.td_sh -= i;
+                        hold.sh -= i;
                     }
                 }
                 ShOpen(i, price) => {
                     if tick_data.bid1 >= price {
                         let match_price = middle_value(price, tick_data.c, tick_data.bid1);
                         res = Some(TradeInfo { time: tick_data.t, action: ShOpen(i, match_price)});
-                        hold.td_sh += i;
+                        hold.sh += i;
                     }
                 }
                 ShClose(i, price) => {
                     if tick_data.bid1 >= price {
                         let match_price = middle_value(price, tick_data.c, tick_data.bid1);
                         res = Some(TradeInfo { time: tick_data.t, action: ShClose(i, match_price)});
-                        hold.td_lo -= i;
+                        hold.lo -= i;
                     }
                 }
                 _ => { }
@@ -122,19 +144,19 @@ impl BtMatch for MatchOldBt {
             }
             let res = match stream_bt_match.order_action.clone() {
                 LoOpen(i, _) => {
-                    hold.td_lo += i;
+                    hold.lo += i;
                     Some(TradeInfo { time: tick_data.t, action: LoOpen(i, c) })
                 }
                 LoClose(i, _) => {
-                    hold.td_sh -= i;
+                    hold.sh -= i;
                     Some(TradeInfo { time: tick_data.t, action: LoClose(i, c) })
                 }
                 ShOpen(i, _) => {
-                    hold.td_sh += i;
+                    hold.sh += i;
                     Some(TradeInfo { time: tick_data.t, action: ShOpen(i, c) })
                 }
                 ShClose(i, _) => {
-                    hold.td_lo -= i;
+                    hold.lo -= i;
                     Some(TradeInfo { time: tick_data.t, action: ShClose(i, c) })
                 }
                 _ => { None }
@@ -157,26 +179,25 @@ impl BtMatch for MatchMean {
             use OrderAction::*;
             let tick_data = stream_bt_match.tick_data;
             let hold = stream_bt_match.hold;
-            let p = if c == 0. {
-                tick_data.c
-            } else {
-                (tick_data.c + c) / 2.
-            };
+            if c == 0. {
+                c = tick_data.c;
+            }
+            let p = (tick_data.c + c) / 2.;
             let res = match stream_bt_match.order_action.clone() {
                 LoOpen(i, _) => {
-                    hold.td_lo += i;
+                    hold.lo += i;
                     Some(TradeInfo { time: tick_data.t, action: LoOpen(i, p) })
                 }
                 LoClose(i, _) => {
-                    hold.td_sh -= i;
+                    hold.sh -= i;
                     Some(TradeInfo { time: tick_data.t, action: LoClose(i, p) })
                 }
                 ShOpen(i, _) => {
-                    hold.td_sh += i;
+                    hold.sh += i;
                     Some(TradeInfo { time: tick_data.t, action: ShOpen(i, p) })
                 }
                 ShClose(i, _) => {
-                    hold.td_lo -= i;
+                    hold.lo -= i;
                     Some(TradeInfo { time: tick_data.t, action: ShClose(i, p) })
                 }
                 _ => { None }
@@ -186,3 +207,91 @@ impl BtMatch for MatchMean {
         })
     }
 }
+
+#[ta_derive2]
+pub struct MatchSimnow2;
+
+
+#[typetag::serde]
+impl BtMatch for MatchSimnow2 {
+    fn bt_match(&self) -> RetFnBtMatch {
+        Box::new(move |stream_bt_match| {
+            use OrderAction::*;
+            let tick_data = stream_bt_match.tick_data;
+            let hold = stream_bt_match.hold;
+            let mut res = None;
+            match stream_bt_match.order_action.clone() {
+                LoOpen(i, price) => {
+                    if tick_data.ask1 <= price {
+                        res = Some(TradeInfo { time: tick_data.t, action: LoOpen(i, tick_data.c)});
+                        hold.lo += i;
+                    }
+                }
+                LoClose(i, price) => {
+                    if tick_data.ask1 <= price {
+                        res = Some(TradeInfo { time: tick_data.t, action: LoClose(i, tick_data.c)});
+                        hold.sh -= i;
+                    }
+                }
+                ShOpen(i, price) => {
+                    if tick_data.bid1 >= price {
+                        res = Some(TradeInfo { time: tick_data.t, action: ShOpen(i, tick_data.c)});
+                        hold.sh += i;
+                    }
+                }
+                ShClose(i, price) => {
+                    if tick_data.bid1 >= price {
+                        res = Some(TradeInfo { time: tick_data.t, action: ShClose(i, tick_data.c)});
+                        hold.lo -= i;
+                    }
+                }
+                _ => { }
+            }
+            res
+        })
+    }
+}
+
+// #[ta_derive2]
+// pub struct MatchQueue(pub i32);
+
+// // #[typetag::serde]
+// impl BtMatch for MatchQueue {
+//     fn bt_match(&self) -> RetFnBtMatch {
+//         let mut last_order_action = OrderAction::No;
+//         // let mut counts = 0i32;
+//         let mut remain = 0f32;
+//         Box::new(move |stream| {
+//             use OrderAction::*;
+//             let tick_data = stream.tick_data;
+//             let order_action = stream.order_action.clone();
+//             let mut res = None;
+//             match order_action.clone() {
+//                 LoOpen(i, p) => {
+//                     if last_order_action == order_action {
+//                         if tick_data.c == p {
+//                             if tick_data.v >= remain {
+//                                 res = Some(TradeInfo { time: tick_data.t, action: LoOpen(i, p)});
+//                                 last_order_action = No;
+//                             }
+//                         } else if tick_data.c < p {
+//                             res = Some(TradeInfo { time: tick_data.t, action: LoOpen(i, p)});
+//                             last_order_action = No;
+//                         }
+//                     } else {
+//                         if tick_data.c == p {
+//                             if tick_data.bid1 == p {
+//                                 remain = tick_data.bid1_v;
+//                                 last_order_action = order_action;
+//                             } else if tick_data.bid1 < p {
+//                                 res = Some(TradeInfo { time: tick_data.t, action: LoOpen(i, p)});
+//                                 last_order_action = No;
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+//             res
+//         })
+//     }
+// }
