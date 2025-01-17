@@ -1,6 +1,6 @@
 [package]
 name = "qust-ds"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 authors = ["baiguo<aruster@qq.com>"]
 description = "a part of crate qust"
