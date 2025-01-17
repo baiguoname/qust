@@ -12,6 +12,7 @@ use crate::trade::ticker::*;
 use std::collections::VecDeque;
 use super::super::trend::prelude::*;
 use super::cond::*;
+use super::update_sync::*;
 
 
 
@@ -175,7 +176,7 @@ where
                 };
                 if let Some(order_action_vec) = stra_ops(updated_data_index) {
                     if let OrderAction::No = order_action_vec[0] {} else {
-                        // loge!("ctp", "{:?}", order_action_vec);
+                        loge!("ctp", "{:?}", order_action_vec);
                     }
                     order_action_pre = order_action_vec;
                 }

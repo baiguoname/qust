@@ -10,21 +10,7 @@ use crate::prelude::OrderAction;
 use crate::prelude::OrderTarget;
 use crate::prelude::Ticker;
 use crate::prelude::{ HasLen, TickData};
-
-pub enum UpdatedData {
-    TickData(TickData),
-    Hold(Hold),
-}
-
-pub struct UpdatedDataIndex {
-    pub index: usize,
-    pub data: UpdatedData,
-}
-
-pub struct UpdatedTickDataIndex {
-    pub index: usize,
-    pub data: TickData,
-}
+use super::update_sync::*;
 
 
 #[derive(Debug, Default)]
@@ -156,34 +142,5 @@ where
 {
     fn get_ticker_vec(&self) -> Vec<Ticker> {
         self.data.get_ticker_vec()
-    }
-}
-
-pub trait UpdatedPool {
-    fn updated_pool(&self) -> FnMutBox<UpdatedTickDataIndex, Option<Vec<TickData>>>;
-}
-
-#[derive(Debug, Clone)]
-pub struct AllEmergedQue(pub usize);
-
-impl UpdatedPool for AllEmergedQue {
-    fn updated_pool(&self) -> FnMutBox<UpdatedTickDataIndex, Option<Vec<TickData>>> {
-        let mut tick_cache = repeat_to_vec(|| Option::<TickData>::None, self.0);
-        let mut cached_set: HashSet<usize> = HashSet::with_capacity(self.0); 
-        Box::new(move |updated_tick_data_index| {
-            let index = updated_tick_data_index.index;
-            let tick_data = updated_tick_data_index.data;
-            tick_cache[index] = Some(tick_data);
-            cached_set.insert(index);
-            if cached_set.len() != self.0 {
-                return None;
-            }
-            cached_set.clear();
-            tick_cache
-                .iter_mut()
-                .map(|x| x.take().unwrap())
-                .collect_vec()
-                .pip(Some)
-        })
     }
 }

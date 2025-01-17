@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use num_traits::{self};
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use num_traits::Num;
 
 /* #region BroadcastIndex */
@@ -362,6 +363,24 @@ pub trait Unique<'a, T: 'a>: AsRef<[T]> {
             }
         }
         true
+    }
+
+    fn is_last_distinct(&self) -> Vec<bool>
+    where
+        T: Eq,
+        for<'b> &'b T: Hash,
+    {
+        let mut res = Vec::with_capacity(self.as_ref().len());
+        let mut unique_pool: HashSet<&T> = HashSet::new();
+        for data in self.as_ref().iter().rev() {
+            if unique_pool.contains(&data) {
+                res.push(false);
+            } else {
+                res.push(true);
+                unique_pool.insert(data);
+            }
+        }
+        res.into_iter().rev().collect()
     }
 }
 impl<'a, T: 'a> Unique<'a, T> for [T] {}

@@ -252,46 +252,97 @@ impl BtMatch for MatchSimnow2 {
     }
 }
 
-// #[ta_derive2]
-// pub struct MatchQueue(pub i32);
+#[ta_derive2]
+pub struct MatchQueue;
 
-// // #[typetag::serde]
-// impl BtMatch for MatchQueue {
-//     fn bt_match(&self) -> RetFnBtMatch {
-//         let mut last_order_action = OrderAction::No;
-//         // let mut counts = 0i32;
-//         let mut remain = 0f32;
-//         Box::new(move |stream| {
-//             use OrderAction::*;
-//             let tick_data = stream.tick_data;
-//             let order_action = stream.order_action.clone();
-//             let mut res = None;
-//             match order_action.clone() {
-//                 LoOpen(i, p) => {
-//                     if last_order_action == order_action {
-//                         if tick_data.c == p {
-//                             if tick_data.v >= remain {
-//                                 res = Some(TradeInfo { time: tick_data.t, action: LoOpen(i, p)});
-//                                 last_order_action = No;
-//                             }
-//                         } else if tick_data.c < p {
-//                             res = Some(TradeInfo { time: tick_data.t, action: LoOpen(i, p)});
-//                             last_order_action = No;
-//                         }
-//                     } else {
-//                         if tick_data.c == p {
-//                             if tick_data.bid1 == p {
-//                                 remain = tick_data.bid1_v;
-//                                 last_order_action = order_action;
-//                             } else if tick_data.bid1 < p {
-//                                 res = Some(TradeInfo { time: tick_data.t, action: LoOpen(i, p)});
-//                                 last_order_action = No;
-//                             }
-//                         }
-//                     }
-//                 }
-//             }
-//             res
-//         })
-//     }
-// }
+#[typetag::serde]
+impl BtMatch for MatchQueue {
+    fn bt_match(&self) -> RetFnBtMatch {
+        let mut last_order_action = OrderAction::No;
+        // let mut counts = 0i32;
+        let mut remain = 0f32;
+        let mut last_tick_data = TickData::default();
+        Box::new(move |stream| {
+            use OrderAction::*;
+            let tick_data = stream.tick_data;
+            let order_action = stream.order_action.clone();
+            let mut res = None;
+            let hold = stream.hold;
+            if last_order_action != order_action {
+                match &order_action {
+                    LoOpen(_, ref p) | LoClose(_, ref p) => {
+                        if *p == last_tick_data.bid1 {
+                            remain = last_tick_data.bid1_v;
+                        }
+                    }
+                    ShOpen(_, ref p) | ShClose(_, ref p) => {
+                        if *p == last_tick_data.ask1 {
+                            remain = last_tick_data.ask1_v;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            match order_action.clone() {
+                LoOpen(i, p)  => {
+                    if tick_data.c == p {
+                        if tick_data.v >= remain {
+                            res = Some(TradeInfo { time: tick_data.t, action: order_action.clone() });
+                            hold.lo += i;
+                        } else {
+                            remain -= tick_data.v;
+                        }
+                    } else if tick_data.c < p {
+                        res = Some(TradeInfo { time: tick_data.t, action: order_action.clone() });
+                        hold.lo +=  i;
+                    }
+                }
+                LoClose(i, p) => {
+                    if tick_data.c == p {
+                        if tick_data.v >= remain {
+                            res = Some(TradeInfo { time: tick_data.t, action: order_action.clone() });
+                            hold.lo -= i;
+                        } else {
+                            remain -= tick_data.v;
+                        }
+                    } else if tick_data.c < p {
+                        res = Some(TradeInfo { time: tick_data.t, action: order_action.clone() });
+                        hold.lo -= i;
+                    }
+                }
+                ShOpen(i, p) => {
+                    if tick_data.c == p {
+                        if tick_data.v >= remain {
+                            res = Some(TradeInfo { time: tick_data.t, action: order_action.clone() });
+                            hold.sh += i;
+                        } else {
+                            remain -= tick_data.v;
+                        }
+                    } else if tick_data.c > p {
+                        res = Some(TradeInfo { time: tick_data.t, action: order_action.clone() });
+                        hold.sh += i;
+                    }
+                }
+                ShClose(i, p) => {
+                    if tick_data.c == p {
+                        if tick_data.v >= remain {
+                            res = Some(TradeInfo { time: tick_data.t, action: order_action.clone() });
+                            hold.sh -= i;
+                        } else {
+                            remain -= tick_data.v;
+                        }
+                    } else if tick_data.c > p {
+                        res = Some(TradeInfo { time: tick_data.t, action: order_action.clone() });
+                        hold.sh -= i;
+                    }
+                }
+                _ => {
+                    remain = 0.;
+                }
+            }
+            last_order_action = order_action;
+            last_tick_data = tick_data.clone();
+            res
+        })
+    }
+}

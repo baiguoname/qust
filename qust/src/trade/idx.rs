@@ -8,21 +8,38 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 #[derive(Clone)]
-enum Idx {
+pub enum Idx {
     Range(Range<usize>),
     List(Vec<usize>),
+    Bool(Vec<bool>),
 }
 
 impl Idx {
-    fn into_vec(self) -> Vec<usize> {
+
+    pub fn index_out<T>(&self, data: &[T]) -> Vec<T>
+    where
+        T: Clone,
+    {
         match self {
-            Idx::Range(r) => r.collect_vec(),
-            Idx::List(v) => v,
+            Idx::Range(r) => {
+                data[r.clone()].to_vec()
+            }
+            Idx::List(v) => {
+                data.get_list_index(v)
+            }
+            Idx::Bool(v) => {
+                data.iter().cloned().zip(v.iter())
+                    .filter_map(|(d, t)| {
+                        t.then_some(d)
+                    })
+                    .collect_vec()
+            }
         }
+
     }
 }
 
-trait IdxOut {
+pub trait IdxOut {
     fn idx_out(&self, idx: Idx) -> Self;
     fn get_time_vec(&self) -> Cow<'_, Vec<dt>>;
 }
@@ -171,27 +188,15 @@ where
 
 impl IdxOut for PriceTick {
     fn idx_out(&self, idx: Idx) -> Self {
-        match idx {
-            Idx::Range(r) => PriceTick {
-                t: self.t[r.clone()].to_vec(),
-                c: self.c[r.clone()].to_vec(),
-                v: self.v[r.clone()].to_vec(),
-                ct: self.ct[r.clone()].to_vec(),
-                bid1: self.bid1[r.clone()].to_vec(),
-                ask1: self.ask1[r.clone()].to_vec(),
-                bid1_v: self.bid1_v[r.clone()].to_vec(),
-                ask1_v: self.ask1_v[r].to_vec(),
-            },
-            Idx::List(v) => PriceTick {
-                t: self.t.get_list_index(&v),
-                c: self.c.get_list_index(&v),
-                v: self.v.get_list_index(&v),
-                ct: self.ct.get_list_index(&v),
-                bid1: self.bid1.get_list_index(&v),
-                ask1: self.ask1.get_list_index(&v),
-                bid1_v: self.bid1_v.get_list_index(&v),
-                ask1_v: self.ask1_v.get_list_index(&v),
-            },
+        PriceTick {
+            t: idx.index_out(&self.t),
+            c: idx.index_out(&self.c),
+            v: idx.index_out(&self.v),
+            ct: idx.index_out(&self.ct),
+            bid1: idx.index_out(&self.bid1),
+            ask1: idx.index_out(&self.ask1),
+            bid1_v: idx.index_out(&self.bid1_v),
+            ask1_v: idx.index_out(&self.ask1_v),
         }
     }
     fn get_time_vec(&self) -> Cow<'_, Vec<dt>> {
@@ -201,40 +206,23 @@ impl IdxOut for PriceTick {
 
 impl IdxOut for PriceOri {
     fn idx_out(&self, idx: Idx) -> Self {
-        match idx {
-            Idx::Range(r) => PriceOri {
-                t: self.t[r.clone()].to_vec(),
-                o: self.o[r.clone()].to_vec(),
-                h: self.h[r.clone()].to_vec(),
-                l: self.l[r.clone()].to_vec(),
-                c: self.c[r.clone()].to_vec(),
-                v: self.v[r.clone()].to_vec(),
-                ki: self.ki[r.clone()].to_vec(),
-                immut_info: {
-                    if self.immut_info.len() < self.t.len() {
-                        self.immut_info.clone()
-                    } else {
-                        self.immut_info[r.clone()].to_vec()
-                    }
-                },
-            },
-            Idx::List(v) => PriceOri {
-                t: self.t.get_list_index(&v).to_vec(),
-                o: self.o.get_list_index(&v).to_vec(),
-                h: self.h.get_list_index(&v).to_vec(),
-                l: self.l.get_list_index(&v).to_vec(),
-                c: self.c.get_list_index(&v).to_vec(),
-                v: self.v.get_list_index(&v).to_vec(),
-                ki: self.ki.get_list_index(&v).to_vec(),
-                immut_info: {
-                    if self.immut_info.len() < self.t.len() {
-                        self.immut_info.clone()
-                    } else {
-                        self.immut_info.get_list_index(&v)
-                    }
-                },
+        PriceOri {
+            t: idx.index_out(&self.t),
+            o: idx.index_out(&self.o),
+            h: idx.index_out(&self.h),
+            l: idx.index_out(&self.l),
+            c: idx.index_out(&self.c),
+            v: idx.index_out(&self.v),
+            ki: idx.index_out(&self.ki),
+            immut_info: {
+                if self.immut_info.len() < self.t.len() {
+                    self.immut_info.clone()
+                } else {
+                    idx.index_out(&self.immut_info)
+                }
             },
         }
+
     }
     fn get_time_vec(&self) -> Cow<'_, Vec<dt>> {
         Cow::Borrowed(&self.t)
@@ -256,10 +244,9 @@ impl IdxOut for Di {
 
 impl IdxOut for PnlRes<dt> {
     fn idx_out(&self, idx: Idx) -> Self {
-        let index_vec = idx.into_vec();
         Self(
-            self.0.get_list_index(&index_vec),
-            self.1.map(|x| x.get_list_index(&index_vec)),
+            idx.index_out(&self.0),
+            self.1.map(|x| idx.index_out(x))
         )
     }
     fn get_time_vec(&self) -> Cow<'_, Vec<dt>> {
@@ -269,10 +256,9 @@ impl IdxOut for PnlRes<dt> {
 
 impl IdxOut for PnlRes<da> {
     fn idx_out(&self, idx: Idx) -> Self {
-        let index_vec = idx.into_vec();
         Self(
-            self.0.get_list_index(&index_vec),
-            self.1.map(|x| x.get_list_index(&index_vec)),
+            idx.index_out(&self.0),
+            self.1.map(|x| idx.index_out(x))
         )
     }
     fn get_time_vec(&self) -> Cow<'_, Vec<dt>> {
@@ -513,5 +499,20 @@ impl<T> HasLen for PnlRes<T> {
 impl<T, N> HasLen for InfoPnlRes<T, N> {
     fn size(&self) -> usize {
         self.1.size()
+    }
+}
+
+
+pub trait ExtractNear {
+    fn extract_near(&self, i: usize, offset: usize) -> Self;
+}
+
+impl<T> ExtractNear for T
+where
+    T: IdxOut,
+{
+    fn extract_near(&self, i: usize, offset: usize) -> Self {
+        let idx = Idx::Range((i - offset.min(i)) .. (i + offset));
+        self.idx_out(idx)
     }
 }

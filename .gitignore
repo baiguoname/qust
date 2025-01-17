@@ -4,8 +4,8 @@
 /Cargo.lock
 target
 *tmpdir
-*data
 *logs
 /stra
 /getdata
 /Cargo.lock
+/jljh-test

@@ -55,7 +55,8 @@ pub struct PnlResPreInfo<'a> {
 impl IntoPnlRes for PnlResPreInfo<'_> {
     fn into_pnl_res(self) -> PnlRes<dt> {
         let c = self.c;
-        let comm = self.comm;
+        // let comm = self.comm;
+        let comm = CommSlip(0., 0.);
         let ticker_info = self.ticker.info();
         let tz = ticker_info.tz;
         let pv = ticker_info.pv;

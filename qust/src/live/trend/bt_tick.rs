@@ -80,12 +80,29 @@ struct KlineRange {
 
 
 
-impl<N: Algo> ApiType for WithInfo<Box<dyn CondType7>, N> {
+// impl<N: Algo> ApiType for WithInfo<Box<dyn CondType7>, N> {
+//     fn api_type(&self) -> RetFnApi {
+//         let mut ops_fn = self.data.cond_type7();
+//         let mut algo_fn = self.info.algo();
+//         Box::new(move |stream_api| {
+//             let order_target = ops_fn(stream_api.tick_data);
+//             // loge!("ctp", "stra calc a res: {:?}", order_target);
+//             let stream_algo = StreamAlgo {
+//                 stream_api,
+//                 order_target,
+//             };
+//             algo_fn(&stream_algo)
+//         })
+//     }
+// }
+
+impl<T: CondType7, N: Algo> ApiType for WithInfo<T, N> {
     fn api_type(&self) -> RetFnApi {
         let mut ops_fn = self.data.cond_type7();
         let mut algo_fn = self.info.algo();
         Box::new(move |stream_api| {
             let order_target = ops_fn(stream_api.tick_data);
+            // loge!("ctp", "stra calc a res: {:?}", order_target);
             let stream_algo = StreamAlgo {
                 stream_api,
                 order_target,
@@ -95,9 +112,44 @@ impl<N: Algo> ApiType for WithInfo<Box<dyn CondType7>, N> {
     }
 }
 
-impl<T> CondType8 for WithMatchBox<T> 
+// impl<T> CondType8 for WithMatchBox<T> 
+// where
+//     T: ApiType,
+// {
+//     fn cond_type8(&self) -> RetFnCondType8 {
+//         let mut ops_fn = self.data.api_type();
+//         let mut match_fn = self.info.bt_match();
+//         let mut hold = Hold::default();
+//         let mut last_order_action = OrderAction::default();
+//         Box::new(move |tick_data| {
+//             if tick_data.ask1 == 0. || tick_data.bid1 == 0. {
+//                 return None;
+//             }
+//             let stream_bt_match = StreamBtMatch {
+//                 tick_data,
+//                 hold: &mut hold,
+//                 order_action: &last_order_action,
+//             };
+//             let res = match_fn(stream_bt_match);
+//             // loge!("ctp", "-------------------------");
+//             // loge!("ctp", "got this tick data {:?}", tick_data);
+//             // loge!("ctp", "match last order: {:?} {:?} {:?}", tick_data.t, last_order_action, res);
+//             // loge!("ctp", "match after hold: {:?}", hold);
+//             let stream_api = StreamApiType {
+//                 tick_data,
+//                 hold: &hold,
+//             };
+//             last_order_action = ops_fn(stream_api);
+//             // loge!("ctp", "algo this tick: {:?} {:?}", tick_data.t, last_order_action);
+//             res
+//         })
+//     }
+// }
+
+impl<T, N> CondType8 for WithInfo<T, N> 
 where
     T: ApiType,
+    N: BtMatch,
 {
     fn cond_type8(&self) -> RetFnCondType8 {
         let mut ops_fn = self.data.api_type();
@@ -111,14 +163,19 @@ where
             let stream_bt_match = StreamBtMatch {
                 tick_data,
                 hold: &mut hold,
-                order_action: &last_order_action.clone(),
+                order_action: &last_order_action,
             };
             let res = match_fn(stream_bt_match);
+            // loge!("ctp", "-------------------------");
+            // loge!("ctp", "got this tick data {:?}", tick_data);
+            // loge!("ctp", "match last order: {:?} {:?} {:?}", tick_data.t, last_order_action, res);
+            // loge!("ctp", "match after hold: {:?}", hold);
             let stream_api = StreamApiType {
                 tick_data,
                 hold: &hold,
             };
             last_order_action = ops_fn(stream_api);
+            // loge!("ctp", "algo this tick: {:?} {:?}", tick_data.t, last_order_action);
             res
         })
     }
@@ -192,7 +249,7 @@ impl CondTypeA for WithTicker<Vec<WithInfo<Stral, RwLock<Di>>>> {
     }
 }
 
-impl<'a, T> CondTypeA for WithInfo<T, &'a Di>
+impl<T> CondTypeA for WithInfo<T, &Di>
 where
     T: CondType1,
 {
@@ -266,7 +323,7 @@ where
     }
 }
 
-impl<'a> ApiType for WithInfo<Box<dyn CondType4>, &'a Di> {
+impl ApiType for WithInfo<Box<dyn CondType4>, &Di> {
     fn api_type(&self) -> RetFnApi {
         let mut di = self.info.clone();
         let mut ops_fn = self.data.cond_type4(&di);
@@ -294,10 +351,10 @@ impl<'a> ApiType for WithInfo<Box<dyn CondType4>, &'a Di> {
     }
 }
 
-impl<'a> BtTick<(&'a Di, &'a [TickData])> for WithMatchBox<Box<dyn CondType4>> {
+impl<'a, T: Clone + BtMatch> BtTick<(&'a Di, &'a [TickData])> for WithInfo<Box<dyn CondType4>, T> {
     type Output = Vec<TradeInfo>;
     fn bt_tick(&self, input: (&'a Di, &'a [TickData])) -> Self::Output {
-        let with_match_box = WithMatchBox {
+        let with_match_box = WithInfo {
             data: WithInfo {
                 data: self.data.clone(),
                 info: input.0,
@@ -316,9 +373,9 @@ pub struct BtTickInput<T, N, K> {
 }
 
 
-impl<'a> BtTick<BtTickInput<AlgoBox, BtMatchBox, &'a hm<Ticker, Vec<TickData>>>> for DiStral<'_> {
+impl<'a, T: BtMatch + Clone> BtTick<BtTickInput<AlgoBox, T, &'a hm<Ticker, Vec<TickData>>>> for DiStral<'_> {
     type Output = Vec<InfoPnlRes<Ticker, dt>>;
-    fn bt_tick(&self, input: BtTickInput<AlgoBox, BtMatchBox, &'a hm<Ticker, Vec<TickData>>>) -> Self::Output {
+    fn bt_tick(&self, input: BtTickInput<AlgoBox, T, &'a hm<Ticker, Vec<TickData>>>) -> Self::Output {
         thread::scope(|scope| {
             let mut handles = vec![];
             for (di, index_vec) in self.dil.dil.iter().zip(self.index_vec.iter()) {
@@ -367,9 +424,9 @@ impl<'a> BtTick<BtTickInput<AlgoBox, BtMatchBox, &'a hm<Ticker, Vec<TickData>>>>
     }
 }
 
-impl<'a> BtTick<BtTickInput<BtMatchBox, AlgoBox, &'a hm<Ticker, Vec<TickData>>>> for DiStral<'_> {
+impl<'a, T: BtMatch + Clone> BtTick<BtTickInput<T, AlgoBox, &'a hm<Ticker, Vec<TickData>>>> for DiStral<'_> {
     type Output = Vec<InfoPnlRes<Stra, dt>>;
-    fn bt_tick(&self, input: BtTickInput<BtMatchBox, AlgoBox, &'a hm<Ticker, Vec<TickData>>>) -> Self::Output {
+    fn bt_tick(&self, input: BtTickInput<T, AlgoBox, &'a hm<Ticker, Vec<TickData>>>) -> Self::Output {
         thread::scope(|scope| {
             let mut handles = vec![];
             for (i, stra) in self.stral.0.iter().enumerate() {
@@ -414,9 +471,9 @@ impl<'a> BtTick<BtTickInput<BtMatchBox, AlgoBox, &'a hm<Ticker, Vec<TickData>>>>
     }
 }
 
-impl<'a> BtTick<BtTickInput<AlgoBox, BtMatchBox, (&'a Di, &'a [TickData])>> for Ptm {
+impl<'a, T: BtMatch + Clone> BtTick<BtTickInput<AlgoBox, T, (&'a Di, &'a [TickData])>> for Ptm {
     type Output = Vec<TradeInfo>;
-    fn bt_tick(&self, input: BtTickInput<AlgoBox, BtMatchBox, (&'a Di, &'a [TickData])> ) -> Self::Output {
+    fn bt_tick(&self, input: BtTickInput<AlgoBox, T, (&'a Di, &'a [TickData])> ) -> Self::Output {
         BtWrapper(self.clone())
             .with_info(input.data.0)
             .with_info(input.ops1)
@@ -425,9 +482,9 @@ impl<'a> BtTick<BtTickInput<AlgoBox, BtMatchBox, (&'a Di, &'a [TickData])>> for 
     }
 } 
 
-impl<'a> BtTick<(BtMatchBox, &'a Di, &'a [TickData])> for Ptm {
+impl<'a, T: BtMatch + Clone> BtTick<(T, &'a Di, &'a [TickData])> for Ptm {
     type Output = Vec<TradeInfo>;
-    fn bt_tick(&self, input: (BtMatchBox, &'a Di, &'a [TickData])) -> Self::Output {
+    fn bt_tick(&self, input: (T, &'a Di, &'a [TickData])) -> Self::Output {
         self.bt_tick(BtTickInput {
             ops1: AlgoTarget.algo_box(),
             ops2: input.0,
@@ -436,9 +493,9 @@ impl<'a> BtTick<(BtMatchBox, &'a Di, &'a [TickData])> for Ptm {
     }
 }
 
-impl<'a> BtTick<(BtMatchBox, &'a Dil, &'a hm<Ticker, Vec<TickData>>)> for Stra {
+impl<'a, T: BtMatch + Clone> BtTick<(T, &'a Dil, &'a hm<Ticker, Vec<TickData>>)> for Stra {
     type Output = Vec<TradeInfo>;
-    fn bt_tick(&self, input: (BtMatchBox, &'a Dil, &'a hm<Ticker, Vec<TickData>>)) -> Self::Output {
+    fn bt_tick(&self, input: (T, &'a Dil, &'a hm<Ticker, Vec<TickData>>)) -> Self::Output {
         let di = input.1.get_idx(OnlyOne(self.ident.clone())).unwrap();
         let tick_data = &input.2.get(&self.ident.ticker).unwrap()[..];
         self.ptm.bt_tick((input.0, di, tick_data))

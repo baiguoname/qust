@@ -1,4 +1,4 @@
-#![allow(non_upper_case_globals, non_camel_case_types)]
+#![allow(non_upper_case_globals, non_camel_case_types, clippy::collapsible_else_if)]
 pub mod trade {
     pub mod di;
     pub mod idx;

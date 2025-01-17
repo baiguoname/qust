@@ -175,7 +175,7 @@ impl ReadCsv for TickReader<usize> {
 }
 
 const remote_kline_url: &str = "https://raw.githubusercontent.com/baiguoname/qust/refs/heads/main/examples/git_test/kline_data.csv";
-const remote_tick_url: &str = "https://raw.githubusercontent.com/baiguoname/qust/refs/heads/main/examples/git_test/tick_data.csv"; 
+const remote_tick_url: &str = "https://raw.githubusercontent.com/baiguoname/qust/refs/heads/main/examples/git_test/tick_data.csv";
 
 pub async fn read_remote_kline_data() -> Di {
     let di_reader: DiReader<usize> = DiReader {

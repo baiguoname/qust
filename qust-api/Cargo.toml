@@ -11,6 +11,7 @@ qust-derive = { path = "../qust-derive", version = ">=0.1"}
 qust-ds = { path = "../qust-ds", version = ">=0.1" }
 qust = { path = "../qust", version = ">=0.1" }
 serde = { workspace = true }
+serde_json = { workspace = true } 
 chrono = { workspace = true}
 anyhow = { workspace = true }
 tokio = { workspace = true }
@@ -21,4 +22,9 @@ simple-error = "0.3.1"
 memchr = "2.7.4"
 toml = { version = "0.8.19" }
 futures = "0.3.31"
+futures-util = "0.3.31"
+reqwest = { workspace = true }
+tokio-tungstenite = { version = "0.26.0", features = ["native-tls"] }
 regex = "1.11.0"
+base64 = "0.22.1"
+flate2 = "1.0.35"

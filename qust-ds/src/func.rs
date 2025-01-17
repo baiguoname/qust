@@ -576,6 +576,13 @@ pub trait FileStr: AsRef<Path> {
         }
     }
 
+    fn create_a_dir(&self) {
+        let path = PathBuf::from(self.as_ref());
+        if !path.exists() {
+            std::fs::create_dir(path).unwrap();
+        } 
+    }
+
     fn get_file_vec(&self) -> io::Result<Vec<String>> {
         self
             .as_ref()

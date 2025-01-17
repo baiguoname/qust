@@ -51,22 +51,22 @@ impl CondType7 for CondTest2 {
 
 #[tokio::main]
 async fn main() {
-    let ticker_contract_map = ["eb2501", "eg2501"].config_parse();
+    // let ticker_contract_map = ["eb2501", "eg2501"].config_parse();
 
-    let stra1 = CondTest1 { cond: vec![eber, eger] }
-        .with_info(AlgoTarget)
-        .with_info(AllEmergedQue(2))
-        .pip(|x| TradeCross::new(x, &ticker_contract_map))
-        .api_bridge_box();
+    // let stra1 = CondTest1 { cond: vec![eber, eger] }
+    //     .with_info(AlgoTarget)
+    //     .with_info(AllEmergedQue(2))
+    //     .pip(|x| TradeCross::new(x, &ticker_contract_map))
+    //     .api_bridge_box();
 
-    let stra2 = CondTest2
-        .cond_type7_box()
-        .with_info(AlgoTarget)
-        .pip(|x| TradeOne::new(x, eber, &ticker_contract_map))
-        .api_bridge_box();
+    // let stra2 = CondTest2
+    //     .cond_type7_box()
+    //     .with_info(AlgoTarget)
+    //     .pip(|x| TradeOne::new(x, eber, &ticker_contract_map))
+    //     .api_bridge_box();
 
-    let stra_api = vec![stra1, stra2].to_stra_api();
-    let account = SimnowAccount("171808", "Tangjihede00").config_parse();
-    let running_api = running_api_ctp(stra_api, account);
-    run_ctp(running_api).await;
+    // let stra_api = vec![stra1, stra2].to_stra_api();
+    // let account = SimnowAccount("171808", "Tangjihede00").config_parse();
+    // let running_api = running_api_ctp(stra_api, account);
+    // run_ctp(running_api).await;
 }

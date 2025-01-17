@@ -74,8 +74,9 @@ where
 
 type LayerType = Box<dyn Layer<Registry> + Send + Sync>;
 type HandleType = Handle<Vec<LayerType>, Registry>;
-fn setup_logging(p: &str, date: da, ticker_vec: &[String], handle: Option<HandleType>) -> (Vec<WorkerGuard>, HandleType) {
+pub fn setup_logging(p: &str, date: da, ticker_vec: &[String], handle: Option<HandleType>) -> (Vec<WorkerGuard>, HandleType) {
     p.build_an_empty_dir();
+    // p.create_a_dir();
     let log_dir = format!("{}/{}", p, date);
     fs::create_dir_all(&log_dir).unwrap();
     let mut str_vec = ticker_vec.to_vec();

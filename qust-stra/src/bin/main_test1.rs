@@ -86,13 +86,14 @@ async fn backtest_kline() {
 }
 
 async fn backtest_tick() {
-    let tick_data = read_remote_tick_data().await;
-    TwoMaTickOrderAction
-        .with_info::<BtMatchBox>(Box::new(MatchSimple))
-        .bt_tick(&tick_data)
-        .with_info(aler)
-        .into_pnl_res()
-        .to_csv("pnl_res_tick.csv");
+    // let tick_data = read_remote_tick_data().await;
+    // TwoMaTickOrderAction
+    //     .with_info::<BtMatchBox>(Box::new(MatchSimple))
+    //     .bt_tick(&tick_data)
+    //     .with_info(aler)
+    //     .into_pnl_res()
+    //     .to_csv("pnl_res_tick.csv");
+    todo!();
 }
 
 

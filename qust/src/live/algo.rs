@@ -40,32 +40,70 @@ pub trait Algo {
 #[ta_derive2]
 pub struct AlgoTarget;
 
+pub enum OrderActionNum {
+    LoOpen(f32),
+    LoClose(f32),
+    ShOpen(f32),
+    ShClose(f32),
+    No,
+
+}
+
+impl OrderActionNum {
+    pub fn from_hold_target(hold: f32, target: f32) -> Self {
+        let gap = target - hold;
+        if gap == 0. {
+            OrderActionNum::No
+        } else if gap > 0. {
+            if hold >= 0. {
+                OrderActionNum::LoOpen(gap)
+            } else if target >= 0. {
+                OrderActionNum::LoClose(-hold)
+            } else {
+                OrderActionNum::LoClose(gap)
+            }
+        } else {
+            if target >= 0. {
+                OrderActionNum::ShClose(-gap)
+            } else if hold > 0. {
+                OrderActionNum::ShClose(hold)
+            } else {
+                OrderActionNum::ShOpen(-gap)
+            }
+        }
+    }
+
+    pub fn into_order_action(self, lo_price: f32, sh_price: f32) -> OrderAction {
+        match self {
+            OrderActionNum::LoOpen(i) => {
+                OrderAction::LoOpen(i, lo_price)
+            }
+            OrderActionNum::LoClose(i) => {
+                OrderAction::LoClose(i, lo_price)
+            }
+            OrderActionNum::ShOpen(i) => {
+                OrderAction::ShOpen(i, sh_price)
+            }
+            OrderActionNum::ShClose(i) => {
+                OrderAction::ShClose(i, sh_price)
+            }
+            OrderActionNum::No => {
+                OrderAction::No
+            }
+        }
+    }
+}
+
 #[typetag::serde]
 impl Algo for AlgoTarget {
     fn algo(&self) -> RetFnAlgo {
         Box::new(move |stream| {
             let target = stream.order_target.to_num();
             let hold = stream.stream_api.hold.sum();
-            let gap = target - hold;
-            let mut res = OrderAction::No;
             let tick_data = stream.stream_api.tick_data;
-            if gap == 0. {
-                return res;
-            }
-            if gap > 0. {
-                if hold < 0. {
-                    res = OrderAction::LoClose(-hold, tick_data.bid1);
-                } else if hold >= 0. {
-                    res = OrderAction::LoOpen(gap, tick_data.bid1);
-                }
-            } else if gap < 0. {
-                if hold > 0. {
-                    res = OrderAction::ShClose(hold, tick_data.ask1);
-                } else if hold <= 0. {
-                    res = OrderAction::ShOpen(-gap, tick_data.ask1);
-                }
-            }
-            res
+            OrderActionNum
+                ::from_hold_target(hold, target)
+                .into_order_action(tick_data.bid1, tick_data.ask1)
         })
     }
 }
@@ -80,26 +118,45 @@ impl Algo for AlgoTargetQuik {
         Box::new(move |stream| {
             let target = stream.order_target.to_num();
             let hold = stream.stream_api.hold.sum();
-            let gap = target - hold;
-            let mut res = OrderAction::No;
             let tick_data = stream.stream_api.tick_data;
-            if gap == 0. {
-                return res;
-            }
-            if gap > 0. {
-                if hold < 0. {
-                    res = OrderAction::LoClose(-hold, tick_data.ask1);
-                } else if hold >= 0. {
-                    res = OrderAction::LoOpen(gap, tick_data.ask1);
+            OrderActionNum
+                ::from_hold_target(hold, target)
+                .into_order_action(tick_data.ask1, tick_data.bid1)
+        })
+    }
+}
+
+
+#[ta_derive2]
+pub struct AlgoTargetHalf;
+
+#[typetag::serde]
+impl Algo for AlgoTargetHalf {
+    fn algo(&self) -> RetFnAlgo {
+        Box::new(move |stream| {
+            let target = stream.order_target.to_num();
+            let hold = stream.stream_api.hold.sum();
+            let tick_data = stream.stream_api.tick_data;
+            match OrderActionNum
+                ::from_hold_target(hold, target)
+                .into_order_action(tick_data.ask1, tick_data.bid1)
+            {
+                OrderAction::No => {
+                    OrderAction::No
                 }
-            } else if gap < 0. {
-                if hold > 0. {
-                    res = OrderAction::ShClose(hold, tick_data.bid1);
-                } else if hold <= 0. {
-                    res = OrderAction::ShOpen(-gap, tick_data.bid1);
+                OrderAction::LoOpen(i, _) => {
+                    OrderAction::LoOpen(i, tick_data.c)
+                }
+                OrderAction::ShOpen(i, _) => {
+                    OrderAction::ShOpen(i, tick_data.c)
+                }
+                OrderAction::LoClose(i, _) => {
+                    OrderAction::LoClose(i, tick_data.bid1)
+                }
+                OrderAction::ShClose(i, _) => {
+                    OrderAction::ShClose(i, tick_data.ask1)
                 }
             }
-            res
         })
     }
 }

@@ -39,7 +39,7 @@ pub type OrderResult<T> = Result<T, OrderError>;
 #[ta_derive]
 #[derive(Default, PartialEq)]
 pub enum OrderAction {
-    LoOpen(f32, f32),
+    LoOpen(f32, f32), // num, price
     LoClose(f32, f32),
     ShOpen(f32, f32),
     ShClose(f32, f32),
@@ -58,7 +58,7 @@ pub enum OrderActionTarget {
 }
 
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub enum OrderTarget {
     #[default]
     No,

@@ -9,6 +9,7 @@ use serde::{
 use std::{io::{BufReader, BufWriter, Write}, path::PathBuf, sync::RwLock};
 use serde_json;
 use crate::prelude::*;
+use chrono::Datelike;
 
 struct VecEle;
 
@@ -38,6 +39,7 @@ impl<'de> DeserializeSeed<'de> for VecEle {
         deserializer.deserialize_i64(self)
     }
 }
+
 
 pub fn serialize_dt<S>(id: &dt, s: S) -> Result<S::Ok, S::Error>
 where
@@ -92,6 +94,26 @@ where
     }
     deserializer.deserialize_seq(VecDt)
 }
+
+pub fn serialize_vec_da<S>(dates: &[da], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let days_since_epoch: Vec<i32> = dates.iter().map(|d| d.num_days_from_ce()).collect();
+    days_since_epoch.serialize(serializer)
+}
+
+pub fn deserialize_vec_da<'de, D>(deserializer: D) -> Result<Vec<da>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let days_since_epoch: Vec<i32> = Vec::deserialize(deserializer)?;
+    Ok(days_since_epoch
+        .into_iter()
+        .map(|x| da::from_num_days_from_ce_opt(x).unwrap())
+        .collect())
+}
+
 
 pub fn serialize_rwlock<T, S>(data: &RwLock<T>, s: S) -> Result<S::Ok, S::Error>
 where
@@ -196,6 +218,13 @@ pub trait Sof: Sized {
         let data_size = p.metadata().unwrap().len() as f32 / (1024. * 1024.);
         p.remove();
         (time_pass, data_size)
+    }
+
+    fn rof_vec(data: &[u8]) -> Self
+    where
+        Self: DeserializeOwned,
+    {
+        bincode::deserialize(data).unwrap()
     }
 }
 

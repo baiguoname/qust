@@ -7,13 +7,14 @@ members = [
     "qust-api",
     "qust-stra",
     "stra",
-    "getdata",
+    "getdata", "jljh-test",
 ]
 
 exclude = [
     "data",
     "notebook",
     "examples",
+    "jljh-test",
 ]
 
 [workspace.dependencies]
@@ -28,3 +29,4 @@ log = { version = "0.4.22" }
 typetag = { version = ">= 0.2.5" }
 anyhow = { version = "1.0.89" }
 tokio = { version = "1.39.3", features = ["full"] }
+reqwest = { version = "0.12.8", features = ["json"] }

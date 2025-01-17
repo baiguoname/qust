@@ -171,6 +171,12 @@ impl ToStraApi for Vec<ApiBridgeBox> {
     }
 }
 
+impl ToStraApi for ApiBridgeBox {
+    fn to_stra_api(self) -> StraApi {
+        vec![self].to_stra_api()
+    }
+}
+
 
 
 // #[derive(Default)]

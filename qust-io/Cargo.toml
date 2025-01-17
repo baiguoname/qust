@@ -21,13 +21,13 @@ plotters = { version = "^0.3.4", default_features = true, features = ["evcxr", "
 csv = { version = ">= 0.0.0" }
 ndarray = { version = "0.16.1" }
 ndarray-stats = { version = "0.6.0" }
-reqwest = { version = "0.12.8", features = ["json"] }
-polars = { version = "0.43.1", features = ["serde", "lazy", "fmt", 
+reqwest = { workspace = true }
+polars = { version = "0.45.1", features = ["serde", "lazy", "fmt", 
     "decompress", "regex", 
     "strings", "list_eval", "rank", "list_to_struct", "dtype-struct",
     "string_pad", "dynamic_group_by","is_first_distinct", "is_last_distinct",
-     "is_between", "replace", "cum_agg", "diff", "semi_anti_join", "is_in"
+     "is_between", "replace", "cum_agg", "diff", "semi_anti_join", "is_in", "describe", "cutqcut", "round_series"
     ]}
-polars-lazy = { version = "0.43.1", features = ["moment", "pct_change", "cov", "log", "is_in"]}
-polars-core = "0.43.1"
-polars-io = "0.43.1"
+polars-lazy = { version = "0.45.1", features = ["moment", "pct_change", "cov", "log", "is_in"]}
+polars-core = { version = "0.45.1", features = ["describe"] }
+polars-io = "0.45.1"

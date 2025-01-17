@@ -317,6 +317,18 @@ impl Di {
         }
     }
 
+    pub fn from_bare(ticker: Ticker, inter: TriBox) -> Self {
+        let price = PriceOri::default();
+        // let pcon_ident = PconIdent::new(inter.clone(), ticker);
+        let pcon = PconType {
+            ticker,
+            inter,
+            price,
+        };
+        pcon.to_di()
+
+    }
+
     pub fn t(&self) -> avdt {
         self.calc(self.last_dcon()).t
     }
