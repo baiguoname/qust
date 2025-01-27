@@ -7,7 +7,7 @@ members = [
     "qust-api",
     "qust-stra",
     "stra",
-    "getdata", "jljh-test",
+    "getdata", "jljh-test", "jh-test",
 ]
 
 exclude = [
@@ -15,6 +15,7 @@ exclude = [
     "notebook",
     "examples",
     "jljh-test",
+    "jh-test",
 ]
 
 [workspace.dependencies]

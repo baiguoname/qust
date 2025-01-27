@@ -2279,7 +2279,7 @@ dependencies = [
  "mongodb",
  "piz",
  "qust",
- "qust-ds",
+ "qust-ds 0.1.6",
  "qust-io",
  "rayon",
  "regex 1.11.1",
@@ -3197,12 +3197,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9028f49264629065d057f340a86acb84867925865f73bbf8d47b4d149a7e88b8"
 
 [[package]]
+name = "jh-test"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "csv",
+ "qust",
+ "qust-derive",
+ "qust-ds 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 1.11.1",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "jljh-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "csv",
- "qust-ds",
+ "qust-derive",
+ "qust-ds 0.1.6",
  "regex 1.11.1",
  "serde",
  "serde_json",
@@ -4946,7 +4961,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "qust-derive",
- "qust-ds",
+ "qust-ds 0.1.6",
  "regex 1.11.1",
  "serde",
  "serde_json",
@@ -4971,7 +4986,7 @@ dependencies = [
  "memchr 2.7.4",
  "qust",
  "qust-derive",
- "qust-ds",
+ "qust-ds 0.1.6",
  "regex 1.11.1",
  "reqwest",
  "serde",
@@ -5011,6 +5026,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "qust-ds"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5470aa2577ff19504d81bf168314e4a5153093bf718725d8923a141dbde965e7"
+dependencies = [
+ "bincode 1.3.3",
+ "chrono 0.4.38",
+ "hex",
+ "itertools 0.13.0",
+ "log",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "qust-io"
 version = "0.1.5"
 dependencies = [
@@ -5028,7 +5063,7 @@ dependencies = [
  "polars-io",
  "polars-lazy",
  "qust",
- "qust-ds",
+ "qust-ds 0.1.6",
  "reqwest",
  "serde",
  "serde_json",
@@ -5046,7 +5081,7 @@ dependencies = [
  "qust",
  "qust-api",
  "qust-derive",
- "qust-ds",
+ "qust-ds 0.1.6",
  "qust-io",
  "rand",
  "serde",
@@ -6031,7 +6066,7 @@ dependencies = [
  "mongodb",
  "qust",
  "qust-derive",
- "qust-ds",
+ "qust-ds 0.1.6",
  "qust-io",
  "rand",
  "rayon",

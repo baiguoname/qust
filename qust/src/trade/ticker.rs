@@ -2,7 +2,7 @@
 use serde::{Deserialize, Serialize};
 use regex::Regex;
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Deserialize, Serialize, Ord)]
 pub enum Ticker {
     al,
     cu,

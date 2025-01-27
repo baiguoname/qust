@@ -95,11 +95,12 @@ where
     deserializer.deserialize_seq(VecDt)
 }
 
-pub fn serialize_vec_da<S>(dates: &[da], serializer: S) -> Result<S::Ok, S::Error>
+pub fn serialize_vec_da<S, T>(dates: &T, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
+    T: AsRef<[da]>,
 {
-    let days_since_epoch: Vec<i32> = dates.iter().map(|d| d.num_days_from_ce()).collect();
+    let days_since_epoch: Vec<i32> = dates.as_ref().iter().map(|d| d.num_days_from_ce()).collect();
     days_since_epoch.serialize(serializer)
 }
 

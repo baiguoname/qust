@@ -6,7 +6,7 @@ use qust_derive::*;
 use dyn_clone::{clone_trait_object, DynClone};
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct KlineData {
     pub t: dt,
     pub o: f32,

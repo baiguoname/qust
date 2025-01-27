@@ -1,0 +1,14 @@
+[package]
+name = "jh-test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+qust-ds = {  version = "0.1.6" }
+qust = { path = "../qust", version = ">=0.1" }
+qust-derive = { path = "../qust-derive", version = ">=0.1" }
+csv = { version = "*"}
+anyhow = { version = "*" }
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+regex = "1.11.1"
