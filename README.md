@@ -6,6 +6,8 @@
 * 算子丰富，内置丰富的金融算子，比如k线合成、回测、组合优化等等
 * 可拓展性强，底层基于rust的`datafusion`, 拓展到分布式很方便.
 
+[文档地址](https://raw.githack.com/baiguoname/qust/main/examples/docs/qust.html)
+
 # 安装
 ```python
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple qust
@@ -559,157 +561,9 @@ df_bt_price.calc_data(data).plot.line(x = "date", y = "pnl_cum")
 ```
 
 
-
-
-
-<style>
-  #altair-viz-299e8347ee214eeeb09cc19ab5aa4660.vega-embed {
-    width: 100%;
-    display: flex;
-  }
-
-  #altair-viz-299e8347ee214eeeb09cc19ab5aa4660.vega-embed details,
-  #altair-viz-299e8347ee214eeeb09cc19ab5aa4660.vega-embed details summary {
-    position: relative;
-  }
-</style>
-<div id="altair-viz-299e8347ee214eeeb09cc19ab5aa4660"></div>
-<script type="text/javascript">
-  var VEGA_DEBUG = (typeof VEGA_DEBUG == "undefined") ? {} : VEGA_DEBUG;
-  (function(spec, embedOpt){
-    let outputDiv = document.currentScript.previousElementSibling;
-    if (outputDiv.id !== "altair-viz-299e8347ee214eeeb09cc19ab5aa4660") {
-      outputDiv = document.getElementById("altair-viz-299e8347ee214eeeb09cc19ab5aa4660");
-    }
-
-    const paths = {
-      "vega": "https://cdn.jsdelivr.net/npm/vega@6?noext",
-      "vega-lib": "https://cdn.jsdelivr.net/npm/vega-lib?noext",
-      "vega-lite": "https://cdn.jsdelivr.net/npm/vega-lite@6.1.0?noext",
-      "vega-embed": "https://cdn.jsdelivr.net/npm/vega-embed@7?noext",
-    };
-
-    function maybeLoadScript(lib, version) {
-      var key = `${lib.replace("-", "")}_version`;
-      return (VEGA_DEBUG[key] == version) ?
-        Promise.resolve(paths[lib]) :
-        new Promise(function(resolve, reject) {
-          var s = document.createElement('script');
-          document.getElementsByTagName("head")[0].appendChild(s);
-          s.async = true;
-          s.onload = () => {
-            VEGA_DEBUG[key] = version;
-            return resolve(paths[lib]);
-          };
-          s.onerror = () => reject(`Error loading script: ${paths[lib]}`);
-          s.src = paths[lib];
-        });
-    }
-
-    function showError(err) {
-      outputDiv.innerHTML = `<div class="error" style="color:red;">${err}</div>`;
-      throw err;
-    }
-
-    function displayChart(vegaEmbed) {
-      vegaEmbed(outputDiv, spec, embedOpt)
-        .catch(err => showError(`Javascript Error: ${err.message}<br>This usually means there's a typo in your chart specification. See the javascript console for the full traceback.`));
-    }
-
-    if(typeof define === "function" && define.amd) {
-      requirejs.config({paths});
-      let deps = ["vega-embed"];
-      require(deps, displayChart, err => showError(`Error loading script: ${err.message}`));
-    } else {
-      maybeLoadScript("vega", "6")
-        .then(() => maybeLoadScript("vega-lite", "6.1.0"))
-        .then(() => maybeLoadScript("vega-embed", "7"))
-        .catch(showError)
-        .then(() => displayChart(vegaEmbed));
-    }
-  })({"config": {"view": {"continuousWidth": 300, "continuousHeight": 300}}, "data": {"name": "data-e139825d3e527d90d317ace5a2d3ec07"}, "mark": {"type": "line", "tooltip": true}, "encoding": {"x": {"field": "date", "type": "temporal"}, "y": {"field": "pnl_cum", "type": "quantitative"}}, "params": [{"name": "param_1e9efca18e7a2868", "select": {"type": "interval", "encodings": ["x", "y"]}, "bind": "scales"}], "$schema": "https://vega.github.io/schema/vega-lite/v6.1.0.json", "datasets": {"data-e139825d3e527d90d317ace5a2d3ec07": [{"date": "2024-01-06T00:00:00", "pnl": 0.0018277783535297631, "pnl_cum": 0.0018277783535297631}, {"date": "2024-01-08T00:00:00", "pnl": 0.003912573572573463, "pnl_cum": 0.0057403519261032265}, {"date": "2024-01-09T00:00:00", "pnl": 0.009277687511560329, "pnl_cum": 0.015018039437663555}, {"date": "2024-01-10T00:00:00", "pnl": -0.0012600611958496488, "pnl_cum": 0.013757978241813906}, {"date": "2024-01-11T00:00:00", "pnl": 0.02169537149855416, "pnl_cum": 0.03545334974036807}, {"date": "2024-01-12T00:00:00", "pnl": -0.011017120457941232, "pnl_cum": 0.024436229282426836}, {"date": "2024-01-13T00:00:00", "pnl": 0.0017924758546213893, "pnl_cum": 0.026228705137048225}, {"date": "2024-01-15T00:00:00", "pnl": -0.009166224313604254, "pnl_cum": 0.01706248082344397}, {"date": "2024-01-16T00:00:00", "pnl": 0.008733752532386951, "pnl_cum": 0.025796233355830922}, {"date": "2024-01-17T00:00:00", "pnl": 0.0063110738388879595, "pnl_cum": 0.03210730719471888}, {"date": "2024-01-18T00:00:00", "pnl": 0.0009795279391042744, "pnl_cum": 0.033086835133823156}, {"date": "2024-01-19T00:00:00", "pnl": -0.004024871543863884, "pnl_cum": 0.029061963589959272}, {"date": "2024-01-20T00:00:00", "pnl": -0.001027746259070983, "pnl_cum": 0.02803421733088829}, {"date": "2024-01-22T00:00:00", "pnl": 0.018770235252460243, "pnl_cum": 0.04680445258334853}, {"date": "2024-01-23T00:00:00", "pnl": 0.007934696929051466, "pnl_cum": 0.0547391495124}, {"date": "2024-01-24T00:00:00", "pnl": 0.009947013241739744, "pnl_cum": 0.06468616275413974}, {"date": "2024-01-25T00:00:00", "pnl": 0.009984975091812398, "pnl_cum": 0.07467113784595214}, {"date": "2024-01-26T00:00:00", "pnl": -0.004940224463215626, "pnl_cum": 0.06973091338273651}, {"date": "2024-01-27T00:00:00", "pnl": 0.0006826591765081158, "pnl_cum": 0.07041357255924463}, {"date": "2024-01-29T00:00:00", "pnl": -0.007033320575090762, "pnl_cum": 0.06338025198415387}, {"date": "2024-01-30T00:00:00", "pnl": -0.0011836664823088316, "pnl_cum": 0.062196585501845036}, {"date": "2024-01-31T00:00:00", "pnl": 0.001537502588681905, "pnl_cum": 0.06373408809052694}, {"date": "2024-02-01T00:00:00", "pnl": -0.009550703509586644, "pnl_cum": 0.0541833845809403}]}}, {"mode": "vega-lite"});
-</script>
-
-
-
-
 ```python
 df_bt_tick.calc_data(data).plot.line(x = "date", y = "pnl_cum")
 ```
-
-
-
-
-
-<style>
-  #altair-viz-7cc8441c481b438c84210801c992fc17.vega-embed {
-    width: 100%;
-    display: flex;
-  }
-
-  #altair-viz-7cc8441c481b438c84210801c992fc17.vega-embed details,
-  #altair-viz-7cc8441c481b438c84210801c992fc17.vega-embed details summary {
-    position: relative;
-  }
-</style>
-<div id="altair-viz-7cc8441c481b438c84210801c992fc17"></div>
-<script type="text/javascript">
-  var VEGA_DEBUG = (typeof VEGA_DEBUG == "undefined") ? {} : VEGA_DEBUG;
-  (function(spec, embedOpt){
-    let outputDiv = document.currentScript.previousElementSibling;
-    if (outputDiv.id !== "altair-viz-7cc8441c481b438c84210801c992fc17") {
-      outputDiv = document.getElementById("altair-viz-7cc8441c481b438c84210801c992fc17");
-    }
-
-    const paths = {
-      "vega": "https://cdn.jsdelivr.net/npm/vega@6?noext",
-      "vega-lib": "https://cdn.jsdelivr.net/npm/vega-lib?noext",
-      "vega-lite": "https://cdn.jsdelivr.net/npm/vega-lite@6.1.0?noext",
-      "vega-embed": "https://cdn.jsdelivr.net/npm/vega-embed@7?noext",
-    };
-
-    function maybeLoadScript(lib, version) {
-      var key = `${lib.replace("-", "")}_version`;
-      return (VEGA_DEBUG[key] == version) ?
-        Promise.resolve(paths[lib]) :
-        new Promise(function(resolve, reject) {
-          var s = document.createElement('script');
-          document.getElementsByTagName("head")[0].appendChild(s);
-          s.async = true;
-          s.onload = () => {
-            VEGA_DEBUG[key] = version;
-            return resolve(paths[lib]);
-          };
-          s.onerror = () => reject(`Error loading script: ${paths[lib]}`);
-          s.src = paths[lib];
-        });
-    }
-
-    function showError(err) {
-      outputDiv.innerHTML = `<div class="error" style="color:red;">${err}</div>`;
-      throw err;
-    }
-
-    function displayChart(vegaEmbed) {
-      vegaEmbed(outputDiv, spec, embedOpt)
-        .catch(err => showError(`Javascript Error: ${err.message}<br>This usually means there's a typo in your chart specification. See the javascript console for the full traceback.`));
-    }
-
-    if(typeof define === "function" && define.amd) {
-      requirejs.config({paths});
-      let deps = ["vega-embed"];
-      require(deps, displayChart, err => showError(`Error loading script: ${err.message}`));
-    } else {
-      maybeLoadScript("vega", "6")
-        .then(() => maybeLoadScript("vega-lite", "6.1.0"))
-        .then(() => maybeLoadScript("vega-embed", "7"))
-        .catch(showError)
-        .then(() => displayChart(vegaEmbed));
-    }
-  })({"config": {"view": {"continuousWidth": 300, "continuousHeight": 300}}, "data": {"name": "data-4b85095c1420e1683a4462158603b157"}, "mark": {"type": "line", "tooltip": true}, "encoding": {"x": {"field": "date", "type": "temporal"}, "y": {"field": "pnl_cum", "type": "quantitative"}}, "params": [{"name": "param_1e9efca18e7a2868", "select": {"type": "interval", "encodings": ["x", "y"]}, "bind": "scales"}], "$schema": "https://vega.github.io/schema/vega-lite/v6.1.0.json", "datasets": {"data-4b85095c1420e1683a4462158603b157": [{"date": "2024-01-06T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-08T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-09T00:00:00", "pnl": 116.0, "pnl_cum": 116.0}, {"date": "2024-01-10T00:00:00", "pnl": 0.0, "pnl_cum": 116.0}, {"date": "2024-01-11T00:00:00", "pnl": 0.0, "pnl_cum": 116.0}, {"date": "2024-01-12T00:00:00", "pnl": 151.0, "pnl_cum": 267.0}, {"date": "2024-01-13T00:00:00", "pnl": 0.0, "pnl_cum": 267.0}, {"date": "2024-01-15T00:00:00", "pnl": -75.0, "pnl_cum": 192.0}, {"date": "2024-01-16T00:00:00", "pnl": 95.0, "pnl_cum": 287.0}, {"date": "2024-01-17T00:00:00", "pnl": 0.0, "pnl_cum": 287.0}, {"date": "2024-01-18T00:00:00", "pnl": 0.0, "pnl_cum": 287.0}, {"date": "2024-01-19T00:00:00", "pnl": 0.0, "pnl_cum": 287.0}, {"date": "2024-01-20T00:00:00", "pnl": 0.0, "pnl_cum": 287.0}, {"date": "2024-01-22T00:00:00", "pnl": 87.0, "pnl_cum": 374.0}, {"date": "2024-01-23T00:00:00", "pnl": 58.0, "pnl_cum": 432.0}, {"date": "2024-01-24T00:00:00", "pnl": 0.0, "pnl_cum": 432.0}, {"date": "2024-01-25T00:00:00", "pnl": 36.0, "pnl_cum": 468.0}, {"date": "2024-01-26T00:00:00", "pnl": 0.0, "pnl_cum": 468.0}, {"date": "2024-01-27T00:00:00", "pnl": 0.0, "pnl_cum": 468.0}, {"date": "2024-01-29T00:00:00", "pnl": -122.0, "pnl_cum": 346.0}, {"date": "2024-01-30T00:00:00", "pnl": 0.0, "pnl_cum": 346.0}, {"date": "2024-01-31T00:00:00", "pnl": 0.0, "pnl_cum": 346.0}, {"date": "2024-02-01T00:00:00", "pnl": -105.0, "pnl_cum": 241.0}]}}, {"mode": "vega-lite"});
-</script>
-
-
 
 ### 3. 一个更复杂的策略，接受tick数据，同时合成5min和30min的k线，双周期共振的均线策略
 
@@ -793,80 +647,6 @@ df_bt_tick = (
 ```python
 df_bt_tick.calc_data(data).plot.line(x = "date", y = "pnl_cum")
 ```
-
-
-
-
-
-<style>
-  #altair-viz-344527d5910e47fdbae740f4c22ad502.vega-embed {
-    width: 100%;
-    display: flex;
-  }
-
-  #altair-viz-344527d5910e47fdbae740f4c22ad502.vega-embed details,
-  #altair-viz-344527d5910e47fdbae740f4c22ad502.vega-embed details summary {
-    position: relative;
-  }
-</style>
-<div id="altair-viz-344527d5910e47fdbae740f4c22ad502"></div>
-<script type="text/javascript">
-  var VEGA_DEBUG = (typeof VEGA_DEBUG == "undefined") ? {} : VEGA_DEBUG;
-  (function(spec, embedOpt){
-    let outputDiv = document.currentScript.previousElementSibling;
-    if (outputDiv.id !== "altair-viz-344527d5910e47fdbae740f4c22ad502") {
-      outputDiv = document.getElementById("altair-viz-344527d5910e47fdbae740f4c22ad502");
-    }
-
-    const paths = {
-      "vega": "https://cdn.jsdelivr.net/npm/vega@6?noext",
-      "vega-lib": "https://cdn.jsdelivr.net/npm/vega-lib?noext",
-      "vega-lite": "https://cdn.jsdelivr.net/npm/vega-lite@6.1.0?noext",
-      "vega-embed": "https://cdn.jsdelivr.net/npm/vega-embed@7?noext",
-    };
-
-    function maybeLoadScript(lib, version) {
-      var key = `${lib.replace("-", "")}_version`;
-      return (VEGA_DEBUG[key] == version) ?
-        Promise.resolve(paths[lib]) :
-        new Promise(function(resolve, reject) {
-          var s = document.createElement('script');
-          document.getElementsByTagName("head")[0].appendChild(s);
-          s.async = true;
-          s.onload = () => {
-            VEGA_DEBUG[key] = version;
-            return resolve(paths[lib]);
-          };
-          s.onerror = () => reject(`Error loading script: ${paths[lib]}`);
-          s.src = paths[lib];
-        });
-    }
-
-    function showError(err) {
-      outputDiv.innerHTML = `<div class="error" style="color:red;">${err}</div>`;
-      throw err;
-    }
-
-    function displayChart(vegaEmbed) {
-      vegaEmbed(outputDiv, spec, embedOpt)
-        .catch(err => showError(`Javascript Error: ${err.message}<br>This usually means there's a typo in your chart specification. See the javascript console for the full traceback.`));
-    }
-
-    if(typeof define === "function" && define.amd) {
-      requirejs.config({paths});
-      let deps = ["vega-embed"];
-      require(deps, displayChart, err => showError(`Error loading script: ${err.message}`));
-    } else {
-      maybeLoadScript("vega", "6")
-        .then(() => maybeLoadScript("vega-lite", "6.1.0"))
-        .then(() => maybeLoadScript("vega-embed", "7"))
-        .catch(showError)
-        .then(() => displayChart(vegaEmbed));
-    }
-  })({"config": {"view": {"continuousWidth": 300, "continuousHeight": 300}}, "data": {"name": "data-22397b8a905396f7a8898ee0713a2426"}, "mark": {"type": "line", "tooltip": true}, "encoding": {"x": {"field": "date", "type": "temporal"}, "y": {"field": "pnl_cum", "type": "quantitative"}}, "params": [{"name": "param_1e9efca18e7a2868", "select": {"type": "interval", "encodings": ["x", "y"]}, "bind": "scales"}], "$schema": "https://vega.github.io/schema/vega-lite/v6.1.0.json", "datasets": {"data-22397b8a905396f7a8898ee0713a2426": [{"date": "2024-01-06T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-08T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-09T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-10T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-11T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-12T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-13T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-15T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-16T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-17T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-18T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-19T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-20T00:00:00", "pnl": 0.0, "pnl_cum": 0.0}, {"date": "2024-01-22T00:00:00", "pnl": -119.0, "pnl_cum": -119.0}, {"date": "2024-01-23T00:00:00", "pnl": 0.0, "pnl_cum": -119.0}, {"date": "2024-01-24T00:00:00", "pnl": 0.0, "pnl_cum": -119.0}, {"date": "2024-01-25T00:00:00", "pnl": 0.0, "pnl_cum": -119.0}, {"date": "2024-01-26T00:00:00", "pnl": 0.0, "pnl_cum": -119.0}, {"date": "2024-01-27T00:00:00", "pnl": 0.0, "pnl_cum": -119.0}, {"date": "2024-01-29T00:00:00", "pnl": 0.0, "pnl_cum": -119.0}, {"date": "2024-01-30T00:00:00", "pnl": 0.0, "pnl_cum": -119.0}, {"date": "2024-01-31T00:00:00", "pnl": 0.0, "pnl_cum": -119.0}, {"date": "2024-02-01T00:00:00", "pnl": 0.0, "pnl_cum": -119.0}]}}, {"mode": "vega-lite"});
-</script>
-
-
 
 
 ```python
