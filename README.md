@@ -1,94 +1,527 @@
 # Qust
-Qust is a Rust libraries for building live-trading and back-test systems. It has the following features:
-* **Fast**: It's way to handle or to save the kline data, tick data and strategy makes the backtest and live trading fast.
-* **Extensible**: It provide many ways to build a strategy, and new ways can be implemented by needs, so that you can focus what you care. You can build a simple strategy or complicated one, then backtest it on kline data(for quick scruch) or tick data, on put it on live trading directly. For example, you can build a strategy by following ways:
-    1. Accept kline flow, and return a target position.
-    2. Accept tick data flow, and return a target position.
-    3. Accept tick data flow, and return an order action.
-    4. Accept kline and tick flow, return a target positon or an order action.
-    5. Accept kline flow, and return a bool.(a least two of it make a  strategy, one for open position, another for close)
-    6. Add filter conditions to an existed strategy.
-    7. Add algorithm method to an existed strategy.
-    8. Add order matching methods when backtest a strategy.
-    9. Add valitality manager to strategies.
-    10. Add portoflio manager to a pool of strategies.
-    and so on.
+支持流式计算的查询引擎，底层基于rust, 应用层用的python
+-----
+* 流式计算，算子有状态保留，支持流式计算
+* 性能高，大多数情况下速度比polars高，内存消耗更少
+* 算子丰富，内置丰富的金融算子，比如k线合成、回测、组合优化等等
+* 可拓展性强，底层基于rust的`datafusion`, 拓展到分布式很方便.
 
-
-See this [notebook Example](https://github.com/baiguoname/qust/blob/main/examples/git_test/git_test.ipynb) for more detail.
-
-# Examples
-Add this to `Cargo.toml`:
-```rust
-qust-derive = { version = ">=0.1" }
-qust-ds = { version = ">=0.1" }
-qust = { version = ">=0.1" }
-qust-api = { version = ">=0.1"}
-qust-io = {  version = ">=0.1"}
-serde = "*"
-serde_json = "*"
-itertools = "*"
-typetag = "*"
-tokio = "*"
-ta = { version = "0.5.0" }
-```
-You can build a strategy basing on kline data and backtest in on kline:
-```rust
-use qust_derive::*;
-use qust_ds::prelude::*;
-use qust::prelude::*;
-use qust_api::prelude::*;
-use qust_io::prelude::*;
-use ta::{ Next, indicators::SimpleMovingAverage as SMA };
-
-#[ta_derive2]
-pub struct TwoMaStra {
-    pub short_period: usize,
-    pub long_period: usize,
-}
-
-#[typetag::serde]
-impl Ktn for TwoMaStra {
-    fn ktn(&self,_di: &Di) -> RetFnKtn {
-        let mut last_norm_hold = NormHold::No;
-        let mut short_ma = SMA::new(self.short_period).unwrap();
-        let mut long_ma = SMA::new(self.long_period).unwrap();
-        let mut last_short_value = 0f64;
-        let mut last_long_value = 0f64;
-        Box::new(move |di_kline| {
-            let c = di_kline.di.c()[di_kline.i] as f64;
-            let short_value = short_ma.next(c);
-            let long_value = long_ma.next(c);
-            match last_norm_hold {
-                NormHold::No if di_kline.i != 0 => {
-                    if last_short_value < last_long_value && short_value >= long_value {
-                        last_norm_hold = NormHold::Lo(1.);
-                    }
-                }
-                NormHold::Lo(_) if short_value < long_value => {
-                    last_norm_hold = NormHold::No;
-                }
-                _ => {}
-            }
-            last_short_value = short_value;
-            last_long_value = long_value;
-            last_norm_hold.clone()
-        })
-    }
-}
-
-#[tokio::main]
-async fn main() {
-    let di = read_remote_kline_data().await;
-    let two_ma_stra = TwoMaStra { short_period: 9, long_period: 20 };
-    let two_ma_stra_ptm: Ptm = two_ma_stra.ktn_box().to_ktn().to_ptm();
-    let pnl_res_dt: PnlRes<dt> = two_ma_stra_ptm.bt_kline((&di, cs1));
-    pnl_res_dt.to_csv("pnl_res_dt.csv"); // save the pnl to local csv;
-}
-
+# 安装
+```python
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple qust
 ```
 
-# 更新 
-## version: 0.1.5
-1. 支持tick级别的横截面，目前不支持k线级别，可以在tick里面手动更新k线。需要指定各个ticker的到达时间，详见[例子](https://github.com/baiguoname/qust/qust-stra/src/bin/main_test.rs);
-2. 每个策略(`ApiBridgeBox`)都有自身的订单管理，api程序停止运行后，到下次重开程序，中间过程中如果没有手动开平仓，历史的订单会被读取
+# 使用
+```python
+import qust as qs
+from qust import col
+import polars as pl
+import numpy as np
+n = 10
+data = pl.DataFrame({
+    "factor": np.random.randn(n),
+    "code": np.random.choice(["a", "b", "c"], size=n, replace=True),
+})
+data_next = pl.DataFrame({
+    "factor": np.random.randn(n),
+    "code": np.random.choice(["a", "b", "c"], size=n, replace=True),
+})
+
+df = qs.with_cols(
+    col("factor").mean().expanding().alias("cum_mean"),
+    col("factor").mean().rolling(3).alias("rolling_mean"),
+    col("factor").mean().expanding().over("code").alias("cum_mean_over")
+)
+
+print(df.calc_data(data))
+
+print(df.calc_data(data_next)) # df 里面的算子都状态保留
+```
+
+# 与polars语法比较
+
+```python
+data = pl.DataFrame({
+    "price": range(5),
+    "code": ["a", "a", "a", "b", "b"]
+})
+df = qs.with_cols(
+    col("price").sum().expanding().alias("cum_sum_otters"),
+    pl.col("price").cum_sum().alias("cum_sum_polars"),
+    col("price").sum().expanding().over("code").alias("cum_sum_otters_over"),
+    pl.col("price").cum_sum().over("code").alias("cum_sum_polars_over")
+)
+df.calc_data(data)
+```
+
+# 与polars性能比较
+
+```python
+import time
+n = 2000000
+data = pl.DataFrame({
+    "factor": np.random.randn(n),
+    "code": np.random.choice(["a", "b"], size=n, replace=True),
+})
+```
+
+### 1. qust单线程 vs polars多线程
+
+```python
+s = time.time()
+_ = qs.select(
+    col("factor").rank().rolling(10).over("code")
+).calc_data(data)
+print(f"qust: {(time.time() - s) * 1000.0}.ms")
+
+s = time.time()
+_ = data.select(
+    pl.col("factor").rolling_rank(10).over("code")
+)
+print(f"polars: {(time.time() - s) * 1000.0}.ms")
+
+qust: 100.04281997680664.ms
+polars: 157.47618675231934.ms
+```
+
+### 2. qust多线程 vs polars多线程
+
+```python
+s = time.time()
+_ = qs.select(
+    col(*[col("factor").mean().alias(f"mean_{i}") for i in range(50)]).rolling(10).over("code")
+).calc_data(data)
+print(f"qust: {(time.time() - s) * 1000.0}.ms")
+
+s = time.time()
+_ = data.select(
+    [pl.col("factor").rolling_mean(10).over("code").alias(f"mean_{i}") for i in range(50)]
+)
+print(f"polars: {(time.time() - s) * 1000.0}.ms")
+
+qust: 112.96653747558594.ms
+polars: 298.112154006958.ms
+```
+
+
+### 3. qust自定义算子 vs polars自定义算子
+
+```python
+class MeanUdf(qs.UdfRow):
+
+    def __init__(self):
+        self.sum = 0.0
+        self.count = 0.0
+
+    def output_schema(self, input_schema):
+        return [("mean_res", pl.Float64)]
+    
+    def update(self, value):
+        self.sum += value
+        self.count += 1.0
+
+    def calc(self):
+        return [self.sum / self.count]
+
+    def retract(self, value):
+        self.sum -= value
+        self.count -= 1.0
+
+s = time.time()
+_ = qs.select(
+    col("factor").udf.row(MeanUdf()).rolling(10).over("code")
+).calc_data(data)
+print(f"qust: {(time.time() - s)}.s")
+
+s = time.time()
+_ = data.select(
+    pl.col("factor").rolling_map(lambda x: x.mean(), 10).over("code")
+)
+print(f"polars: {(time.time() - s)}.s")
+
+qust: 1.298762321472168.s
+polars: 53.331793785095215.s
+```
+
+>----
+| 算子 | qust | polars | 提速 |
+|----|------|-------------|---|
+| 单个算子 | 100ms | 157ms | 1.5倍 |
+| 多个算子 | 110ms | 290ms | 2.5倍 |
+| 自定义rolling算子 | 1.5s | 53s | 40倍 | 
+
+
+
+# 为什么有polars，还要写qust？
+
+
+### 1. 流式计算
+写量化策略的时候，一般有下面两种方法
+
+1. 向量化计算
+
+2. 事件驱动
+
+如果策略用向量化计算，在实盘的时候就很慢，因为要重复计算历史数据, 而且很多策略没法向量化
+
+如果策略用的事件驱动，回测的时候就很慢，而且事件驱动写法特别麻烦
+
+流计算就是把算子都写成事件驱动的形式。比如计算移动平均，在算子里面存储两个状态 `(sum, count)`, 每有一个行新数据`value`过来，更新算子的内部状态:
+
+`sum = sum + value`
+
+`count = count + 1`
+
+在需要计算结果的时候就用  `sum / count`
+
+```python
+data = pl.DataFrame({
+    "value": [1, 2, 3, 4, 5]
+})
+data_next = pl.DataFrame({
+    "value": [6, 7, 8]
+})
+
+df = qs.with_cols(
+    col("value").mean().rolling(3).alias("rolling_mean"),
+    col("value").std().expanding().alias("cum_std"),
+)
+
+print(df.calc_data(data))
+shape: (5, 3)
+┌───────┬──────────────┬──────────┐
+│ value ┆ rolling_mean ┆ cum_std  │
+│ ---   ┆ ---          ┆ ---      │
+│ i64   ┆ f64          ┆ f64      │
+╞═══════╪══════════════╪══════════╡
+│ 1     ┆ null         ┆ null     │
+│ 2     ┆ null         ┆ 0.707107 │
+│ 3     ┆ 2.0          ┆ 1.0      │
+│ 4     ┆ 3.0          ┆ 1.290994 │
+│ 5     ┆ 4.0          ┆ 1.581139 │
+└───────┴──────────────┴──────────┘
+print(df.calc_data(data_next))
+shape: (3, 3)
+┌───────┬──────────────┬──────────┐
+│ value ┆ rolling_mean ┆ cum_std  │
+│ ---   ┆ ---          ┆ ---      │
+│ i64   ┆ f64          ┆ f64      │
+╞═══════╪══════════════╪══════════╡
+│ 6     ┆ 5.0          ┆ 1.870829 │
+│ 7     ┆ 6.0          ┆ 2.160247 │
+│ 8     ┆ 7.0          ┆ 2.44949  │
+└───────┴──────────────┴──────────┘
+```
+在第一个调用`df.calc_data(data)`的时候，df内部的算子都有状态保留，所以在第二个调用`df.calc_data(data_next)`时候，没有重新计算
+
+实际情况是，绝大多数算子都有对应的事件驱动形式，少量的算子比如`pl.col("a").rank()`, 看起来不是事件驱动的形式（当前行的值受到未来行的值的影响），但是其实也可以变换成事件驱动形式，
+* 转换成行算子，比如 a 列有a1，a2，a3三个元素，就是`col(a1, a2, a3).rank(axis=1)` 
+
+* 事件驱动形式的批算子，每次计算的时候保证传入的数据完整，比如计算`pl.col("a").rank().over("date")`, 保证每次计算传入的数据包含整天的所有数据
+
+`polars`不是也支持streaming吗？我看了polars的底层，觉得polars的streaming不是真正意义上的流式计算，只是为了避免out of memory，而且局限性大(比如`over`是用的 切割 -> 计算 -> 拼接)。如果polars要实现真正的流式计算，我估计底层得推倒重来改成`datafusion`的那种框架
+
+### 2. 表达式解耦
+
+`polars`的`Expr`用的`enum`, 这样就导致每实现一个算子，底层很多代码都要改, 这样就不难理解为什么一个简单的`pl.col("a").rolling_rank(10)`算子直到最近才实现，而且速度比我一个简单的实现慢一倍。
+
+`datafusion`聚合算子用的`Box<dyn trait>`, 然后根据上下文选择不同路径的`ExecutionPlan`, 这样添加算子很方便，而且优化路径也很清晰，性能还不受影响。
+
+`polars`这种写法还有个缺点，就是导致同样的逻辑写法割裂，比如求和逻辑有下面写法:
+* `pl.col("a").sum()`
+
+* `pl.col("a").cum_sum()`
+
+* `pl.col("a").rolling_sum(10)`
+
+* `df.group_by("b").agg([pl.col("a").sum()])`
+
+如果说 `sum()` 和 `rolling_sum(10)`, 都是求和逻辑, 前一个是针对整列，后一个是针对滚动，但是 `rank()`和`rolling_rank(10)`, 又是两个不想关的算子, 而且并不存在`cum_rank()`这个算子，这样逻辑就很割裂，为什么能存在`cum_sum`, 但是不能存在`cum_rank`, `cum_skew`, `cum_cov`? 
+
+相反用`datafusion`的上下文逻辑，写法就比较一致:
+* `col("a").sum()`
+
+* `col("a").sum().expanding()`
+
+* `col("a").sum().rolling(10)`
+
+* `col("a").sum().group_by("b")`
+
+### 3. 多列返回
+
+`polars` 和 `datafusion` 对单个算子都不支持多列返回，但是`datafusion`提供了插件接口，能改成多列返回:
+```python
+n = 7
+data = pl.DataFrame({
+    "y": np.random.randn(n),
+    "x1": np.random.randn(n),
+    "x2": np.random.randn(n),
+})
+res = qs.with_cols(
+    col("y", "x1", "x2").stock.ols().rolling(4).add_suffix("rolling_beta"),
+).calc_data(data)
+print(res)
+shape: (7, 5)
+┌───────────┬───────────┬───────────┬─────────────────┬─────────────────┐
+│ y         ┆ x1        ┆ x2        ┆ x1_rolling_beta ┆ x2_rolling_beta │
+│ ---       ┆ ---       ┆ ---       ┆ ---             ┆ ---             │
+│ f64       ┆ f64       ┆ f64       ┆ f64             ┆ f64             │
+╞═══════════╪═══════════╪═══════════╪═════════════════╪═════════════════╡
+│ 0.522261  ┆ -0.376497 ┆ -0.594123 ┆ null            ┆ null            │
+│ 1.325991  ┆ -0.723979 ┆ 2.626444  ┆ null            ┆ null            │
+│ 1.502309  ┆ -2.089571 ┆ 0.28167   ┆ null            ┆ null            │
+│ -0.322316 ┆ 0.00877   ┆ -0.213895 ┆ -0.731707       ┆ 0.271784        │
+│ -0.733964 ┆ -0.750248 ┆ -0.592936 ┆ -0.47639        ┆ 0.465733        │
+│ 0.445435  ┆ -0.559213 ┆ -0.44069  ┆ -0.56446        ┆ 1.174467        │
+│ 1.735427  ┆ -2.403888 ┆ 1.207053  ┆ -0.29973        ┆ 0.849167        │
+└───────────┴───────────┴───────────┴─────────────────┴─────────────────┘
+```
+多列返回我能想到以下好处
+* 多列返回在用一些比如k线合成算子，策略信号算子之类的比较方便
+
+* 另一个是避免用`struct`, 如果底层依赖从`arror-rs`改成[`MinArrow`](https://github.com/pbower/minarrow), 估计内存占用能到原来的一半，并且耗时减少
+
+### 4. `datafusion` 功能更齐全，比如:
+* 支持`DataFrame` Api 和 sql相互转换，`polars`不行
+
+* 原生支持`arrow`, `datafusion`是`arrow`的一部分，未来生态会更丰富, `polars`自己写了一个`polars-arrow`, 生态割裂
+
+* `datafusion` 有成熟的分布式应用，而且全部开源，`polars` 前期是基于`datafusion`的二次开发，目前分布式刚起步，而且闭源，貌似已经**把主要精力放在商业闭源上面去了**
+
+
+
+>-------------------
+`qust`是用`rust`写的一个`datafusion`插件，主要目的是尝试用`DataFrame api`去写事件驱动量化策略，并且保持向量化计算的高性能.
+
+所以主要是添加一些能够状态保留的算子，其他一些无需状态保留的算子，还是依赖于`polars`的算子，比如:
+```python
+col("a") + 1
+```
+会报错:
+```
+TypeError: unsupported operand type(s) for +: 'Expr' and 'int'
+```
+只能用`polars`的算子:
+```python
+qs.select(
+    pl.col("a") + 1,
+    pl.col("a").rank().over("code")
+    col("a").select(pl.col("a") + 1).over("code")
+)
+```
+
+当然，上面说的只是我个人的理解，对这方面有兴趣的朋友可以加我微信交流，微信号: aruster
+
+
+# 写策略
+
+### 1. 有k线数据，实现一个双均线策略
+
+```python
+# 策略逻辑
+stra = (
+    col(
+        col("close"),
+        col("datetime"),
+        col("close").future.two_ma(10, 20), # 通过算子生成信号
+    )
+        .with_cols(col("cross_up", "cross_down").future.to_hold_always().alias("hold")) # 通过信号生成目标持仓
+)
+# 回测
+df_bt = qs.select(
+    stra.with_cols(
+        col("close", "hold").future.backtest()
+    ).expanding().select(
+        col("pnl").sum().group_by(pl.col("datetime").dt.date().alias("date"))
+    ).with_cols(
+        col("pnl").sum().alias("pnl_cum").expanding() 
+    )
+)
+
+# 实盘
+df_live = qs.select(stra.expanding().select("hold").last_value())
+
+
+data = pl.read_parquet("./data/300_1min_vnpy.parquet")
+# 假设历史数据
+data_his = data[:600000]
+# 假设实盘数据流
+data_live = [data[600000:601000], data[601000:602000]]
+
+
+# 回测
+df_bt.calc_data(data_his)
+
+
+# 实盘
+df_live.calc_data(data_his)
+for data_live_ in data_live:
+    print(df_live.calc_data(data_live_))
+
+```
+
+
+### 2. 有数据源，这个数据源不断获取多个品种的tick数据，策略需要分品种将数据不断合成1min k线，并且生成双均线的开仓逻辑，然后用0.01止损作为出场
+
+```python
+# 策略逻辑
+col_tick = col("t", "c", "v", "bid1", "ask1", "bid1_v", "ask1_v")
+stra = (
+    col(
+        col("c"),
+        col("t"),
+        col_tick.future.kline(qs.KlineType.future_ra1m).with_cols(
+            col("close").future.two_ma(10, 20).filter_cb("is_finished")
+        ),
+    ).with_cols(
+        col(
+            col("cross_up", "c").future.exit_by_pct(0.01, False).alias("take_profit_long"),
+            col("cross_up", "c").future.exit_by_pct(0.01, True).alias("stop_loss_long"),
+        )
+            .with_cols(
+                (pl.col("take_profit_long") | pl.col("stop_loss_long")).alias("exit_long_sig") 
+            ),
+        col(
+            col("cross_down", "c").future.exit_by_pct(0.01, True).alias("take_profit_short"),
+            col("cross_down", "c").future.exit_by_pct(0.01, False).alias("stop_loss_short"),
+        )   
+            .with_cols(
+                (pl.col("take_profit_short") | pl.col("stop_loss_short")).alias("exit_short_sig")
+            )
+    ).with_cols(
+        col("cross_up", "exit_long_sig", "cross_down", "exit_short_sig")
+            .future
+            .to_hold_two_sides()
+            .alias("hold")
+    )
+)
+
+# 价格回测
+df_bt_price = (
+    qs.select(
+        stra
+            .with_cols(
+                col("c", "hold").future.backtest(),
+            )
+            .expanding()
+            .over("ticker")
+            .select(
+                col("pnl").sum().group_by(pl.col("t").dt.date().alias("date"))
+            )
+            .with_cols(
+                col("pnl").sum().alias("pnl_cum").expanding()
+            )
+    )
+)
+
+# tick回测
+df_bt_tick = (
+    qs.select(
+        col(
+            "bid1",
+            "ask1",
+            stra,
+        )
+            .with_cols(
+                col("hold", "c", "bid1", "ask1")
+                    .future
+                    .backtest_tick(qs.TradePriceType.queue, qs.MatchPriceType.simnow)
+                    # .backtest_tick(qs.TradePriceType.last_price, qs.MatchPriceType.void)
+            )
+            .expanding()
+            .over("ticker")
+            .select(
+                col("pnl").sum().group_by(pl.col("t").dt.date().alias("date"))
+            )
+            .with_cols(
+                col("pnl").sum().alias("pnl_cum").expanding()
+            )
+    )
+)
+
+data = pl.read_parquet("./data/data_tick.parquet")
+
+df_bt_price.calc_data(data).plot.line(x = "date", y = "pnl_cum")
+
+df_bt_tick.calc_data(data).plot.line(x = "date", y = "pnl_cum")
+
+```
+
+### 3. 一个更复杂的策略，接受tick数据，同时合成5min和30min的k线，双周期共振的均线策略
+
+```python
+# 策略逻辑
+col_tick = col("t", "c", "v", "bid1", "ask1", "bid1_v", "ask1_v")
+stra =  (
+    col(
+        col("c"),
+        col("t"),
+        col_tick.future.kline(qs.KlineType.rl5m)
+            .with_cols(
+                col("close").future.two_ma(10, 20).filter_cb("is_finished")
+            )
+            .add_suffix("m5"),
+        col_tick.future.kline(qs.KlineType.rl30m)
+            .with_cols(
+                col("close").future.two_ma(10, 20).filter_cb("is_finished")
+            )
+            .add_suffix("m30")
+    )
+        .with_cols(
+            col("cross_up_m30", "cross_down_m30").ffill()
+        )
+        .with_cols(
+            col(pl.col("cross_up_m5") & pl.col("cross_up_m30")).alias("open_long_sig"),
+            col(pl.col("cross_down_m5") & pl.col("cross_down_m30")).alias("open_short_sig"),
+        )
+        .with_cols(
+            col(
+                col("open_long_sig", "c").future.exit_by_pct(0.05, False).alias("take_profit_long"),
+                col("open_long_sig", "c").future.exit_by_pct(0.02, True).alias("stop_loss_long"),
+            )
+                .select(
+                    (pl.col("take_profit_long") | pl.col("stop_loss_long")).alias("exit_long_sig") 
+                ),
+            col(
+                col("open_short_sig", "c").future.exit_by_pct(0.05, True).alias("take_profit_short"),
+                col("open_short_sig", "c").future.exit_by_pct(0.02, False).alias("stop_loss_short"),
+            )   
+                .select(
+                    (pl.col("take_profit_short") | pl.col("stop_loss_short")).alias("exit_short_sig")
+                )
+        )
+        .with_cols(
+            col("open_long_sig", "exit_long_sig", "open_short_sig", "exit_short_sig")
+                .future
+                .to_hold_two_sides()
+                .alias("hold")
+        )
+)
+
+# tick回测逻辑
+df_bt_tick = (
+    qs.select(
+        col(
+            "bid1",
+            "ask1",
+            stra,
+        )
+            .with_cols(
+                col("hold", "c", "bid1", "ask1")
+                    .future
+                    .backtest_tick(qs.TradePriceType.queue, qs.MatchPriceType.simnow)
+                    # .backtest_tick(qs.TradePriceType.last_price, qs.MatchPriceType.void)
+            )
+            .expanding()
+            .over("ticker")
+            .select(
+                col("pnl").sum().group_by(pl.col("t").dt.date().alias("date"))
+            )
+            .with_cols(
+                col("pnl").sum().alias("pnl_cum").expanding()
+            )
+    )
+)
+
+df_bt_tick.calc_data(data).plot.line(x = "date", y = "pnl_cum")
+```
