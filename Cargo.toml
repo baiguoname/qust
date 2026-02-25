@@ -1,13 +1,13 @@
 [workspace]
 members = [
-    "qust-derive",
+    # "qust-derive",
     "qust-ds",
-    "qust",
-    "qust-io",
-    "qust-api",
-    "qust-stra",
-    "stra",
-    "getdata", "jljh-test", "jh-test",
+    # "qust",
+    # "qust-io",
+    # "qust-api",
+    # "qust-stra",
+    # "stra",
+    # "getdata", 
 ]
 
 exclude = [
