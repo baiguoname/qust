@@ -55,6 +55,24 @@ import numpy as np
 
 
 ```python
+pip install /root/otters/target/wheels/qust-0.5.0-cp310-abi3-manylinux_2_35_x86_64.whl
+```
+
+    Processing /root/otters/target/wheels/qust-0.5.0-cp310-abi3-manylinux_2_35_x86_64.whl
+    Requirement already satisfied: polars>=1.35 in /usr/local/lib/python3.12/site-packages (from qust==0.5.0) (1.37.1)
+    Requirement already satisfied: pyarrow>=19.0.0 in /usr/local/lib/python3.12/site-packages (from qust==0.5.0) (23.0.0)
+    Requirement already satisfied: polars-runtime-32==1.37.1 in /usr/local/lib/python3.12/site-packages (from polars>=1.35->qust==0.5.0) (1.37.1)
+    Installing collected packages: qust
+    Successfully installed qust-0.5.0
+    [33mWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv[0m[33m
+    [0m
+    [1m[[0m[34;49mnotice[0m[1;39;49m][0m[39;49m A new release of pip is available: [0m[31;49m23.2.1[0m[39;49m -> [0m[32;49m26.0.1[0m
+    [1m[[0m[34;49mnotice[0m[1;39;49m][0m[39;49m To update, run: [0m[32;49mpip3.12 install --upgrade pip[0m
+    Note: you may need to restart the kernel to use updated packages.
+
+
+
+```python
 n = 10
 data = pl.DataFrame({
     "factor": np.random.randn(n),
@@ -1155,6 +1173,11 @@ data_kline = pl.read_parquet("https://github.com/baiguoname/qust/blob/main/examp
 
 
 ```python
+
+```
+
+
+```python
 stra = (
     col(
         "ticker",
@@ -1183,8 +1206,8 @@ df_bt = (qs
             )
             .with_cols(
                 col("date", col("pnl").sum().expanding())
-                    .ui_plot
-                    .line("pnl_by_ticker")
+                    .monitor
+                    .line()
                     .over("ticker")
             )
             .select(
@@ -1192,13 +1215,13 @@ df_bt = (qs
                     .sum()
                     .group_by("date")
                     .select(
-                        col("date", col("pnl").sum().expanding()).ui_plot.line("pnl_all"),
+                        col("date", col("pnl").sum().expanding()).monitor.line(),
                     ),
                 col("fee", "pnl")
                     .sum()
                     .group_by("ticker")
                     .select(
-                        col("ticker", "pnl", "fee").ui_plot.bar("ticker_split_bar"),
+                        col("ticker", "pnl", "fee").monitor.bar(),
                     ),
                 col("pnl").sum(),
             )
@@ -1208,7 +1231,7 @@ df_bt = (qs
 
 
 ```python
-df_bt.opt_params(data_kline)
+df_bt.opt_params(data_kline, True)
 ```
 
 ![交互式参数寻优](examples/data/view_params.gif)
@@ -1283,8 +1306,40 @@ qs.select(
     col(
         "a", 
         col("a").udf.row(PowUdf()).expanding()
-    ).ui_plot.line("ggg")
-).opt_params(data)
+    ).monitor.line()
+).opt_params(data, True)
 ```
 
 ![交互式参数寻优](./examples/data/udf_params.gif)
+
+# 监控可视化
+
+
+```python
+monitor1 = qs.Monitor(url = "127.0.0.1:8800", background="whight").make_grid([["a", "a"], ["b", "c"]])
+monitor2 = qs.Monitor(url = "127.0.0.1:8801").make_grid(1, 1)
+df = (qs
+    .select(
+        col("datetime", "open", "high", "low", "close").monitor(keep_last=50).kline().over("ticker").add_to_monitor(monitor1, "a"),
+        col("datetime", "volume").monitor(keep_last=50).bar().over("ticker").add_to_monitor(monitor1, "a", y_axis=1, y_ratio = -0.2),
+        col("datetime", col("open").mean().rolling(20).alias("mean_rolling"))
+            .monitor(keep_last=50)
+            .line()
+            .over("ticker")
+            .add_to_monitor(monitor1, "a"),
+        col("datetime", "close").monitor.line().over("ticker").add_to_monitor(monitor1, "b"),
+        col("close").mean().group_by("ticker").monitor.table().add_to_monitor(monitor1, "c"),
+    )     
+)
+df.run_monitor_server(True)
+```
+
+
+```python
+import time
+for i in range(0, 1000, 10):
+    df.calc_data(data_kline[i:i+10])
+    time.sleep(0.05)
+```
+
+![监控](./examples/data/monitor.gif)
