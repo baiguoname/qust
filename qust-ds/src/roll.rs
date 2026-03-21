@@ -1,10 +1,10 @@
 use crate::types::*;
 use itertools::Itertools;
+use num_traits::cast::AsPrimitive;
 use num_traits::Pow;
 use serde::{Deserialize, Serialize};
 use std::iter::Sum;
 use std::ops::{Deref, Sub};
-use num_traits::cast::AsPrimitive;
 
 /* #region Agg Func  */
 
@@ -221,7 +221,7 @@ impl AggFunc2 for [f32] {
 pub enum RollOps {
     N(usize),
     InitMiss(usize),
-    Vary(Box<Vec<usize>>)
+    Vary(Box<Vec<usize>>),
 }
 impl AsRef<RollOps> for RollOps {
     fn as_ref(&self) -> &RollOps {
@@ -245,21 +245,16 @@ impl RollOps {
                     res[i] = data_part.agg(f);
                 }
                 res
-            },
+            }
             RollOps::InitMiss(n) => {
                 let mut res = RollOps::N(*n).roll(f, data);
-                res.iter_mut()
-                    .take(n - 1)
-                    .for_each(|x| *x = f32::NAN);
+                res.iter_mut().take(n - 1).for_each(|x| *x = f32::NAN);
                 res
             }
-            RollOps::Vary(v) => {
-                data.rolling(&**v).map(|x| x.agg(f)).collect_vec()
-            }
+            RollOps::Vary(v) => data.rolling(&**v).map(|x| x.agg(f)).collect_vec(),
         }
     }
 }
-
 
 pub trait RollCalc<T> {
     fn roll<N: AsRef<RollOps> + Clone>(&self, f: RollFunc, n: N) -> Vec<T>;
@@ -275,8 +270,7 @@ impl<T> RollCalc<v32> for Vec<&T>
 where
     T: AsRef<[f32]> + RollCalc<f32> + ?Sized,
 {
-    fn roll<N: AsRef<RollOps> + Clone>(&self, f: RollFunc, n: N) -> vv32
-    {
+    fn roll<N: AsRef<RollOps> + Clone>(&self, f: RollFunc, n: N) -> vv32 {
         self.deref()
             .iter()
             .map(|&x| x.as_ref().roll(f, n.clone()))
@@ -285,7 +279,7 @@ where
 }
 /* #endregion */
 
-/* #region RollSetp */
+/* #region RollStep */
 #[derive(Debug, Clone, PartialEq, Hash, Eq, Serialize, Deserialize)]
 pub struct RollStep(pub usize, pub usize);
 
@@ -338,7 +332,7 @@ pub struct MovingWindow<'a, T, N> {
     slice: &'a [T],
     n: N,
     count: usize,
-    init_size: usize
+    init_size: usize,
 }
 
 impl<'a, T> Iterator for MovingWindow<'a, T, usize> {
@@ -366,7 +360,7 @@ impl<'a, T> Iterator for MovingWindow<'a, T, usize> {
     }
 }
 
-impl<'a, 'b, T> Iterator for MovingWindow<'a, T, &'b Vec<usize>> {
+impl<'a, T> Iterator for MovingWindow<'a, T, &Vec<usize>> {
     type Item = &'a [T];
 
     #[inline]
@@ -374,7 +368,7 @@ impl<'a, 'b, T> Iterator for MovingWindow<'a, T, &'b Vec<usize>> {
         if self.count <= self.init_size {
             let i = self.count;
             let win = self.n[i - 1];
-            let start_i = if i < win { 0usize } else { i - win };
+            let start_i = i.saturating_sub(win);
             // println!("i: {i}, win: {win}, start_i: {start_i}");
             let ret = Some(&self.slice[start_i..i]);
             self.count += 1;
@@ -387,14 +381,19 @@ impl<'a, 'b, T> Iterator for MovingWindow<'a, T, &'b Vec<usize>> {
 
 pub trait Rolling {
     type T;
-    fn rolling<N>(&self, n: N) -> MovingWindow<Self::T, N>;
+    fn rolling<N>(&self, n: N) -> MovingWindow<'_, Self::T, N>;
 }
 
 impl<N> Rolling for [N] {
     type T = N;
-    fn rolling<K>(&self, n: K) -> MovingWindow<Self::T, K>
-    {
-        MovingWindow { slice: self, n, count: 1, init_size: self.len()}
+    fn rolling<K>(&self, n: K) -> MovingWindow<'_, Self::T, K> {
+        MovingWindow {
+            slice: self,
+            n,
+            count: 1,
+            init_size: self.len(),
+        }
     }
 }
 /* #endregion */
+
