@@ -55,24 +55,6 @@ import numpy as np
 
 
 ```python
-pip install /root/otters/target/wheels/qust-0.5.0-cp310-abi3-manylinux_2_35_x86_64.whl
-```
-
-    Processing /root/otters/target/wheels/qust-0.5.0-cp310-abi3-manylinux_2_35_x86_64.whl
-    Requirement already satisfied: polars>=1.35 in /usr/local/lib/python3.12/site-packages (from qust==0.5.0) (1.37.1)
-    Requirement already satisfied: pyarrow>=19.0.0 in /usr/local/lib/python3.12/site-packages (from qust==0.5.0) (23.0.0)
-    Requirement already satisfied: polars-runtime-32==1.37.1 in /usr/local/lib/python3.12/site-packages (from polars>=1.35->qust==0.5.0) (1.37.1)
-    Installing collected packages: qust
-    Successfully installed qust-0.5.0
-    [33mWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv[0m[33m
-    [0m
-    [1m[[0m[34;49mnotice[0m[1;39;49m][0m[39;49m A new release of pip is available: [0m[31;49m23.2.1[0m[39;49m -> [0m[32;49m26.0.1[0m
-    [1m[[0m[34;49mnotice[0m[1;39;49m][0m[39;49m To update, run: [0m[32;49mpip3.12 install --upgrade pip[0m
-    Note: you may need to restart the kernel to use updated packages.
-
-
-
-```python
 n = 10
 data = pl.DataFrame({
     "factor": np.random.randn(n),
@@ -168,6 +150,16 @@ df.calc_data(data)
 <small>shape: (5, 6)</small><table border="1" class="dataframe"><thead><tr><th>price</th><th>code</th><th>cum_sum_otters</th><th>cum_sum_polars</th><th>cum_sum_otters_over</th><th>cum_sum_polars_over</th></tr><tr><td>i64</td><td>str</td><td>i64</td><td>i64</td><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>0</td><td>&quot;a&quot;</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr><td>1</td><td>&quot;a&quot;</td><td>1</td><td>1</td><td>1</td><td>1</td></tr><tr><td>2</td><td>&quot;a&quot;</td><td>3</td><td>3</td><td>3</td><td>3</td></tr><tr><td>3</td><td>&quot;b&quot;</td><td>6</td><td>6</td><td>3</td><td>3</td></tr><tr><td>4</td><td>&quot;b&quot;</td><td>10</td><td>10</td><td>7</td><td>7</td></tr></tbody></table></div>
 
 
+
+
+```python
+# 广播
+col("a") + col("b", "c")
+col("a") > col("b", "c")
+col("a", "b") + col("c", "d")
+col("a", "b") + col("c")
+col("a", "b") & col("c")
+```
 
 # 与polars性能比较
 
@@ -588,25 +580,7 @@ shape: (7, 5)
 
 * `datafusion` 有成熟的分布式应用，而且全部开源，`polars` 前期是基于`datafusion`的二次开发，目前分布式刚起步，而且闭源，貌似已经**把主要精力放在商业闭源上面去了**
 
->--------
-`qust`是用`rust`写的一个`datafusion`插件，主要目的是尝试用`DataFrame api`去写事件驱动量化策略，并且保持向量化计算的高性能.
 
-所以主要是添加一些能够状态保留的算子，其他一些无需状态保留的算子，还是依赖于`polars`的算子，比如:
-```python
-col("a") + 1
-```
-会报错:
-```
-TypeError: unsupported operand type(s) for +: 'Expr' and 'int'
-```
-只能用`polars`的算子:
-```python
-qs.select(
-    pl.col("a") + 1,
-    pl.col("a").rank().over("code")
-    col("a").select(pl.col("a") + 1).over("code")
-)
-```
 
 当然，上面说的只是我个人的理解，对这方面有兴趣的朋友可以加我微信交流，微信号: aruster
 
@@ -1173,17 +1147,12 @@ data_kline = pl.read_parquet("https://github.com/baiguoname/qust/blob/main/examp
 
 
 ```python
-
-```
-
-
-```python
 stra = (
     col(
         "ticker",
         "close",
         "datetime",
-        col("close").stra.two_ma(pms("short", 10, 60, step = 5), pms("long", 20, 60, step = 5)), # 通过算子生成信号
+        col("close").stra.two_ma(pms(10, 60).title("short").step(5), pms(20, 60).title("long").step(5)), # 通过算子生成信号
     )
         .with_cols(col("cross_up", "cross_down").stra.to_hold_always().alias("hold")) # 通过信号生成目标持仓
 )
@@ -1223,6 +1192,7 @@ df_bt = (qs
                     .select(
                         col("ticker", "pnl", "fee").monitor.bar(),
                     ),
+                col("pnl").sum().monitor.table(),
                 col("pnl").sum(),
             )
     )
@@ -1282,8 +1252,8 @@ class PowUdf(qs.UdfRow):
 
     def __init__(self):
         # 在内部做状态保留
-        self.pow = pms("pow", 0.1, 4.0, step = 0.01)
-        self.s = pms("sub", 1, 10, step = 1)
+        self.pow = pms(0.1, 4.0).title("pow").step(0.1)
+        self.s = pms(1, 10).title("sum").step(1)
         self.value = 1.0
 
     def output_schema(self, input_schema):
@@ -1343,3 +1313,99 @@ for i in range(0, 1000, 10):
 ```
 
 ![监控](./examples/data/monitor.gif)
+
+# 内置策略
+
+1. CTA信号类策略
+
+我用codex翻译了100多个cta信号策略，获取方法：
+
+`qs.future.Stra.get_all_sig_stras()`
+
+具体的策略实现逻辑见[cta信号类策略链接](https://github.com/baiguoname/qust/blob/main/examples/stra_assets.py)
+
+一个策略其实就是一个算子，可以方便验证不同策略在不同数据源上的应用，比如
+
+
+```python
+data_kline = pl.read_parquet("https://github.com/baiguoname/qust/blob/main/examples/data/data_kline2.parquet?raw=true") 
+```
+
+
+```python
+monitor1 = qs.Monitor(url = "127.0.0.1:8800", background="black").make_grid([["a", "a"], ["b", "c"]])
+e0 = (
+    col("open_long_sig", "exit_long_sig" , "open_short_sig", "exit_short_sig")
+        .stra
+        .to_hold_two_sides()
+        .expanding()
+        .alias("hold")
+        .over("ticker")
+)
+e1 = col(
+    "ticker",
+    "datetime",
+    col("close", "hold")
+        .bt
+        .price(fee_rate = pms(0.0, 0.0002).step(0.00001).title("fee_rate"))
+        .over("ticker")
+)
+e2 =   (
+    col("pnl")
+    .sum()
+    .group_by(col("datetime").dt.date().alias("date"))
+    .with_cols(
+        col("pnl").sum().expanding().alias("pnl_cum")
+    )
+    .select("date", "pnl_cum")
+    .monitor
+    .line()
+    .add_to_monitor(monitor1, "a")
+)
+e3 = (
+    col("pnl")
+        .sum()
+        .group_by(col("datetime").dt.date().alias("date"), "ticker")
+        .with_cols(
+            col("pnl").sum().expanding().alias("pnl_cum").over("ticker")
+        )
+        .select(
+            col("date", "pnl_cum")
+                .monitor
+                .line()
+                .over("ticker")
+                .add_to_monitor(monitor1, "b"),
+        )
+)
+df = qs.with_cols(
+    col.all.stra.stra_select(qs.future.Stra.get_all_sig_stras()).over("ticker")
+).with_cols(e0).select(e1).select(e2, e3)
+df.opt_params(data_kline, True)
+```
+
+![监控](./examples/data/straselect.gif)
+
+也可以对两个策略测试信号融合
+
+
+```python
+monitor1 = qs.Monitor(url = "127.0.0.1:8800", background="black").make_grid([["a", "a"], ["b", "c"]])
+df = qs.with_cols(
+    col(
+        col.all.stra.stra_select(qs.future.Stra.get_all_sig_stras(), "算子1").over("ticker").add_suffix("1"),
+        col.all.stra.stra_select(qs.future.Stra.get_all_sig_stras(), "算子2").over("ticker").add_suffix("2"),
+    ).select(
+        (col("open_long_sig_1") & col("open_long_sig_2")).alias("open_long_sig"),
+        (col("open_short_sig_1") & col("open_short_sig_2")).alias("open_short_sig"),
+        (col("exit_long_sig_1") | col("exit_long_sig_2")).alias("exit_long_sig"),
+        (col("exit_short_sig_1") | col("exit_short_sig_2")).alias("exit_short_sig"),
+    )
+).with_cols(e0).select(e1).select(e2, e3)
+df.opt_params(data_kline, True)
+```
+
+就像要codex直接写代码，codex会给你整坨大的, 但是给codex定很多约束，codex写的代码质量出奇的好
+
+同样，直接叫ai去写策略，有点困难；但是如果给ai很多算子，并且告诉ai这些算子的作用，然后要ai整夜给你跑，组合出一个好的策略，说不定ai有奇效
+
+这个时候就能体现出算子组合写策略的优势了
