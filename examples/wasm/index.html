@@ -1,0 +1,1963 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Qust-Wasm 面板</title>
+  <style>
+    :root {
+      --left-pane-w: 28vw;
+      --editor-font-size: 20px;
+      --editor-font-weight: 350;
+    }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #0b1020;
+      color: #e8eeff;
+      font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      overflow: hidden;
+    }
+    .app {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    #boot_loader {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(72, 128, 255, 0.24), transparent 34%),
+        radial-gradient(circle at 82% 22%, rgba(62, 220, 177, 0.18), transparent 30%),
+        #080d1f;
+      color: #edf4ff;
+    }
+    #boot_loader.done {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 260ms ease;
+    }
+    .boot-card {
+      width: min(560px, calc(100vw - 48px));
+      border: 1px solid rgba(116, 151, 255, 0.36);
+      border-radius: 18px;
+      background: rgba(14, 22, 48, 0.82);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      padding: 26px 28px;
+      box-sizing: border-box;
+      backdrop-filter: blur(10px);
+    }
+    .boot-title {
+      font-size: 24px;
+      font-weight: 650;
+      letter-spacing: 0.04em;
+      margin-bottom: 18px;
+    }
+    .boot-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 12px;
+      color: #cddaff;
+    }
+    #boot_percent {
+      font-size: 34px;
+      font-weight: 720;
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+    }
+    .boot-track {
+      width: 100%;
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(111, 130, 178, 0.25);
+      border: 1px solid rgba(173, 191, 255, 0.18);
+    }
+    #boot_bar {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #3d8bff, #5de4bd);
+      box-shadow: 0 0 24px rgba(93, 228, 189, 0.42);
+      transition: width 180ms ease;
+    }
+    #boot_label {
+      margin-top: 12px;
+      min-height: 20px;
+      color: #9fb1eb;
+      font-size: 14px;
+    }
+    .topbar {
+      height: 58px;
+      border-bottom: 1px solid #29345f;
+      background: #121938;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      box-sizing: border-box;
+    }
+    .top-title {
+      color: #e7eeff;
+      font-size: 24px;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+    #status {
+      min-height: 18px;
+      color: #8de5af;
+      font-size: 14px;
+      max-width: 60%;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #status.err { color: #ff8f8f; }
+    .main {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: stretch;
+    }
+    .main.dragging {
+      cursor: col-resize;
+    }
+    .main.dragging * {
+      user-select: none !important;
+    }
+    .left-pane {
+      width: var(--left-pane-w);
+      min-width: 25vw;
+      max-width: 72vw;
+      overflow: auto;
+      border-right: 1px solid #27305a;
+      background: #111833;
+      padding: 12px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .splitter {
+      width: 8px;
+      flex: 0 0 8px;
+      cursor: col-resize;
+      background: linear-gradient(
+        to right,
+        rgba(39, 48, 90, 0.25) 0%,
+        rgba(83, 103, 173, 0.65) 50%,
+        rgba(39, 48, 90, 0.25) 100%
+      );
+    }
+    .splitter:hover,
+    .splitter.dragging {
+      background: linear-gradient(
+        to right,
+        rgba(61, 80, 156, 0.35) 0%,
+        rgba(116, 155, 255, 0.95) 50%,
+        rgba(61, 80, 156, 0.35) 100%
+      );
+    }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .hint { color: #9fb1eb; font-size: 13px; }
+    .expr-label { color: #b8c7f7; font-size: 13px; display:block; }
+    .editor {
+      border: 1px solid rgba(52, 67, 129, 0.7);
+      border-radius: 8px;
+      background: rgba(18, 24, 44, 0.7);
+      position: relative;
+      min-height: 220px;
+      max-height: 48vh;
+      overflow: auto;
+      backdrop-filter: blur(4px);
+    }
+    #expr_highlight,
+    #expr_script {
+      margin: 0;
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 220px;
+      padding: 12px 12px;
+      font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+      font-size: var(--editor-font-size);
+      font-weight: var(--editor-font-weight);
+      line-height: 1.6;
+      white-space: pre;
+      overflow-wrap: normal;
+      word-break: normal;
+      tab-size: 4;
+      letter-spacing: 0.005em;
+      font-variant-ligatures: contextual;
+      text-rendering: geometricPrecision;
+    }
+    #expr_highlight {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      color: #d4d4d4;
+      pointer-events: none;
+      overflow: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    #expr_highlight::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+    #expr_script {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      border: none;
+      resize: vertical;
+      background: transparent;
+      color: transparent;
+      caret-color: #f8f8f2;
+      outline: none;
+      overflow: auto;
+      scrollbar-gutter: stable;
+      overscroll-behavior: contain;
+    }
+    #expr_script::selection {
+      background: rgba(80, 140, 255, 0.35);
+    }
+    .tok-keyword { color: #569cd6; }
+    .tok-func { color: #dcdcaa; }
+    .tok-number { color: #b5cea8; }
+    .tok-string { color: #ce9178; }
+    .tok-op { color: #d4d4d4; }
+    .tok-comment { color: #6a9955; }
+    button {
+      background: linear-gradient(135deg, #2a86ff 0%, #2268ff 100%);
+      border: 1px solid #3b86ff;
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      transition:
+        transform 0.12s ease,
+        box-shadow 0.2s ease,
+        filter 0.2s ease,
+        border-color 0.2s ease,
+        background 0.2s ease;
+      box-shadow: 0 2px 8px rgba(34, 104, 255, 0.18);
+    }
+    button:hover {
+      background: linear-gradient(135deg, #49a1ff 0%, #2f78ff 100%);
+      border-color: #6bb5ff;
+      filter: saturate(1.08) brightness(1.06);
+      box-shadow: 0 6px 16px rgba(46, 121, 255, 0.35);
+      transform: translateY(-1px);
+    }
+    button:active {
+      transform: translateY(1px) scale(0.99);
+      box-shadow: 0 2px 8px rgba(46, 121, 255, 0.2);
+    }
+    button:focus-visible {
+      outline: 2px solid #9ed0ff;
+      outline-offset: 1px;
+    }
+    .params-box {
+      border: 1px solid #2f3a6e;
+      border-radius: 8px;
+      background: #0f1734;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    .output-box {
+      border: 1px solid #2f3a6e;
+      border-radius: 8px;
+      background: #0f1734;
+      padding: 10px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .output-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .output-title {
+      color: #d6e3ff;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .output-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #toggleOutput {
+      min-width: 80px;
+    }
+    #output_panel {
+      display: none;
+      border: 1px solid #314285;
+      border-radius: 8px;
+      background: #0b1127;
+      min-height: 120px;
+      max-height: 280px;
+      overflow: auto;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    #output_panel.show {
+      display: block;
+    }
+    #output_text {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #cfe0ff;
+      font-size: 12px;
+      line-height: 1.45;
+      font-family: "JetBrains Mono", "Consolas", monospace;
+    }
+    .params-title {
+      font-size: 14px;
+      color: #d6e3ff;
+      font-weight: 600;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .panel-head-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .params-empty {
+      color: #8ea1d6;
+      font-size: 13px;
+      padding: 4px 0;
+    }
+    .param-item {
+      margin-bottom: 10px;
+    }
+    .param-name {
+      color: #bdd0ff;
+      font-size: 13px;
+      margin-bottom: 4px;
+      display: block;
+    }
+    .param-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .param-range {
+      flex: 1;
+      min-width: 0;
+    }
+    .param-value {
+      min-width: 78px;
+      text-align: right;
+      color: #e8eeff;
+      font-size: 12px;
+      font-family: "JetBrains Mono", "Consolas", monospace;
+    }
+    .param-select {
+      width: 100%;
+      background: #17214a;
+      border: 1px solid #3b4f9a;
+      border-radius: 6px;
+      color: #e8eeff;
+      padding: 6px 8px;
+      box-sizing: border-box;
+    }
+    .file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border: 1px solid #2f3d78;
+      border-radius: 6px;
+      padding: 6px 8px;
+      background: #131d42;
+      color: #dbe6ff;
+      font-size: 12px;
+    }
+    .file-item.active {
+      border-color: #6bb5ff;
+      box-shadow: 0 0 0 1px rgba(107, 181, 255, 0.25) inset;
+    }
+    .file-main {
+      min-width: 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .file-item .name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-item .meta {
+      color: #9cb0e8;
+      font-family: "JetBrains Mono", "Consolas", monospace;
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .item-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .mini-btn {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      box-shadow: none;
+    }
+    .mini-btn.danger {
+      background: linear-gradient(135deg, #c94a4a 0%, #b73939 100%);
+      border-color: #d96f6f;
+    }
+    .right-pane {
+      flex: 1;
+      min-width: 0;
+      padding: 10px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+    #editor_modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      z-index: 50;
+      background: transparent;
+      pointer-events: none;
+    }
+    #editor_modal.show {
+      display: block;
+    }
+    .editor-dialog {
+      position: absolute;
+      left: 12vw;
+      top: 8vh;
+      width: 76vw;
+      height: 74vh;
+      min-width: 520px;
+      min-height: 360px;
+      max-width: 94vw;
+      max-height: 90vh;
+      border: 1px solid #3f53a3;
+      border-radius: 10px;
+      background: rgba(17, 24, 51, 0.82);
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      resize: both;
+      overflow: hidden;
+      pointer-events: auto;
+      box-sizing: border-box;
+    }
+    .editor-head {
+      height: 42px;
+      border-bottom: 1px solid #2f3d78;
+      background: #17214a;
+      color: #e8eeff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      box-sizing: border-box;
+      cursor: move;
+      user-select: none;
+    }
+    .editor-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+    .editor-title .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6bb5ff;
+      box-shadow: 0 0 12px rgba(107, 181, 255, 0.55);
+    }
+    .editor-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: default;
+    }
+    .editor-actions button {
+      padding: 6px 10px;
+      border-radius: 7px;
+      font-size: 13px;
+    }
+    .editor-actions select {
+      min-width: 128px;
+      max-width: 220px;
+      padding: 6px 10px;
+      border-radius: 7px;
+      font-size: 13px;
+      color: #e8eeff;
+      background: #17214a;
+      border: 1px solid #3b4f9a;
+      box-sizing: border-box;
+    }
+    .editor-body {
+      flex: 1;
+      min-height: 0;
+      padding: 10px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .editor-foot {
+      border-top: 1px solid #243161;
+      background: #121a38;
+      color: #9eb3ec;
+      font-size: 12px;
+      padding: 6px 10px;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .editor-body .editor {
+      flex: 1;
+      min-height: 0;
+      max-height: none;
+    }
+    #cm_editor_host {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      display: none;
+      overflow: hidden;
+    }
+    #cm_editor_host.show {
+      display: block;
+    }
+    #cm_editor_host .cm-editor {
+      height: 100%;
+      font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+      font-size: var(--editor-font-size);
+      font-weight: var(--editor-font-weight);
+    }
+    #cm_editor_host .cm-scroller {
+      font-family: inherit;
+      font-size: inherit;
+      line-height: 1.6;
+      overflow: auto;
+    }
+    #cm_editor_host .cm-content {
+      caret-color: #f8f8f2;
+      white-space: pre;
+    }
+    .editor-window-cm-host .cm-editor {
+      height: 100%;
+      font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+      font-size: var(--editor-font-size);
+      font-weight: var(--editor-font-weight);
+      line-height: 1.6;
+      background: transparent;
+      color: #e8eeff;
+    }
+    .editor-window-cm-host .cm-scroller {
+      font-family: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+      line-height: 1.6;
+      overflow: auto;
+    }
+    .editor-window-cm-host .cm-content {
+      padding: 12px 12px;
+      font-family: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+      line-height: 1.6;
+      letter-spacing: 0.005em;
+      color: inherit;
+      caret-color: #f8f8f2;
+      white-space: pre;
+    }
+    #editor_vim.active {
+      background: linear-gradient(135deg, #36b37e 0%, #2a9d6b 100%);
+      border-color: #58d69a;
+    }
+    #monitor_canvas {
+      width: 100%;
+      height: var(--monitor-canvas-h, 100%);
+      min-height: 100%;
+      flex: 0 0 auto;
+      background: #0f1530;
+      border: 1px solid #33407a;
+      border-radius: 10px;
+      display: block;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <div id="boot_loader">
+    <div class="boot-card">
+      <div class="boot-title">Qust Wasm 正在启动</div>
+      <div class="boot-row">
+        <span>加载运行时资源</span>
+        <span id="boot_percent">0%</span>
+      </div>
+      <div class="boot-track"><div id="boot_bar"></div></div>
+      <div id="boot_label">准备加载...</div>
+    </div>
+  </div>
+  <div class="app">
+    <div class="topbar">
+      <div class="top-title">Qust-Wasm 面板</div>
+      <div id="status"></div>
+    </div>
+    <div class="main">
+      <aside class="left-pane">
+        <div class="params-box">
+          <div class="panel-head">
+            <div class="params-title">已加载数据</div>
+            <div class="panel-head-actions">
+              <button id="uploadParquet">加载数据</button>
+            </div>
+          </div>
+          <input id="parquetFile" type="file" multiple accept=".parquet,application/octet-stream" style="display:none" />
+          <div id="loaded_files_panel" class="file-list">
+            <div class="params-empty">暂无</div>
+          </div>
+        </div>
+        <div class="params-box">
+          <div class="panel-head">
+            <div class="params-title">已保存文件</div>
+          </div>
+          <div id="saved_files_panel" class="file-list">
+            <div class="params-empty">暂无</div>
+          </div>
+        </div>
+        <div class="params-box">
+          <div class="panel-head">
+            <div class="params-title">代码池</div>
+            <div class="panel-head-actions">
+              <button id="openEditor">新建代码</button>
+            </div>
+          </div>
+          <div id="saved_codes_panel" class="file-list">
+            <div class="params-empty">暂无</div>
+          </div>
+        </div>
+        <div class="output-box">
+          <div class="output-head">
+            <span class="output-title">输出</span>
+            <div class="output-actions">
+              <button id="toggleOutput" type="button">打开</button>
+              <button id="clearOutput" type="button">清空</button>
+            </div>
+          </div>
+          <div id="output_panel">
+            <pre id="output_text"></pre>
+          </div>
+        </div>
+      </aside>
+      <div id="splitter" class="splitter" title="拖拽调整左侧宽度"></div>
+      <section class="right-pane">
+        <canvas id="monitor_canvas"></canvas>
+      </section>
+    </div>
+  </div>
+
+    <div id="editor_modal" aria-hidden="true">
+    <div id="editor_dialog" class="editor-dialog">
+      <div id="editor_head" class="editor-head">
+        <div class="editor-title">
+          <span class="dot" aria-hidden="true"></span>
+          <span id="editor_title_text">编辑代码</span>
+        </div>
+        <div class="editor-actions">
+          <button id="editor_font_dec" type="button" title="减小字体">字-</button>
+          <button id="editor_font_inc" type="button" title="增大字体">字+</button>
+          <button id="editor_vim" type="button" title="切换 Vim 模式">Vim 模式：关</button>
+          <button id="editor_run" type="button">运行</button>
+          <button id="editor_save" type="button">保存</button>
+        </div>
+      </div>
+      <div class="editor-body">
+        <div class="editor">
+          <pre id="expr_highlight"></pre>
+          <textarea id="expr_script" spellcheck="false" wrap="off"></textarea>
+          <div id="cm_editor_host"></div>
+        </div>
+      </div>
+      <div class="editor-foot">
+        <span>快捷键：Ctrl+Enter 运行 · Ctrl+S 保存 · Ctrl+/ 注释 · Tab 缩进</span>
+        <span id="editor_font_info">字体 20px</span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import initMonitor, { start_monitor } from './monitor.js?v=20260428_092812';
+    import { createEvalEngine } from './app/wasm-eval.js?v=20260428_092812';
+    import {
+      createMonitorCallbacksRuntime,
+    } from './app/monitor-callback-runtime.js?v=20260428_092812';
+    import { createLocalMonitorSession } from './app/monitor-session-runtime.js?v=20260428_092812';
+    import { createWorkbenchRuntime } from './app/workbench-runtime.js?v=20260428_092812';
+
+    function b64ToUint8Array(b64) {
+      const bin = atob(b64);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+
+    function setStatus(text, isErr = false) {
+      const el = document.getElementById('status');
+      el.textContent = text;
+      el.className = isErr ? 'err' : '';
+    }
+
+    function updateBootProgress(percent, label) {
+      const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+      const bar = document.getElementById('boot_bar');
+      const pctEl = document.getElementById('boot_percent');
+      const labelEl = document.getElementById('boot_label');
+      if (bar) bar.style.width = `${pct}%`;
+      if (pctEl) pctEl.textContent = `${pct}%`;
+      if (labelEl && label) labelEl.textContent = label;
+      globalThis.__otters_boot_progress = { percent: pct, label: String(label || '') };
+    }
+
+    function finishBootProgress(label = '启动完成') {
+      updateBootProgress(100, label);
+      setTimeout(() => {
+        document.getElementById('boot_loader')?.classList.add('done');
+      }, 220);
+    }
+
+    function summarizePyError(detail) {
+      const text = String(detail ?? '').trim();
+      if (!text) return '未知错误';
+      const lines = text
+        .split('\n')
+        .map((x) => x.trim())
+        .filter(Boolean);
+      const keyPrefixes = [
+        'SyntaxError:',
+        'NameError:',
+        'TypeError:',
+        'ValueError:',
+        'AttributeError:',
+        'ModuleNotFoundError:',
+        'ImportError:',
+        'RuntimeError:',
+        'AssertionError:',
+      ];
+      for (const prefix of keyPrefixes) {
+        const line = lines.find((x) => x.startsWith(prefix));
+        if (line) return line;
+      }
+      const pyErrLine = lines.find((x) => x.startsWith('PythonError:'));
+      if (pyErrLine) return pyErrLine;
+      const first = lines[0] || '未知错误';
+      return first.length > 180 ? `${first.slice(0, 180)}...` : first;
+    }
+
+    const LEFT_W_STORAGE_KEY = 'otters_wasm_left_pane_w_v1';
+    const EXPR_FONT_SIZE_KEY = 'otters_wasm_expr_font_size_v1';
+    const EDITOR_OPEN_STORAGE_KEY = 'otters_wasm_editor_open_v1';
+    const EDITOR_RECT_STORAGE_KEY = 'otters_wasm_editor_rect_v1';
+    const EDITOR_VIM_STORAGE_KEY = 'otters_wasm_editor_vim_v1';
+    const OUTPUT_OPEN_STORAGE_KEY = 'otters_wasm_output_open_v1';
+    const DEFAULT_EXPR_SCRIPT = '';
+    const EXPR_FONT_MIN = 14;
+    const EXPR_FONT_MAX = 32;
+    const EXPR_FONT_STEP = 1;
+    const evalEngine = createEvalEngine({
+      onProgress: (progress) => {
+        updateBootProgress(progress?.percent, progress?.label);
+      },
+    });
+
+    function loadEditorOpenState() {
+      try {
+        return localStorage.getItem(EDITOR_OPEN_STORAGE_KEY) === '1';
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function saveEditorOpenState(opened) {
+      try {
+        localStorage.setItem(EDITOR_OPEN_STORAGE_KEY, opened ? '1' : '0');
+      } catch (_) {}
+    }
+
+    function loadEditorVimState() {
+      try {
+        return localStorage.getItem(EDITOR_VIM_STORAGE_KEY) === '1';
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function saveEditorVimState(enabled) {
+      try {
+        localStorage.setItem(EDITOR_VIM_STORAGE_KEY, enabled ? '1' : '0');
+      } catch (_) {}
+    }
+
+    function loadEditorRectState() {
+      try {
+        const raw = localStorage.getItem(EDITOR_RECT_STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        const left = Number(parsed.left);
+        const top = Number(parsed.top);
+        const width = Number(parsed.width);
+        const height = Number(parsed.height);
+        if (![left, top, width, height].every((v) => Number.isFinite(v) && v > 0)) return null;
+        return { left, top, width, height };
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function saveEditorRectState(rect) {
+      try {
+        localStorage.setItem(EDITOR_RECT_STORAGE_KEY, JSON.stringify(rect));
+      } catch (_) {}
+    }
+
+    function loadOutputOpenState() {
+      try {
+        return localStorage.getItem(OUTPUT_OPEN_STORAGE_KEY) === '1';
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function saveOutputOpenState(opened) {
+      try {
+        localStorage.setItem(OUTPUT_OPEN_STORAGE_KEY, opened ? '1' : '0');
+      } catch (_) {}
+    }
+
+    function loadSavedEditorFontSize() {
+      try {
+        const raw = Number(localStorage.getItem(EXPR_FONT_SIZE_KEY));
+        if (Number.isFinite(raw)) {
+          return Math.min(EXPR_FONT_MAX, Math.max(EXPR_FONT_MIN, Math.round(raw)));
+        }
+      } catch (_) {}
+      return 20;
+    }
+
+    function setEditorFontSize(px) {
+      const next = Math.min(EXPR_FONT_MAX, Math.max(EXPR_FONT_MIN, Math.round(Number(px) || 20)));
+      document.documentElement.style.setProperty('--editor-font-size', `${next}px`);
+      const info = document.getElementById('editor_font_info');
+      if (info) info.textContent = `字体 ${next}px`;
+      try {
+        localStorage.setItem(EXPR_FONT_SIZE_KEY, String(next));
+      } catch (_) {}
+      return next;
+    }
+
+    function clampLeftPaneWidth(px) {
+      const vw = Math.max(window.innerWidth || 1, 1);
+      const minW = vw * 0.25;
+      const maxW = Math.max(minW + 120, vw * 0.75);
+      return Math.min(maxW, Math.max(minW, px));
+    }
+
+    function applyLeftPaneWidth(px) {
+      const w = clampLeftPaneWidth(Number(px) || 0);
+      document.documentElement.style.setProperty('--left-pane-w', `${w}px`);
+      try {
+        localStorage.setItem(LEFT_W_STORAGE_KEY, String(w));
+      } catch (_) {}
+    }
+
+    function setupSplitter() {
+      const splitter = document.getElementById('splitter');
+      const leftPane = document.querySelector('.left-pane');
+      const main = document.querySelector('.main');
+      if (!splitter || !leftPane || !main) return;
+
+      try {
+        const saved = Number(localStorage.getItem(LEFT_W_STORAGE_KEY));
+        const initial = Number.isFinite(saved) && saved > 0
+          ? saved
+          : leftPane.getBoundingClientRect().width;
+        applyLeftPaneWidth(initial);
+      } catch (_) {
+        applyLeftPaneWidth(leftPane.getBoundingClientRect().width);
+      }
+
+      let dragging = false;
+      const setDragging = (flag) => {
+        dragging = flag;
+        splitter.classList.toggle('dragging', flag);
+        main.classList.toggle('dragging', flag);
+        document.body.style.cursor = flag ? 'col-resize' : '';
+        document.body.style.userSelect = flag ? 'none' : '';
+      };
+
+      splitter.addEventListener('pointerdown', (ev) => {
+        ev.preventDefault();
+        setDragging(true);
+        splitter.setPointerCapture(ev.pointerId);
+      });
+
+      splitter.addEventListener('pointermove', (ev) => {
+        if (!dragging) return;
+        const rect = main.getBoundingClientRect();
+        applyLeftPaneWidth(ev.clientX - rect.left);
+      });
+
+      const stopDrag = (ev) => {
+        if (!dragging) return;
+        setDragging(false);
+        try {
+          splitter.releasePointerCapture(ev.pointerId);
+        } catch (_) {}
+      };
+      splitter.addEventListener('pointerup', stopDrag);
+      splitter.addEventListener('pointercancel', stopDrag);
+
+      window.addEventListener('resize', () => {
+        const cur = leftPane.getBoundingClientRect().width;
+        applyLeftPaneWidth(cur);
+      });
+    }
+
+    function setupEditorModal(exprEl, handlers = {}) {
+      const modal = document.getElementById('editor_modal');
+      const dialog = document.getElementById('editor_dialog');
+      const head = document.getElementById('editor_head');
+      const openBtn = document.getElementById('openEditor');
+      const saveBtn = document.getElementById('editor_save');
+      const runBtn = document.getElementById('editor_run');
+      const fontIncBtn = document.getElementById('editor_font_inc');
+      const fontDecBtn = document.getElementById('editor_font_dec');
+      const vimBtn = document.getElementById('editor_vim');
+      const titleEl = document.getElementById('editor_title_text');
+      if (!modal || !dialog || !head || !openBtn || !saveBtn || !runBtn || !fontIncBtn || !fontDecBtn || !vimBtn || !exprEl) return;
+
+      const saveCurrentDialogRect = () => {
+        if (!modal.classList.contains('show')) return;
+        const rect = dialog.getBoundingClientRect();
+        if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) return;
+        saveEditorRectState({
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+        });
+      };
+
+      const applySavedDialogRect = () => {
+        const saved = loadEditorRectState();
+        if (!saved) return;
+        dialog.style.left = `${saved.left}px`;
+        dialog.style.top = `${saved.top}px`;
+        dialog.style.width = `${saved.width}px`;
+        dialog.style.height = `${saved.height}px`;
+      };
+
+      const open = () => {
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden', 'false');
+        applySavedDialogRect();
+        clampDialogIntoViewport();
+        saveCurrentDialogRect();
+        saveEditorOpenState(true);
+        syncExprHighlight();
+        setTimeout(() => {
+          if (state.vimEnabled && state.cmReady && state.cmView) {
+            state.cmView.focus();
+          } else {
+            exprEl.focus();
+          }
+        }, 0);
+      };
+      const close = () => {
+        saveCurrentDialogRect();
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        saveEditorOpenState(false);
+      };
+
+      const save = async () => {
+        state.currentExpr = getEditorValue();
+        if (typeof handlers.onSaveExpr === 'function') {
+          await handlers.onSaveExpr(state.currentExpr);
+        }
+        close();
+      };
+
+      // 强绑定：防止监听器丢失导致按钮无反应
+      openBtn.onclick = async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (typeof handlers.onOpenRequested === 'function') {
+          await handlers.onOpenRequested({ open, close, save });
+          return;
+        }
+        open();
+      };
+      saveBtn.onclick = async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        await save();
+      };
+      runBtn.onclick = async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (typeof handlers.onRunExpr === 'function') {
+          await handlers.onRunExpr();
+        }
+      };
+      fontIncBtn.onclick = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const cur = loadSavedEditorFontSize();
+        setEditorFontSize(cur + EXPR_FONT_STEP);
+        syncExprHighlight();
+      };
+      fontDecBtn.onclick = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const cur = loadSavedEditorFontSize();
+        setEditorFontSize(cur - EXPR_FONT_STEP);
+        syncExprHighlight();
+      };
+      vimBtn.onclick = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        void setEditorVimMode(!state.vimEnabled, exprEl);
+      };
+
+      let dragging = false;
+      let baseL = 0;
+      let baseT = 0;
+      let startX = 0;
+      let startY = 0;
+      const DIALOG_EDGE = 4;
+      const MIN_VISIBLE_HEAD_W = 220;
+
+      const clampDialogIntoViewport = () => {
+        const rect = dialog.getBoundingClientRect();
+        const maxL = Math.max(
+          DIALOG_EDGE,
+          window.innerWidth - Math.min(dialog.offsetWidth, MIN_VISIBLE_HEAD_W) - DIALOG_EDGE,
+        );
+        const maxT = Math.max(DIALOG_EDGE, window.innerHeight - head.offsetHeight - DIALOG_EDGE);
+        const l = Math.min(maxL, Math.max(DIALOG_EDGE, rect.left));
+        const t = Math.min(maxT, Math.max(DIALOG_EDGE, rect.top));
+        dialog.style.left = `${l}px`;
+        dialog.style.top = `${t}px`;
+      };
+      head.addEventListener('pointerdown', (ev) => {
+        // 点击按钮/输入控件时，不触发拖拽，避免吞掉点击事件
+        const target = ev.target;
+        const targetEl = target && typeof target === 'object' && typeof target.closest === 'function'
+          ? target
+          : null;
+        if (targetEl && targetEl.closest('button, input, textarea, select, label, a')) {
+          return;
+        }
+        dragging = true;
+        const rect = dialog.getBoundingClientRect();
+        baseL = rect.left;
+        baseT = rect.top;
+        startX = ev.clientX;
+        startY = ev.clientY;
+        head.setPointerCapture(ev.pointerId);
+      });
+      head.addEventListener('pointermove', (ev) => {
+        if (!dragging) return;
+        const maxL = Math.max(
+          DIALOG_EDGE,
+          window.innerWidth - Math.min(dialog.offsetWidth, MIN_VISIBLE_HEAD_W) - DIALOG_EDGE,
+        );
+        const maxT = Math.max(DIALOG_EDGE, window.innerHeight - head.offsetHeight - DIALOG_EDGE);
+        const l = Math.min(maxL, Math.max(DIALOG_EDGE, baseL + (ev.clientX - startX)));
+        const t = Math.min(maxT, Math.max(DIALOG_EDGE, baseT + (ev.clientY - startY)));
+        dialog.style.left = `${l}px`;
+        dialog.style.top = `${t}px`;
+        saveCurrentDialogRect();
+      });
+      const stop = (ev) => {
+        if (!dragging) return;
+        dragging = false;
+        try {
+          head.releasePointerCapture(ev.pointerId);
+        } catch (_) {}
+        saveCurrentDialogRect();
+      };
+      head.addEventListener('pointerup', stop);
+      head.addEventListener('pointercancel', stop);
+      window.addEventListener('resize', () => {
+        if (!modal.classList.contains('show')) return;
+        clampDialogIntoViewport();
+        saveCurrentDialogRect();
+      });
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => {
+          if (!modal.classList.contains('show')) return;
+          clampDialogIntoViewport();
+          saveCurrentDialogRect();
+        });
+        ro.observe(dialog);
+      }
+
+      // 初始化字体大小并展示
+      setEditorFontSize(loadSavedEditorFontSize());
+
+      // 刷新后恢复编辑器开关状态
+      if (loadEditorOpenState()) {
+        open();
+      } else {
+        close();
+      }
+      if (modal.classList.contains('show')) {
+        applySavedDialogRect();
+        clampDialogIntoViewport();
+        saveCurrentDialogRect();
+      }
+      void setEditorVimMode(state.vimEnabled, exprEl);
+      return {
+        open,
+        close,
+        save,
+        setTitle(text) {
+          if (titleEl) titleEl.textContent = String(text || '编辑代码');
+        },
+      };
+    }
+
+    const state = {
+      currentExpr: '',
+      datasetId: null,
+      loadedFiles: [],
+      savedFiles: [],
+      codeEntries: [],
+      activeCodeId: null,
+      seq: 1n,
+      paramValues: {},
+      socket: null,
+      hlTimer: null,
+      hlRafPending: false,
+      refreshTimer: null,
+      lastRefreshMs: 0,
+      refreshQueued: false,
+      refreshInFlight: false,
+      refreshPending: false,
+      refreshToken: 0,
+      outputOpen: loadOutputOpenState(),
+      outputLines: [],
+      logPollTimer: null,
+      logPollInFlight: false,
+      engineReady: false,
+      engineInitPromise: null,
+      initialRefreshDone: false,
+      scriptReady: false,
+      lastMonitorPackets: [],
+      vimEnabled: loadEditorVimState(),
+      cmReady: false,
+      cmView: null,
+      cmApi: null,
+    };
+    const monitorCallbacksRuntime = createMonitorCallbacksRuntime({
+      state,
+      evalEngine,
+      ensureEngineReady,
+      drainRuntimeLogs,
+      appendOutputLines,
+    });
+
+    async function ensureEngineReady() {
+      if (state.engineReady) return;
+      if (!state.engineInitPromise) {
+        setStatus('运行时初始化中...');
+        state.engineInitPromise = evalEngine.init()
+          .then(() => {
+            state.engineReady = true;
+          })
+          .catch((err) => {
+            state.engineInitPromise = null;
+            throw err;
+          });
+      }
+      await state.engineInitPromise;
+    }
+
+    function formatNowTime() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      return `${hh}:${mm}:${ss}`;
+    }
+
+    function renderOutput() {
+      const panel = document.getElementById('output_panel');
+      const textEl = document.getElementById('output_text');
+      if (!panel || !textEl) return;
+      panel.classList.toggle('show', !!state.outputOpen);
+      textEl.textContent = state.outputLines.join('\n');
+      if (state.outputOpen) {
+        panel.scrollTop = panel.scrollHeight;
+      }
+      const toggleBtn = document.getElementById('toggleOutput');
+      if (toggleBtn) toggleBtn.textContent = state.outputOpen ? '收起' : '打开';
+    }
+
+    function appendOutputLines(lines) {
+      if (!Array.isArray(lines) || lines.length === 0) return;
+      for (const raw of lines) {
+        const line = String(raw ?? '').trim();
+        if (!line) continue;
+        const statusPrefix = '[stdout] __OTTERS_STATUS__:';
+        if (line.startsWith(statusPrefix)) {
+          setStatus(line.slice(statusPrefix.length).trim() || '运行中...');
+          continue;
+        }
+        state.outputLines.push(`${formatNowTime()} ${line}`);
+      }
+      if (state.outputLines.length > 3000) {
+        state.outputLines.splice(0, state.outputLines.length - 3000);
+      }
+      renderOutput();
+    }
+
+    async function drainRuntimeLogs() {
+      if (state.logPollInFlight) return;
+      state.logPollInFlight = true;
+      try {
+        const lines = await evalEngine.drainLogs();
+        appendOutputLines(lines);
+      } catch (_) {
+        // 忽略日志拉取异常，避免影响主流程。
+      } finally {
+        state.logPollInFlight = false;
+      }
+    }
+
+    function setupOutputPanel() {
+      const toggleBtn = document.getElementById('toggleOutput');
+      const clearBtn = document.getElementById('clearOutput');
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+          state.outputOpen = !state.outputOpen;
+          saveOutputOpenState(state.outputOpen);
+          renderOutput();
+        });
+      }
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          state.outputLines = [];
+          renderOutput();
+        });
+      }
+      renderOutput();
+      if (state.logPollTimer) clearInterval(state.logPollTimer);
+      state.logPollTimer = setInterval(() => {
+        void drainRuntimeLogs();
+      }, 420);
+    }
+
+    async function runScriptText(scriptText, meta = {}) {
+      const raw = String(scriptText ?? '').trim();
+      if (!raw) {
+        setStatus('表达式不能为空', true);
+        return false;
+      }
+      try {
+        await ensureEngineReady();
+        await evalEngine.setScript(raw);
+        await refreshSavedFilesPanel();
+        await refreshLoadedFilesPanel();
+        await drainRuntimeLogs();
+      } catch (err) {
+        const detail = (err && err.stack) ? err.stack : String(err);
+        const brief = summarizePyError(detail);
+        setStatus(`Pyodide 解析失败: ${brief}`, true);
+        appendOutputLines([`[stderr] ${detail}`]);
+        return false;
+      }
+      state.currentExpr = raw;
+      if (meta && meta.codeId) {
+        state.activeCodeId = String(meta.codeId);
+      }
+      if (!state.vimEnabled) syncExprHighlight();
+      const scriptMeta = await evalEngine.scriptMeta();
+      if (!scriptMeta?.has_core_obj) {
+        state.scriptReady = false;
+        setStatus('脚本已执行（无监控输出）');
+        return true;
+      }
+      const hideMonitor = !!scriptMeta?.hidden_monitor_session && !scriptMeta?.show_local_requested;
+      if (hideMonitor) {
+        state.scriptReady = false;
+        setStatus('脚本已执行；如需显示图表请在末尾调用 session.show_local()');
+        return true;
+      }
+      state.scriptReady = true;
+
+      const waitForMonitorSocketReady = async (timeoutMs = 3000) => {
+        const started = performance.now();
+        while (performance.now() - started < timeoutMs) {
+          const socket = state.socket;
+          if (socket && typeof socket.onmessage === 'function') {
+            if (typeof socket.bootIfReady === 'function') {
+              socket.bootIfReady();
+            }
+            return socket;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 40));
+        }
+        const socket = state.socket;
+        if (socket && typeof socket.bootIfReady === 'function') {
+          socket.bootIfReady();
+        }
+        return socket && typeof socket.onmessage === 'function' ? socket : null;
+      };
+
+      const socket = await waitForMonitorSocketReady();
+      if (!socket) {
+        setStatus('monitor 未启动，请先等待启动完成', true);
+        return false;
+      }
+      void socket.emitParamsState();
+      scheduleRefresh(0);
+      return true;
+    }
+
+    function htmlEscape(text) {
+      return text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    function highlightPython(text) {
+      if (text.length > 8000) {
+        return htmlEscape(text);
+      }
+      const kw = new Set(['and', 'or', 'not', 'True', 'False', 'None', 'if', 'else', 'in', 'is']);
+      const fnLike = new Set(['col', 'pl', 'params', 'pms']);
+      let i = 0;
+      let out = '';
+      while (i < text.length) {
+        const ch = text[i];
+        if (ch === '#') {
+          let j = i + 1;
+          while (j < text.length && text[j] !== '\n') j += 1;
+          out += `<span class="tok-comment">${htmlEscape(text.slice(i, j))}</span>`;
+          i = j;
+          continue;
+        }
+        if (ch === '"' || ch === "'") {
+          const q = ch;
+          let j = i + 1;
+          while (j < text.length) {
+            if (text[j] === '\\') {
+              j += 2;
+              continue;
+            }
+            if (text[j] === q) {
+              j += 1;
+              break;
+            }
+            j += 1;
+          }
+          out += `<span class="tok-string">${htmlEscape(text.slice(i, j))}</span>`;
+          i = j;
+          continue;
+        }
+        if (/[0-9]/.test(ch)) {
+          let j = i + 1;
+          while (j < text.length && /[0-9_]/.test(text[j])) j += 1;
+          if (text[j] === '.') {
+            j += 1;
+            while (j < text.length && /[0-9_]/.test(text[j])) j += 1;
+          }
+          if (text[j] === 'e' || text[j] === 'E') {
+            j += 1;
+            if (text[j] === '+' || text[j] === '-') j += 1;
+            while (j < text.length && /[0-9_]/.test(text[j])) j += 1;
+          }
+          out += `<span class="tok-number">${htmlEscape(text.slice(i, j))}</span>`;
+          i = j;
+          continue;
+        }
+        if (/[A-Za-z_]/.test(ch)) {
+          let j = i + 1;
+          while (j < text.length && /[A-Za-z0-9_]/.test(text[j])) j += 1;
+          const name = text.slice(i, j);
+          if (kw.has(name)) out += `<span class="tok-keyword">${name}</span>`;
+          else if (fnLike.has(name)) out += `<span class="tok-func">${name}</span>`;
+          else out += htmlEscape(name);
+          i = j;
+          continue;
+        }
+        out += htmlEscape(ch);
+        i += 1;
+      }
+      return out;
+    }
+
+    function syncExprHighlight() {
+      if (state.vimEnabled) return;
+      const exprEl = document.getElementById('expr_script');
+      const hiEl = document.getElementById('expr_highlight');
+      hiEl.innerHTML = highlightPython(exprEl.value || '') + '\n';
+      hiEl.scrollTop = exprEl.scrollTop;
+      hiEl.scrollLeft = exprEl.scrollLeft;
+    }
+
+    function scheduleExprHighlight(delayMs = 0) {
+      if (state.vimEnabled) return;
+      if (delayMs > 0) {
+        if (state.hlTimer) clearTimeout(state.hlTimer);
+        state.hlTimer = setTimeout(() => {
+          state.hlTimer = null;
+          syncExprHighlight();
+        }, delayMs);
+        return;
+      }
+      if (state.hlRafPending) return;
+      state.hlRafPending = true;
+      requestAnimationFrame(() => {
+        state.hlRafPending = false;
+        syncExprHighlight();
+      });
+    }
+
+    function replaceSelection(el, text) {
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? start;
+      const prev = el.value || '';
+      el.value = prev.slice(0, start) + text + prev.slice(end);
+      const caret = start + text.length;
+      el.selectionStart = caret;
+      el.selectionEnd = caret;
+    }
+
+    function replaceRange(el, start, end, text) {
+      const prev = el.value || '';
+      el.value = prev.slice(0, start) + text + prev.slice(end);
+      const caret = start + text.length;
+      el.selectionStart = caret;
+      el.selectionEnd = caret;
+    }
+
+    function withSelectionWrap(el, left, right) {
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? start;
+      const prev = el.value || '';
+      const inner = prev.slice(start, end);
+      el.value = prev.slice(0, start) + left + inner + right + prev.slice(end);
+      el.selectionStart = start + left.length;
+      el.selectionEnd = start + left.length + inner.length;
+    }
+
+    function currentLineRange(el) {
+      const value = el.value || '';
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? start;
+      const lineStart = value.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+      const lineEnd = (() => {
+        const p = value.indexOf('\n', end);
+        return p === -1 ? value.length : p;
+      })();
+      return { value, start, end, lineStart, lineEnd };
+    }
+
+    function indentSelection(el) {
+      const { value, start, end, lineStart, lineEnd } = currentLineRange(el);
+      const block = value.slice(lineStart, lineEnd);
+      const lines = block.split('\n').map((ln) => `    ${ln}`);
+      const nextBlock = lines.join('\n');
+      el.value = value.slice(0, lineStart) + nextBlock + value.slice(lineEnd);
+      const startDelta = 4;
+      const lineCount = lines.length;
+      const endDelta = 4 * lineCount;
+      el.selectionStart = start + startDelta;
+      el.selectionEnd = end + endDelta;
+    }
+
+    function outdentSelection(el) {
+      const { value, start, end, lineStart, lineEnd } = currentLineRange(el);
+      const block = value.slice(lineStart, lineEnd);
+      const lines = block.split('\n');
+      let removedOnFirst = 0;
+      let removedTotal = 0;
+      const nextLines = lines.map((ln, idx) => {
+        const m = ln.match(/^( {1,4}|\t)/);
+        if (!m) return ln;
+        const cut = m[0].length;
+        if (idx === 0) removedOnFirst = cut;
+        removedTotal += cut;
+        return ln.slice(cut);
+      });
+      const nextBlock = nextLines.join('\n');
+      el.value = value.slice(0, lineStart) + nextBlock + value.slice(lineEnd);
+      el.selectionStart = Math.max(lineStart, start - removedOnFirst);
+      el.selectionEnd = Math.max(el.selectionStart, end - removedTotal);
+    }
+
+    function isEscapedQuote(value, idx) {
+      let slashCount = 0;
+      for (let i = idx - 1; i >= 0 && value[i] === '\\'; i -= 1) slashCount += 1;
+      return (slashCount % 2) === 1;
+    }
+
+    function maybeInsertPair(el, key) {
+      const pairs = {
+        '(': ')',
+        '[': ']',
+        '{': '}',
+        '"': '"',
+        "'": "'",
+      };
+      const close = pairs[key];
+      if (!close) return false;
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? start;
+      const value = el.value || '';
+      const hasSelection = end > start;
+      if (key === '"' || key === "'") {
+        const prev = value[start - 1] ?? '';
+        if (isEscapedQuote(value, start) || /[A-Za-z0-9_]/.test(prev)) return false;
+      }
+      if (hasSelection) {
+        withSelectionWrap(el, key, close);
+        return true;
+      }
+      const next = value[start] ?? '';
+      if ((key === '"' || key === "'") && next === key) {
+        el.selectionStart = start + 1;
+        el.selectionEnd = start + 1;
+        return true;
+      }
+      replaceRange(el, start, end, `${key}${close}`);
+      el.selectionStart = start + 1;
+      el.selectionEnd = start + 1;
+      return true;
+    }
+
+    function maybeSkipClosingPair(el, key) {
+      const closers = new Set([')', ']', '}', '"', "'"]);
+      if (!closers.has(key)) return false;
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? start;
+      if (start !== end) return false;
+      const value = el.value || '';
+      if ((value[start] ?? '') === key) {
+        el.selectionStart = start + 1;
+        el.selectionEnd = start + 1;
+        return true;
+      }
+      return false;
+    }
+
+    function maybeDeletePair(el) {
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? start;
+      if (start !== end || start <= 0) return false;
+      const value = el.value || '';
+      const left = value[start - 1] ?? '';
+      const right = value[start] ?? '';
+      const pairMap = {
+        '(': ')',
+        '[': ']',
+        '{': '}',
+        '"': '"',
+        "'": "'",
+      };
+      if (pairMap[left] && pairMap[left] === right) {
+        replaceRange(el, start - 1, start + 1, '');
+        return true;
+      }
+      return false;
+    }
+
+    function toggleCommentSelection(el) {
+      const value = el.value || '';
+      const start = el.selectionStart ?? 0;
+      const end = el.selectionEnd ?? start;
+      const lineStart = value.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+      const lineEnd = (() => {
+        const p = value.indexOf('\n', end);
+        return p === -1 ? value.length : p;
+      })();
+      const block = value.slice(lineStart, lineEnd);
+      const lines = block.split('\n');
+      const allCommented = lines.every((ln) => /^\s*#/.test(ln) || ln.trim() === '');
+      const nextLines = lines.map((ln) => {
+        if (!ln.trim()) return ln;
+        if (allCommented) return ln.replace(/^(\s*)#\s?/, '$1');
+        return ln.replace(/^(\s*)/, '$1# ');
+      });
+      const nextBlock = nextLines.join('\n');
+      el.value = value.slice(0, lineStart) + nextBlock + value.slice(lineEnd);
+      el.selectionStart = lineStart;
+      el.selectionEnd = lineStart + nextBlock.length;
+    }
+
+    function handleEditorKeydown(ev) {
+      if (state.vimEnabled) return;
+      const el = ev.target;
+      const textAreaEl = el
+        && typeof el === 'object'
+        && typeof el.value === 'string'
+        && typeof el.selectionStart === 'number'
+        && typeof el.selectionEnd === 'number'
+        ? el
+        : null;
+      if (!textAreaEl) return;
+      if ((ev.ctrlKey || ev.metaKey) && (ev.key === 's' || ev.key === 'S')) {
+        ev.preventDefault();
+        const saveBtn = document.getElementById('editor_save');
+        if (saveBtn) saveBtn.click();
+        return;
+      }
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+        ev.preventDefault();
+        const runBtn = document.getElementById('editor_run');
+        if (runBtn) runBtn.click();
+        return;
+      }
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === '/') {
+        ev.preventDefault();
+        toggleCommentSelection(textAreaEl);
+        scheduleExprHighlight(0);
+        return;
+      }
+      if (ev.key === 'Tab') {
+        ev.preventDefault();
+        if (ev.shiftKey) outdentSelection(textAreaEl);
+        else indentSelection(textAreaEl);
+        scheduleExprHighlight(0);
+        return;
+      }
+      if (ev.key === 'Backspace' && maybeDeletePair(textAreaEl)) {
+        ev.preventDefault();
+        scheduleExprHighlight(0);
+        return;
+      }
+      if (maybeSkipClosingPair(textAreaEl, ev.key)) {
+        ev.preventDefault();
+        scheduleExprHighlight(0);
+        return;
+      }
+      if (maybeInsertPair(textAreaEl, ev.key)) {
+        ev.preventDefault();
+        scheduleExprHighlight(0);
+        return;
+      }
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      const value = textAreaEl.value || '';
+      const start = textAreaEl.selectionStart ?? 0;
+      const end = textAreaEl.selectionEnd ?? start;
+      const lineStart = value.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+      const lineBeforeCaret = value.slice(lineStart, start);
+      const indent = (lineBeforeCaret.match(/^[ \t]*/) || [''])[0];
+      const trimmed = lineBeforeCaret.trimEnd();
+      const nextIndent = trimmed.endsWith(':') ? `${indent}    ` : indent;
+      if (['(', '[', '{'].includes(value[start - 1] ?? '') && [')', ']', '}'].includes(value[start] ?? '')) {
+        const insert = `\n${nextIndent}\n${indent}`;
+        textAreaEl.value = value.slice(0, start) + insert + value.slice(end);
+        const caret = start + nextIndent.length + 1;
+        textAreaEl.selectionStart = caret;
+        textAreaEl.selectionEnd = caret;
+      } else {
+        const insert = `\n${nextIndent}`;
+        textAreaEl.value = value.slice(0, start) + insert + value.slice(end);
+        const caret = start + insert.length;
+        textAreaEl.selectionStart = caret;
+        textAreaEl.selectionEnd = caret;
+      }
+      scheduleExprHighlight(0);
+    }
+
+    function getEditorValue() {
+      if (state.cmReady && state.cmView) {
+        return state.cmView.state.doc.toString();
+      }
+      const exprEl = document.getElementById('expr_script');
+      return exprEl?.value ?? '';
+    }
+
+    function setEditorValue(next, opts = {}) {
+      const value = String(next ?? '');
+      const exprEl = document.getElementById('expr_script');
+      if (exprEl && exprEl.value !== value) {
+        exprEl.value = value;
+      }
+      if (state.cmReady && state.cmView && !opts.fromCm) {
+        const cmState = state.cmView.state;
+        const cur = cmState.doc.toString();
+        if (cur !== value) {
+          state.cmView.dispatch({
+            changes: { from: 0, to: cmState.doc.length, insert: value },
+          });
+        }
+      }
+      scheduleExprHighlight(0);
+    }
+
+    async function ensureCodeMirrorVim(exprEl) {
+      if (state.cmReady && state.cmView && state.cmApi) return true;
+      const host = document.getElementById('cm_editor_host');
+      if (!host || !exprEl) return false;
+      try {
+        host.innerHTML = '';
+        const { mountVimEditor } = await import('./app/codemirror-vim.bundle.js?v=20260428_092812');
+        const cmEditor = mountVimEditor(host, exprEl.value || '', {
+          lineWrapping: false,
+          tabSize: 4,
+          indentUnit: '    ',
+          onRun: () => {
+            const runBtn = document.getElementById('editor_run');
+            if (runBtn) runBtn.click();
+          },
+          onSave: () => {
+            const saveBtn = document.getElementById('editor_save');
+            if (saveBtn) saveBtn.click();
+          },
+          onChange: (txt) => {
+            exprEl.value = txt;
+            state.currentExpr = txt;
+          },
+        });
+        state.cmApi = { mountVimEditor, cmEditor };
+        state.cmView = cmEditor.view;
+        state.cmReady = true;
+        return true;
+      } catch (err) {
+        appendOutputLines([`[stderr] Vim 模式加载失败，已回退普通编辑：${String(err)}`]);
+        return false;
+      }
+    }
+
+    async function setEditorVimMode(enabled, exprEl) {
+      const host = document.getElementById('cm_editor_host');
+      const hiEl = document.getElementById('expr_highlight');
+      const vimBtn = document.getElementById('editor_vim');
+      if (!exprEl || !host || !hiEl || !vimBtn) return;
+      const on = !!enabled;
+      if (on) {
+        const ok = await ensureCodeMirrorVim(exprEl);
+        if (!ok) {
+          state.vimEnabled = false;
+          saveEditorVimState(false);
+          vimBtn.textContent = 'Vim 模式：关';
+          vimBtn.classList.remove('active');
+          host.classList.remove('show');
+          exprEl.style.display = '';
+          hiEl.style.display = '';
+          syncExprHighlight();
+          return;
+        }
+        setEditorValue(exprEl.value || '');
+        state.vimEnabled = true;
+        saveEditorVimState(true);
+        host.classList.add('show');
+        exprEl.style.display = 'none';
+        hiEl.style.display = 'none';
+        vimBtn.textContent = 'Vim 模式：开';
+        vimBtn.classList.add('active');
+        try { state.cmView?.focus(); } catch (_) {}
+        return;
+      }
+      if (state.cmReady && state.cmView) {
+        const txt = state.cmView.state.doc.toString();
+        exprEl.value = txt;
+        state.currentExpr = txt;
+      }
+      state.vimEnabled = false;
+      saveEditorVimState(false);
+      host.classList.remove('show');
+      exprEl.style.display = '';
+      hiEl.style.display = '';
+      vimBtn.textContent = 'Vim 模式：关';
+      vimBtn.classList.remove('active');
+      syncExprHighlight();
+      setTimeout(() => exprEl.focus(), 0);
+    }
+
+    let editorControls = null;
+    let workbench = null;
+    const refreshLoadedFilesPanel = () => workbench ? workbench.refreshLoadedFilesPanel() : Promise.resolve();
+    const refreshSavedFilesPanel = () => workbench ? workbench.refreshSavedFilesPanel() : Promise.resolve();
+    const applyParquetBytes = (bytes, fileName, opts = {}) =>
+      workbench ? workbench.applyParquetBytes(bytes, fileName, opts) : Promise.resolve();
+
+    const monitorControlRuntime = createLocalMonitorSession({
+      state,
+      evalEngine,
+      monitorCallbacksRuntime,
+      ensureEngineReady,
+      drainRuntimeLogs,
+      refreshLoadedFilesPanel,
+      refreshSavedFilesPanel,
+      setStatus,
+      summarizePyError,
+    });
+    const scheduleRefresh = monitorControlRuntime.scheduleRefresh;
+    globalThis.__otters_state = state;
+    globalThis.__otters_schedule_refresh = scheduleRefresh;
+    globalThis.__otters_monitor_runtime = monitorControlRuntime;
+
+    class LocalWsProxy {
+      constructor(url) {
+        return monitorControlRuntime.createSocket(url);
+      }
+    }
+
+    LocalWsProxy.CONNECTING = 0;
+    LocalWsProxy.OPEN = 1;
+    LocalWsProxy.CLOSING = 2;
+    LocalWsProxy.CLOSED = 3;
+    globalThis.WebSocket = LocalWsProxy;
+    setupSplitter();
+
+    try {
+      const exprEl = document.getElementById('expr_script');
+      exprEl.value = state.currentExpr;
+      setEditorFontSize(loadSavedEditorFontSize());
+      syncExprHighlight();
+      setupOutputPanel();
+      editorControls = setupEditorModal(exprEl, {
+        onOpenRequested: async () => {
+          await workbench.createNewCode();
+        },
+        onSaveExpr: async () => {
+          await workbench.saveEditorToActiveCode();
+        },
+        onRunExpr: async () => {
+          const saved = await workbench.saveEditorToActiveCode();
+          const target = saved || workbench.activeCode();
+          if (target) {
+            await runScriptText(target.script, { codeId: target.id, codeName: target.name });
+          } else {
+            await runScriptText(getEditorValue(), { codeId: state.activeCodeId });
+          }
+        },
+      });
+      workbench = createWorkbenchRuntime({
+        state,
+        evalEngine,
+        ensureEngineReady,
+        setStatus,
+        appendOutputLines,
+        summarizePyError,
+        getEditorValue,
+        setEditorValue,
+        editorControls,
+        runScriptText,
+        scheduleRefresh,
+      });
+      workbench.initCodePool();
+      exprEl.addEventListener('input', () => {
+        state.currentExpr = exprEl.value;
+        scheduleExprHighlight(80);
+      });
+      exprEl.addEventListener('scroll', () => scheduleExprHighlight(0));
+      exprEl.addEventListener('keydown', handleEditorKeydown);
+
+      const parquetFile = document.getElementById('parquetFile');
+      document.getElementById('uploadParquet').addEventListener('click', () => parquetFile.click());
+      parquetFile.addEventListener('change', async (evt) => {
+        const files = Array.from(evt.target.files || []);
+        if (!files.length) return;
+        try {
+          for (let i = 0; i < files.length; i += 1) {
+            const file = files[i];
+            setStatus(`正在读取 parquet: ${file.name} (${i + 1}/${files.length}) ...`);
+            const ab = await file.arrayBuffer();
+            const bytes = new Uint8Array(ab);
+            await applyParquetBytes(bytes, file.name, { persist: true });
+          }
+          await refreshLoadedFilesPanel();
+        } catch (err) {
+          console.error('parquet load failed:', err);
+          setStatus(`parquet 读取失败: ${String(err)}`, true);
+        } finally {
+          evt.target.value = '';
+        }
+      });
+
+      updateBootProgress(4, '加载 monitor wasm');
+      await initMonitor({
+        module_or_path: new URL('./monitor_bg.wasm?v=20260428_092812', import.meta.url),
+      });
+      updateBootProgress(18, 'monitor wasm 已加载');
+
+      await ensureEngineReady();
+      await drainRuntimeLogs();
+
+      await start_monitor(
+        document.getElementById('monitor_canvas'),
+        'ws://local-opt-params',
+        1,
+        1,
+        '[]',
+        '#0f1530',
+        true,
+      );
+
+      if (state.socket && typeof state.socket.bootIfReady === 'function') {
+        state.socket.bootIfReady();
+      }
+      await workbench.restoreCachedParquetDatasets();
+      await refreshLoadedFilesPanel();
+      await refreshSavedFilesPanel();
+      setStatus('monitor 已启动（请在代码中调用 opt_params 后点击运行）');
+      finishBootProgress('启动完成');
+    } catch (err) {
+      console.error('start monitor failed:', err);
+      updateBootProgress(100, '启动失败');
+      setStatus(`启动失败: ${String(err)}`, true);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+[[example]]
+name = "scatter_stack"
+code = '''
+import qust as qs
+from qust import col
+
+data = qs.DataFrame({
+  "a": [1, 2, 3, 1],
+  "b": [2, 3, 4, 5],
+  "c": ["a", "a", "b", "b"],
+})
+df = qs.select(
+    col("a", "b")
+        .monitor(over_type="stack")
+        .scatter(size=0.1)
+        .over("c")
+)
+df.plot(data)
+'''
+
+[[example]]
+name = "callback_scatter_histogram"
+code = '''
+import qust as qs
+from qust import col
+
+data = qs.DataFrame({
+  "a": [1, 2, 3, 1],
+  "b": [2, 3, 4, 5],
+})
+df = qs.select(
+  col("a", "b").monitor.scatter().attach_to_monitor(
+    col.all.filter(col("a") != 0).monitor.histogram().x_slider()
+  )
+)
+df.plot(data)
+'''
+
+[[example]]
+name = "scatter_select_kline"
+code = '''
+import qust as qs
+from qust import col
+
+data = qs.DataFrame({
+  "datetime": [
+    "2024-01-01 09:30:00", "2024-01-01 09:31:00", "2024-01-01 09:32:00",
+    "2024-01-01 09:33:00", "2024-01-01 09:34:00", "2024-01-01 09:35:00",
+  ],
+  "open": [100.0, 100.5, 100.2, 101.0, 101.5, 101.2],
+  "high": [101.0, 101.1, 101.2, 102.0, 102.1, 102.2],
+  "low": [99.5, 99.9, 99.8, 100.4, 100.8, 100.9],
+  "close": [100.4, 100.1, 101.0, 101.6, 101.1, 101.8],
+  "hold_kline_period": [1, 2, 3, 4, 5, 6],
+  "ret": [-0.01, -0.006, -0.002, 0.002, 0.006, 0.01],
+  "datetime-entry_index": ["2024-01-01 09:31:00"] * 6,
+  "datetime-exit_index": ["2024-01-01 09:34:00"] * 6,
+})
+
+df = qs.select(
+  col("hold_kline_period", "ret", "datetime-entry_index", "datetime-exit_index")
+    .monitor.scatter(size=0.05)
+    .attach_to_monitor(
+      col("datetime", "open", "high", "low", "close").monitor.kline().scatter_select(
+        col("datetime").is_between(
+          "datetime-entry_index",
+          "datetime-exit_index",
+        ),
+      )
+    )
+)
+df.plot(data)
+'''
+
+[[example]]
+name = "line_with_remote_data"
+code = '''
+import qust as qs
+from qust import col, load_data
+
+data = load_data("pnl_res_test.parquet")
+df = qs.select(
+  col("pnl").sum().group_by("date").with_cols(
+    col("pnl").sum().expanding().alias("pnl_expanding")
+  ).monitor.line()
+)
+df.plot(data)
+'''
+
+[[example]]
+name = "alpha_analysis"
+code = '''
+import qust as qs
+from qust import col, load_data
+
+data = load_data("test_factor_data.parquet")
+monitor1 = qs.Monitor(background="white")
+
+df = qs.with_cols(
+    col("date", "code", "factor", "price").alpha().alphalen_analysis(monitor1)
+)
+
+df.plot(data)
+'''

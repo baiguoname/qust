@@ -2630,7 +2630,7 @@ def build_c22_expr() -> Expr:
             col('upband', 'downband', 'midline').shift(1).expanding().add_suffix("1"),
         )
         .with_cols(
-            col("close", "upband", "downband").stra.bollin_sig(),
+            col("close", "downband", "upband").stra.bollin_sig(),
         )
         .with_cols(
             _pos_from_open_raw_expr("open_long_raw", "open_short_raw", "pos_pre"),
