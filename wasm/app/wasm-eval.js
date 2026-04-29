@@ -1,4 +1,4 @@
-const WORKER_URL = new URL("./wasm-eval-worker.js?v=20260429_192656", import.meta.url);
+const WORKER_URL = new URL("./wasm-eval-worker.js?v=20260429_204125", import.meta.url);
 
 function createRpcWorker(deps = {}) {
   const worker = new Worker(WORKER_URL, { type: "module" });
