@@ -1,4 +1,4 @@
-import { createPyodideRuntime } from "./pyodide-runtime.js?v=20260429_204125";
+import { createPyodideRuntime } from "./pyodide-runtime.js?v=20260429_204645";
 
 function serializeParamsPending(paramsPending) {
   try {
