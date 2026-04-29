@@ -8,7 +8,7 @@ from qust import alpha101_assets
 # 远程加载样例股票 K 线数据。
 # 在 wasm 页面里，第一次 load_data 会拉取 parquet；同一个 runtime 内再次调用同一 URL 会复用已加载的数据。
 # 如果已经在左侧数据池上传/加载了同名文件，也可以改成：data = load_data("stock_data_kline.parquet")
-data = load_data("https://gitee.com/baiguonice/polars-streaming/raw/master/data/stock_data_kline.parquet")
+data = load_data("https://github.com/baiguoname/qust/raw/refs/heads/main/examples/data/stock_data_kline.parquet")
 
 # alpha101_assets 返回一组可选 alpha 表达式；pms(exprs) 会在参数面板生成下拉选择。
 exprs = alpha101_assets.get_all_alpha101_exprs()
@@ -43,7 +43,7 @@ from qust import col
 from qust import stra_assets
 
 # 远程加载样例期货/股票 K 线数据；当前 wasm runtime 内会缓存已加载数据。
-data = load_data("https://gitee.com/baiguonice/polars-streaming/raw/master/data/kline_data_all.parquet")
+data = load_data("https://github.com/baiguoname/qust/raw/refs/heads/main/examples/data/kline_data_all.parquet")
 
 # 取出内置策略表达式，并通过 pms(stras) 在参数面板里选择具体策略。
 stras = stra_assets.get_all_strategy_exprs()
@@ -77,7 +77,7 @@ from qust import col
 from qust import stra_assets
 
 # 远程加载样例 K 线数据；当前 wasm runtime 内会缓存已加载数据。
-data = load_data("https://gitee.com/baiguonice/polars-streaming/raw/master/data/kline_data_all.parquet")
+data = load_data("https://github.com/baiguoname/qust/raw/refs/heads/main/examples/data/kline_data_all.parquet")
 
 monitor = qs.Monitor(background="black")
 
