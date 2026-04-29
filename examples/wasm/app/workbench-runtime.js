@@ -45,14 +45,6 @@ function setSharedEditorFontSize(px) {
   return next;
 }
 
-function loadEditorVimStateLocal() {
-  try {
-    return localStorage.getItem(EDITOR_VIM_STORAGE_KEY) === '1';
-  } catch (_) {
-    return false;
-  }
-}
-
 function saveEditorVimStateLocal(enabled) {
   try {
     localStorage.setItem(EDITOR_VIM_STORAGE_KEY, enabled ? '1' : '0');
@@ -549,7 +541,7 @@ export function createWorkbenchRuntime({
     });
     const savedSettings = getSavedPopupSettings(entryId);
     const popupState = {
-      vimEnabled: savedSettings?.vimEnabled ?? loadEditorVimStateLocal(),
+      vimEnabled: savedSettings?.vimEnabled === true,
       fontSize: savedSettings?.fontSize ?? loadSavedEditorFontSize(),
       cmReady: false,
       cmView: null,

@@ -1,4 +1,4 @@
-import { createPyodideRuntime } from "./pyodide-runtime.js?v=/root/otters/otters-py/wasm/web";
+import { createPyodideRuntime } from "./pyodide-runtime.js?v=20260429_173757";
 
 function serializeParamsPending(paramsPending) {
   try {

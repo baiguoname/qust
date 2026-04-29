@@ -1,4 +1,4 @@
-import { createEvalEngineCore } from "./wasm-eval-core.js?v=/root/otters/otters-py/wasm/web";
+import { createEvalEngineCore } from "./wasm-eval-core.js?v=20260429_173757";
 
 function progress(percent, label) {
   self.postMessage({
@@ -185,7 +185,12 @@ self.onmessage = async (ev) => {
           selectionPayloadBytes: params.selectionPayloadBytes == null ? null : asU8(params.selectionPayloadBytes),
           theme: params.theme,
         });
-        ok(id, payload);
+        const packets = Array.from(payload?.packets || []).map(asU8);
+        const out = { result: payload?.result || {}, packets };
+        const transfer = packets
+          .filter((x) => x.byteOffset === 0 && x.byteLength === x.buffer.byteLength)
+          .map((x) => x.buffer);
+        ok(id, out, transfer);
         return;
       }
       case "buildMonitorQueryResultFromScatterSelectRequest": {
@@ -194,7 +199,12 @@ self.onmessage = async (ev) => {
           scatterSelectRequestBytes: params.scatterSelectRequestBytes == null ? null : asU8(params.scatterSelectRequestBytes),
           theme: params.theme,
         });
-        ok(id, payload);
+        const packets = Array.from(payload?.packets || []).map(asU8);
+        const out = { result: payload?.result || {}, packets };
+        const transfer = packets
+          .filter((x) => x.byteOffset === 0 && x.byteLength === x.buffer.byteLength)
+          .map((x) => x.buffer);
+        ok(id, out, transfer);
         return;
       }
       default:

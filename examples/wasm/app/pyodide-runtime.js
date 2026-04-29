@@ -9,12 +9,79 @@ let _codeExamplesCache = null;
 const _runtimeLogBuffer = [];
 const RUNTIME_LOG_MAX_LINES = 4000;
 let _progressReporter = null;
+let _lastProgressPercent = 0;
+let _fetchProgressInstalled = false;
 
 function reportProgress(percent, label) {
   try {
     const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    _lastProgressPercent = pct;
     _progressReporter?.(pct, String(label || ""));
   } catch (_) {}
+}
+
+function formatTransferBytes(bytes) {
+  const n = Math.max(0, Number(bytes) || 0);
+  const units = ["B", "KiB", "MiB", "GiB"];
+  let value = n;
+  let idx = 0;
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx += 1;
+  }
+  const digits = idx === 0 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(digits)} ${units[idx]}`;
+}
+
+function shortTransferName(url) {
+  try {
+    const u = new URL(String(url || ""), self.location.href);
+    return u.pathname.split("/").filter(Boolean).pop() || u.hostname || "资源";
+  } catch (_) {
+    return "资源";
+  }
+}
+
+function installFetchProgressReporter() {
+  if (_fetchProgressInstalled || typeof globalThis.fetch !== "function") return;
+  _fetchProgressInstalled = true;
+  const nativeFetch = globalThis.fetch.bind(globalThis);
+  globalThis.fetch = async (input, init) => {
+    const response = await nativeFetch(input, init);
+    const total = Number(response.headers?.get?.("content-length") || 0);
+    if (!response.body || !Number.isFinite(total) || total <= 0) {
+      return response;
+    }
+    let loaded = 0;
+    const reader = response.body.getReader();
+    const url = typeof input === "string" ? input : input?.url;
+    const name = shortTransferName(url || response.url);
+    const stream = new ReadableStream({
+      async pull(controller) {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          reportProgress(_lastProgressPercent, `传输 ${name}：剩余 0 B / ${formatTransferBytes(total)}`);
+          controller.close();
+          return;
+        }
+        loaded += chunk.value?.byteLength || 0;
+        const remaining = Math.max(0, total - loaded);
+        reportProgress(
+          _lastProgressPercent,
+          `传输 ${name}：剩余 ${formatTransferBytes(remaining)} / ${formatTransferBytes(total)}`,
+        );
+        controller.enqueue(chunk.value);
+      },
+      cancel(reason) {
+        return reader.cancel(reason);
+      },
+    });
+    return new Response(stream, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  };
 }
 
 function loadDataBytesSync(path) {
@@ -1287,6 +1354,7 @@ export function createPyodideRuntime(opts = {}) {
   const cdnBase = opts.cdnBase || DEFAULT_PYODIDE_CDN;
   if (typeof opts.onProgress === "function") {
     _progressReporter = opts.onProgress;
+    installFetchProgressReporter();
   }
   let pyodide = null;
 
@@ -1382,6 +1450,41 @@ export function createPyodideRuntime(opts = {}) {
     try {
       res = py.runPython(code);
       return toPacketList(res);
+    } catch (err) {
+      pushRuntimeLog("stderr", String((err && (err.stack || err.message)) || err));
+      throw err;
+    } finally {
+      for (const k of keys) {
+        try {
+          py.globals.delete(k);
+        } catch (_) {}
+      }
+      if (res && typeof res.destroy === "function") {
+        try {
+          res.destroy();
+        } catch (_) {}
+      }
+    }
+  }
+
+  function runPyQueryResult(code, vars = {}) {
+    const py = ensureReady();
+    let res = null;
+    const keys = Object.keys(vars);
+    for (const k of keys) {
+      py.globals.set(k, vars[k]);
+    }
+    try {
+      res = py.runPython(code);
+      const jsVal = res && typeof res.toJs === "function"
+        ? res.toJs({ create_proxies: false })
+        : res;
+      const resultJson = Array.isArray(jsVal) ? jsVal[0] : "{}";
+      const packetsRaw = Array.isArray(jsVal) ? jsVal[1] : [];
+      return {
+        result: JSON.parse(String(resultJson || "{}")),
+        packets: toPacketList(packetsRaw),
+      };
     } catch (err) {
       pushRuntimeLog("stderr", String((err && (err.stack || err.message)) || err));
       throw err;
@@ -1687,17 +1790,13 @@ _qb.compile_expr_bytes(${payload})`
     selectionPayloadBytes,
     theme,
   }) {
-    const text = runPyText(
+    return runPyQueryResult(
       [
-        "import json",
         "from qust import qust_core",
-        "json.dumps(",
-        "    qust_core.build_monitor_query_result_from_selection_payload(",
-        "        str(__otters_query_code),",
-        "        selection_payload_bytes=(None if (__otters_selection_payload_bytes is None or type(__otters_selection_payload_bytes).__name__ == 'JsNull') else bytes(__otters_selection_payload_bytes)),",
-        "        theme=str(__otters_theme),",
-        "    ),",
-        "    ensure_ascii=False,",
+        "qust_core.build_monitor_query_result_binary_from_selection_payload(",
+        "    str(__otters_query_code),",
+        "    selection_payload_bytes=(None if (__otters_selection_payload_bytes is None or type(__otters_selection_payload_bytes).__name__ == 'JsNull') else bytes(__otters_selection_payload_bytes)),",
+        "    theme=str(__otters_theme),",
         ")",
       ].join("\n"),
       {
@@ -1707,7 +1806,6 @@ _qb.compile_expr_bytes(${payload})`
         __otters_theme: String(theme ?? "dark"),
       }
     );
-    return JSON.parse(text || "{}");
   }
 
   function buildMonitorQueryResultFromScatterSelectRequest({
@@ -1715,17 +1813,13 @@ _qb.compile_expr_bytes(${payload})`
     scatterSelectRequestBytes,
     theme,
   }) {
-    const text = runPyText(
+    return runPyQueryResult(
       [
-        "import json",
         "from qust import qust_core",
-        "json.dumps(",
-        "    qust_core.build_monitor_query_result_from_scatter_select_request(",
-        "        str(__otters_query_code),",
-        "        scatter_select_request_bytes=(None if (__otters_scatter_select_request_bytes is None or type(__otters_scatter_select_request_bytes).__name__ == 'JsNull') else bytes(__otters_scatter_select_request_bytes)),",
-        "        theme=str(__otters_theme),",
-        "    ),",
-        "    ensure_ascii=False,",
+        "qust_core.build_monitor_query_result_binary_from_scatter_select_request(",
+        "    str(__otters_query_code),",
+        "    scatter_select_request_bytes=(None if (__otters_scatter_select_request_bytes is None or type(__otters_scatter_select_request_bytes).__name__ == 'JsNull') else bytes(__otters_scatter_select_request_bytes)),",
+        "    theme=str(__otters_theme),",
         ")",
       ].join("\n"),
       {
@@ -1735,7 +1829,6 @@ _qb.compile_expr_bytes(${payload})`
         __otters_theme: String(theme ?? "dark"),
       }
     );
-    return JSON.parse(text || "{}");
   }
 
 

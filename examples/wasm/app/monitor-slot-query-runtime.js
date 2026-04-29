@@ -44,6 +44,35 @@ function queryResult(requestId, payload) {
   });
 }
 
+function pushU32Le(out, value) {
+  const n = Number(value) >>> 0;
+  out.push(n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, (n >>> 24) & 0xff);
+}
+
+function queryBinaryPayload(requestId, kind, binaryFormat, payload) {
+  const body = payload instanceof Uint8Array ? payload : new Uint8Array(payload ?? []);
+  const header = new TextEncoder().encode(JSON.stringify({
+    request_id: String(requestId ?? ""),
+    kind: String(kind ?? ""),
+    binary_format: String(binaryFormat ?? ""),
+  }));
+  const out = new Uint8Array(4 + 1 + 4 + header.length + body.length);
+  let cursor = 0;
+  out[cursor++] = 0x4f; // O
+  out[cursor++] = 0x4d; // M
+  out[cursor++] = 0x51; // Q
+  out[cursor++] = 0x50; // P
+  out[cursor++] = 1;
+  const len = [];
+  pushU32Le(len, header.length);
+  out.set(len, cursor);
+  cursor += 4;
+  out.set(header, cursor);
+  cursor += header.length;
+  out.set(body, cursor);
+  return out;
+}
+
 function normalizeTextArg(raw, key, fallback = "") {
   const item = raw?.[key];
   if (!item || typeof item !== "object") return fallback;
@@ -105,6 +134,13 @@ export function createMonitorSlotQueryRuntime({
     );
   }
 
+  function emitBinary(wsLike, bytes) {
+    if (typeof wsLike?.onmessage !== "function") return;
+    const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes ?? []);
+    const ab = arr.buffer.slice(arr.byteOffset, arr.byteOffset + arr.byteLength);
+    wsLike.onmessage(new MessageEvent("message", { data: ab }));
+  }
+
   async function handleQueryExecute(wsLike, request) {
     const requestId = request?.request_id ?? "";
     const queryId = request?.query_id ?? "";
@@ -130,7 +166,19 @@ export function createMonitorSlotQueryRuntime({
           theme: args.theme,
         });
       queryPayloads.delete(String(requestId ?? ""));
-      emit(wsLike, queryResult(requestId, payload));
+      const packets = Array.from(payload?.packets || []);
+      for (const packet of packets) {
+        emitBinary(
+          wsLike,
+          queryBinaryPayload(
+            requestId,
+            "query_monitor_packet",
+            "monitor_packet",
+            packet instanceof Uint8Array ? packet : new Uint8Array(packet ?? []),
+          ),
+        );
+      }
+      emit(wsLike, queryResult(requestId, payload?.result || payload || {}));
       emit(wsLike, queryState(requestId, queryId, "succeeded"));
     } catch (err) {
       const detail = (err && err.stack) ? err.stack : String(err);
