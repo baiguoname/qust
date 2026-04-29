@@ -1,6 +1,15 @@
+function runtimeVersionedUrl(path) {
+  const url = new URL(path, import.meta.url);
+  const runtimeVersion = new URL(import.meta.url).searchParams.get("v");
+  if (runtimeVersion) {
+    url.searchParams.set("v", runtimeVersion);
+  }
+  return url;
+}
+
 const DEFAULT_PYODIDE_CDN = new URL("../pyodide/", import.meta.url).href;
-const QUST_WHEEL_MANIFEST_URL = new URL("../wheels/manifest.json", import.meta.url);
-const CODE_EXAMPLES_TOML_URL = new URL("./code_examples.toml", import.meta.url).href;
+const QUST_WHEEL_MANIFEST_URL = runtimeVersionedUrl("../wheels/manifest.json");
+const CODE_EXAMPLES_TOML_URL = runtimeVersionedUrl("./code_examples.toml").href;
 
 let _pyScriptPromise = null;
 let _pyodidePromise = null;
