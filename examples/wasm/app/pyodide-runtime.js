@@ -20,21 +20,55 @@ function reportProgress(percent, label) {
 function loadDataBytesSync(path) {
   const raw = String(path ?? "").trim();
   if (!raw) throw new Error("load_data path is empty");
-  const url = raw.startsWith("http://") || raw.startsWith("https://")
-    ? raw
-    : `${self.location.origin}${raw.startsWith("/") ? raw : `/${raw}`}`;
-  const xhr = new XMLHttpRequest();
-  xhr.open("GET", url, false);
-  xhr.responseType = "arraybuffer";
-  xhr.send();
-  if (xhr.status < 200 || xhr.status >= 300) {
-    throw new Error(`relative fetch failed: status=${xhr.status}, url=${url}`);
+  const isRemote = raw.startsWith("http://") || raw.startsWith("https://");
+
+  const candidates = [];
+  const addCandidate = (label, url) => {
+    if (!url || candidates.some((item) => item.url === url)) return;
+    candidates.push({ label, url });
+  };
+
+  if (isRemote) {
+    let fileName = "";
+    try {
+      fileName = new URL(raw).pathname.split("/").filter(Boolean).pop() || "";
+    } catch (_) {}
+    if (fileName) {
+      addCandidate("pages-data", new URL(`../data/${fileName}`, self.location.href).href);
+      addCandidate("pages-root-data", new URL(`/data/${fileName}`, self.location.origin).href);
+      addCandidate("pages-parent-data", new URL(`../../data/${fileName}`, self.location.href).href);
+    }
+    addCandidate("dev-proxy", `${self.location.origin}/__otters_proxy?url=${encodeURIComponent(raw)}`);
+    addCandidate("remote", raw);
+  } else {
+    addCandidate("relative", new URL(raw, self.location.origin + "/").href);
+    addCandidate("page-relative", new URL(raw, self.location.href).href);
   }
-  const buf = xhr.response;
-  if (!buf) {
-    throw new Error(`relative fetch empty response: ${url}`);
+
+  const errors = [];
+  for (const { label, url } of candidates) {
+    const xhr = new XMLHttpRequest();
+    try {
+      xhr.open("GET", url, false);
+      xhr.responseType = "arraybuffer";
+      xhr.send();
+    } catch (err) {
+      errors.push(`${label}: ${url}: ${err?.message || err}`);
+      continue;
+    }
+    if (xhr.status < 200 || xhr.status >= 300) {
+      errors.push(`${label}: status=${xhr.status}, url=${url}`);
+      continue;
+    }
+    const buf = xhr.response;
+    if (!buf) {
+      errors.push(`${label}: empty response, url=${url}`);
+      continue;
+    }
+    return new Uint8Array(buf);
   }
-  return new Uint8Array(buf);
+
+  throw new Error(`load_data fetch failed: path=${raw}; tried ${errors.join(" | ")}`);
 }
 
 function loadTextSync(path) {
@@ -567,17 +601,18 @@ def _build_scope() -> dict:
                 return item
         if path_s.startswith(("http://", "https://")):
             print("__OTTERS_STATUS__:正在远程拉取数据")
-            payload = bytes(js.__otters_load_data_sync(path_s))
-            display_name = name_s or path_s
-            raw = qust_core.upload_parquet_named_bytes_with_source(
-                str(display_name),
-                f"url:{path_s}",
-                payload,
-            )
-            return json.loads(raw)
-        raise RuntimeError(
-            f'load_data requires a loaded dataset or explicit URL in wasm: {path_s}'
+            source = f"url:{path_s}"
+        else:
+            print("__OTTERS_STATUS__:正在加载数据")
+            source = f"url:/{path_s.lstrip('/')}"
+        payload = bytes(js.__otters_load_data_sync(path_s))
+        display_name = name_s or path_s
+        raw = qust_core.upload_parquet_named_bytes_with_source(
+            str(display_name),
+            source,
+            payload,
         )
+        return json.loads(raw)
 
     def _save(obj, file_name: str):
         from qust import qust_core
@@ -779,7 +814,6 @@ def _choose_core_obj(candidates, dataset_id_hint):
     from qust import qust_core
 
     first_layout_ok = None
-    first_exec_ok = None
     for core in candidates:
         layout_ok = False
         try:
@@ -795,40 +829,6 @@ def _choose_core_obj(candidates, dataset_id_hint):
         if not layout_ok:
             continue
 
-        if dataset_id_hint is None:
-            if first_exec_ok is None:
-                first_exec_ok = core
-            continue
-
-        try:
-            if hasattr(qust_core, "eval_to_monitor_packets_dataset_with_params_obj"):
-                qust_core.eval_to_monitor_packets_dataset_with_params_obj(
-                    core,
-                    int(dataset_id_hint),
-                    0,
-                    "{}",
-                )
-            elif hasattr(qust_core, "eval_expr_to_monitor_packets_dataset_with_params_obj"):
-                qust_core.eval_expr_to_monitor_packets_dataset_with_params_obj(
-                    core,
-                    int(dataset_id_hint),
-                    0,
-                    "{}",
-                )
-            elif hasattr(qust_core, "eval_expr_calc_summary_dataset_with_params_obj"):
-                qust_core.eval_expr_calc_summary_dataset_with_params_obj(
-                    core,
-                    int(dataset_id_hint),
-                    "{}",
-                )
-            if first_exec_ok is None:
-                first_exec_ok = core
-            break
-        except Exception:
-            continue
-
-    if first_exec_ok is not None:
-        return first_exec_ok
     if first_layout_ok is not None:
         return first_layout_ok
     return None

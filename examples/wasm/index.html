@@ -727,13 +727,13 @@
   </div>
 
   <script type="module">
-    import initMonitor, { start_monitor } from './monitor.js?v=20260428_092812';
-    import { createEvalEngine } from './app/wasm-eval.js?v=20260428_092812';
+    import initMonitor, { start_monitor } from './monitor.js?v=/root/otters/otters-py/wasm/web';
+    import { createEvalEngine } from './app/wasm-eval.js?v=/root/otters/otters-py/wasm/web';
     import {
       createMonitorCallbacksRuntime,
-    } from './app/monitor-callback-runtime.js?v=20260428_092812';
-    import { createLocalMonitorSession } from './app/monitor-session-runtime.js?v=20260428_092812';
-    import { createWorkbenchRuntime } from './app/workbench-runtime.js?v=20260428_092812';
+    } from './app/monitor-callback-runtime.js?v=/root/otters/otters-py/wasm/web';
+    import { createLocalMonitorSession } from './app/monitor-session-runtime.js?v=/root/otters/otters-py/wasm/web';
+    import { createWorkbenchRuntime } from './app/workbench-runtime.js?v=/root/otters/otters-py/wasm/web';
 
     function b64ToUint8Array(b64) {
       const bin = atob(b64);
@@ -1750,7 +1750,7 @@
       if (!host || !exprEl) return false;
       try {
         host.innerHTML = '';
-        const { mountVimEditor } = await import('./app/codemirror-vim.bundle.js?v=20260428_092812');
+        const { mountVimEditor } = await import('./app/codemirror-vim.bundle.js?v=/root/otters/otters-py/wasm/web');
         const cmEditor = mountVimEditor(host, exprEl.value || '', {
           lineWrapping: false,
           tabSize: 4,
@@ -1928,7 +1928,7 @@
 
       updateBootProgress(4, '加载 monitor wasm');
       await initMonitor({
-        module_or_path: new URL('./monitor_bg.wasm?v=20260428_092812', import.meta.url),
+        module_or_path: new URL('./monitor_bg.wasm?v=/root/otters/otters-py/wasm/web', import.meta.url),
       });
       updateBootProgress(18, 'monitor wasm 已加载');
 

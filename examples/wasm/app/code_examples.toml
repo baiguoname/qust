@@ -1,14 +1,149 @@
 [[example]]
+name = "股票因子alphalen"
+code = '''
+import qust as qs
+from qust import col
+from qust import alpha101_assets
+
+# 远程加载样例股票 K 线数据。
+# 在 wasm 页面里，第一次 load_data 会拉取 parquet；同一个 runtime 内再次调用同一 URL 会复用已加载的数据。
+# 如果已经在左侧数据池上传/加载了同名文件，也可以改成：data = load_data("stock_data_kline.parquet")
+data = load_data("https://gitee.com/baiguonice/polars-streaming/raw/master/data/stock_data_kline.parquet")
+
+# alpha101_assets 返回一组可选 alpha 表达式；pms(exprs) 会在参数面板生成下拉选择。
+exprs = alpha101_assets.get_all_alpha101_exprs()
+monitor = qs.Monitor()
+
+# alphalen_analysis 需要输入至少包含 date/code/factor/price 四列。
+# 这里用 alpha101 生成 factor，并把 datetime 转成 date、close 复制为 price。
+e_factor = col(
+    col.all,
+    pms(exprs).as_expr().alias("factor")
+).with_cols(
+    col("datetime").dt.date().alias("date"),
+    col("close").alias("price"),
+)
+
+# alphalen_analysis 会把 summary、quantile、IC、event 等面板注册到 monitor。
+df = qs.select(
+    e_factor
+        .alpha
+        .alphalen_analysis(monitor)
+)
+
+# df.plot 等价于计算参数、生成 monitor 包，并在本地 wasm 页面显示。
+df.plot(data, monitor)
+'''
+
+[[example]]
+name = "信号类策略回测"
+code = '''
+import qust as qs
+from qust import col
+from qust import stra_assets
+
+# 远程加载样例期货/股票 K 线数据；当前 wasm runtime 内会缓存已加载数据。
+data = load_data("https://gitee.com/baiguonice/polars-streaming/raw/master/data/kline_data_all.parquet")
+
+# 取出内置策略表达式，并通过 pms(stras) 在参数面板里选择具体策略。
+stras = stra_assets.get_all_strategy_exprs()
+
+# 这里把多空信号对调，用来演示参数策略表达式可以继续组合、重命名。
+stras_e = pms(stras).as_expr().over("ticker").select(
+    col("open_short_sig").alias("open_long_sig"),
+    col("exit_short_sig").alias("exit_long_sig"),
+    col("open_long_sig").alias("open_short_sig"),
+    col("exit_long_sig").alias("exit_short_sig"),
+)
+
+monitor = qs.Monitor(background="black")
+
+# sig_stra_analysis 会根据 open/exit 信号做回测，并把净值、交易散点、回调图等画到 monitor。
+df = qs.with_cols(
+    stras_e
+).select(
+    col.all.bt.sig_stra_analysis(monitor)
+)
+
+df.plot(data, monitor)
+'''
+
+
+[[example]]
+name = "一个布林带策略示例"
+code = '''
+import qust as qs
+from qust import col
+from qust import stra_assets
+
+# 远程加载样例 K 线数据；当前 wasm runtime 内会缓存已加载数据。
+data = load_data("https://gitee.com/baiguonice/polars-streaming/raw/master/data/kline_data_all.parquet")
+
+monitor = qs.Monitor(background="black")
+
+# 同一个标题会把 fill 和 line 叠到同一个画图区。
+bollin_title = "开仓点位"
+
+# pms 会在参数面板生成可交互参数；拖动后会重新计算并刷新图。
+params0 = pms(10, 100).value(30).title("window mean")
+params1 = pms(-2.5, 2.5).step(0.1).value(1.5).title("window_params")
+
+# 这个例子先计算布林带，再生成开平仓信号，最后交给回测分析面板。
+df = qs.select(
+    col.all
+        .with_cols(
+            col(
+                col("close").mean().alias("mean"),
+                col("close").std().alias("std"),
+            ).rolling(params0),
+            params1.as_expr().alias("window_mean"),
+        )
+        .with_cols(
+            (col("mean") + col("window_mean") * col("std")).alias("upband"),
+            (col("mean") - col("window_mean") * col("std")).alias("downband"),
+        )
+        .with_cols(
+            col("close", "downband", "upband").stra.bollin_sig().alias("open_long_sig", "open_short_sig"),
+            (col("close") - col("mean")).stra.cross_down.alias("exit_long_sig"),
+            (col("close") - col("mean")).stra.cross_up.alias("exit_short_sig"),
+        )
+        .with_cols(
+            # 填充布林带上下轨之间的区域。
+            col("datetime", "downband", "upband")
+                .monitor(bollin_title)
+                .fill(opacity=0.2),
+            # 在同一个图上叠加 mean 和 close 两条线。
+            col("datetime", "mean", "close")
+                .monitor(bollin_title)
+                .line(),
+        )
+        .over("ticker")
+        # 保存中间结果到 DataPool，方便调试时从 Python 侧取出查看。
+        .save_data("ggg")
+        .select(
+            col.all.bt.sig_stra_analysis(monitor)
+        )
+)
+
+df.plot(data, monitor, open_in_jupyter=False, height=1000)
+'''
+
+
+[[example]]
 name = "scatter_stack"
 code = '''
 import qust as qs
 from qust import col
 
+# 构造一个内联 DataFrame，适合快速试图形 API。
 data = qs.DataFrame({
   "a": [1, 2, 3, 1],
   "b": [2, 3, 4, 5],
   "c": ["a", "a", "b", "b"],
 })
+
+# scatter 的输入是 x/y 两列；over("c") 后按 c 分组。
+# over_type="stack" 表示多个组叠在同一张 scatter 图里。
 df = qs.select(
     col("a", "b")
         .monitor(over_type="stack")
@@ -24,10 +159,14 @@ code = '''
 import qust as qs
 from qust import col
 
+# 构造一个小数据集，用来演示图和回调图之间的联动。
 data = qs.DataFrame({
   "a": [1, 2, 3, 1],
   "b": [2, 3, 4, 5],
 })
+
+# 主图是 scatter；attach_to_monitor 里的 x_slider 是回调图。
+# 在主图上拖动 x 轴区间后，回调表达式会用同一份 source 数据重新过滤并画 histogram。
 df = qs.select(
   col("a", "b").monitor.scatter().attach_to_monitor(
     col.all.filter(col("a") != 0).monitor.histogram().x_slider()
@@ -42,6 +181,7 @@ code = '''
 import qust as qs
 from qust import col
 
+# 这个小数据集同时包含 scatter 需要的交易统计列，以及 kline 需要的 OHLC 列。
 data = qs.DataFrame({
   "datetime": [
     "2024-01-01 09:30:00", "2024-01-01 09:31:00", "2024-01-01 09:32:00",
@@ -57,6 +197,9 @@ data = qs.DataFrame({
   "datetime-exit_index": ["2024-01-01 09:34:00"] * 6,
 })
 
+# 主图是 hold_kline_period/ret 的 scatter。
+# 点选 scatter 中的点后，scatter_select 会把该点携带的 entry/exit 时间拼回 source，
+# 再用 filter_expr 筛出对应区间并绘制 kline 回调图。
 df = qs.select(
   col("hold_kline_period", "ret", "datetime-entry_index", "datetime-exit_index")
     .monitor.scatter(size=0.05)
@@ -73,32 +216,22 @@ df.plot(data)
 '''
 
 [[example]]
-name = "line_with_remote_data"
+name = "line"
 code = '''
 import qust as qs
-from qust import col, load_data
+from qust import col
 
-data = load_data("pnl_res_test.parquet")
+# 一个最小 line 图例子：按 date 聚合 pnl，再画累计结果。
+data = qs.DataFrame({
+  "date": ["2024-01-01", "2024-01-01", "2024-01-02", "2024-01-02"],
+  "pnl": [1.0, -0.2, 0.4, 0.8],
+})
+
+# group_by 后先得到每日 pnl，再 with_cols 计算 expanding 累计值。
 df = qs.select(
   col("pnl").sum().group_by("date").with_cols(
     col("pnl").sum().expanding().alias("pnl_expanding")
   ).monitor.line()
 )
-df.plot(data)
-'''
-
-[[example]]
-name = "alpha_analysis"
-code = '''
-import qust as qs
-from qust import col, load_data
-
-data = load_data("test_factor_data.parquet")
-monitor1 = qs.Monitor(background="white")
-
-df = qs.with_cols(
-    col("date", "code", "factor", "price").alpha().alphalen_analysis(monitor1)
-)
-
 df.plot(data)
 '''

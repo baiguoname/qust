@@ -1,4 +1,4 @@
-import { createEvalEngineCore } from "./wasm-eval-core.js?v=20260428_092812";
+import { createEvalEngineCore } from "./wasm-eval-core.js?v=/root/otters/otters-py/wasm/web";
 
 function progress(percent, label) {
   self.postMessage({

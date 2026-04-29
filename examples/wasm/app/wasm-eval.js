@@ -1,4 +1,4 @@
-const WORKER_URL = new URL("./wasm-eval-worker.js?v=20260428_092812", import.meta.url);
+const WORKER_URL = new URL("./wasm-eval-worker.js?v=/root/otters/otters-py/wasm/web", import.meta.url);
 
 function createRpcWorker(deps = {}) {
   const worker = new Worker(WORKER_URL, { type: "module" });

@@ -823,7 +823,7 @@ export function createWorkbenchRuntime({
       while (exampleSelect.options.length > 1) {
         exampleSelect.remove(1);
       }
-      for (const name of Object.keys(items || {})) {
+      for (const name of Object.keys(items || {}).reverse()) {
         const option = document.createElement('option');
         option.value = name;
         option.textContent = name;

@@ -1,5 +1,5 @@
-import { buildParamsStateEvent } from "./monitor-callback-runtime.js?v=20260428_092812";
-import { createMonitorSlotQueryRuntime } from "./monitor-slot-query-runtime.js?v=20260428_092812";
+import { buildParamsStateEvent } from "./monitor-callback-runtime.js?v=/root/otters/otters-py/wasm/web";
+import { createMonitorSlotQueryRuntime } from "./monitor-slot-query-runtime.js?v=/root/otters/otters-py/wasm/web";
 
 function packetEvent(innerKind, data) {
   return {
