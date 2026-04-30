@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>expr namespace - Otters / Qust 文档</title>
+    <meta name="description" content="expr namespace" />
+    <link rel="stylesheet" href="../../assets/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark">Q</span><span>Otters / Qust 文档</span></a>
+      <nav aria-label="顶部导航">
+        <a href="../../operators/index.html">算子总览</a>
+        <a href="../../operators/expr/index.html">表达式</a>
+        <a href="../../operators/ta/index.html">TA</a>
+        <a href="../../operators/monitor/index.html">Monitor</a>
+        <a href="../../wasm.html">Wasm</a>
+      </nav>
+      <label class="search"><input id="site-search" type="search" placeholder="搜索左侧导航..." /></label>
+    </header>
+    <div class="layout">
+      <aside class="sidebar" aria-label="文档导航">
+        <p class="sidebar-title">Reference</p>
+<div class="nav-section">
+<a class="nav-link" href="../../index.html">首页</a>
+<a class="nav-link" href="../../operators/index.html">算子总览</a>
+<a class="nav-link" href="../../wasm.html">Wasm</a>
+<a class="nav-link" href="../../index.html#architecture">设计思想</a>
+</div>
+<div class="nav-section">
+<p class="nav-heading">命名空间</p>
+<a class="nav-link" href="../../operators/alpha/index.html">Alpha 命名空间 <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/batch_stock/index.html">批内股票命名空间 <span class="mini">(1)</span></a>
+<a class="nav-link" href="../../operators/batch_ta/index.html">批内技术分析命名空间 <span class="mini">(7)</span></a>
+<a class="nav-link" href="../../operators/bt/index.html">回测命名空间 <span class="mini">(4)</span></a>
+<a class="nav-link" href="../../operators/col/index.html">列选择入口 <span class="mini">(8)</span></a>
+<a class="nav-link" href="../../operators/dataframe/index.html">DataFrame 执行计划 <span class="mini">(10)</span></a>
+<a class="nav-link" href="../../operators/dt/index.html">日期时间命名空间 <span class="mini">(7)</span></a>
+<a class="nav-link" href="../../operators/dtype/index.html">DataType API <span class="mini">(22)</span></a>
+<a class="nav-link active" href="../../operators/expr/index.html">表达式核心 <span class="mini">(92)</span></a>
+<a class="nav-link" href="../../operators/fp/index.html">Fast Path 命名空间 <span class="mini">(3)</span></a>
+<a class="nav-link" href="../../operators/kline/index.html">K 线命名空间 <span class="mini">(9)</span></a>
+<a class="nav-link" href="../../operators/math/index.html">数学命名空间 <span class="mini">(16)</span></a>
+<a class="nav-link" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span class="mini">(16)</span></a>
+<a class="nav-link" href="../../operators/operator/index.html">表达式运算符 <span class="mini">(29)</span></a>
+<a class="nav-link" href="../../operators/params/index.html">参数 API <span class="mini">(15)</span></a>
+<a class="nav-link" href="../../operators/plugin/index.html">插件 API <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/stock/index.html">股票统计命名空间 <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/stra/index.html">策略命名空间 <span class="mini">(35)</span></a>
+<a class="nav-link" href="../../operators/ta/index.html">技术指标命名空间 <span class="mini">(144)</span></a>
+<a class="nav-link" href="../../operators/top-level/index.html">顶层 API <span class="mini">(9)</span></a>
+<a class="nav-link" href="../../operators/udf/index.html">UDF 命名空间 <span class="mini">(3)</span></a>
+</div>
+<div class="nav-section">
+<p class="nav-heading">当前：表达式核心</p>
+<a class="nav-link" href="../../operators/expr/index.html">命名空间首页</a>
+<a class="nav-link" href="../../operators/expr/index.html">查看全部 92 个算子</a>
+</div>
+      </aside>
+      <main id="main" class="content">
+        
+<section class="page-header">
+  <p class="eyebrow">Namespace</p>
+  <h1>表达式核心</h1>
+  <p class="lead">用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p>
+  <div class="badge-row"><span class="badge">92 operators</span><span class="badge">namespace: expr</span></div>
+</section>
+<section>
+  <h2>算子列表</h2>
+  <div class="grid operator-grid">
+    <article class="card"><h3><a href="abs.html">expr.abs</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="add_suffix.html">expr.add_suffix</a></h3><p>无状态算子，添加后缀</p></article><article class="card"><h3><a href="alias.html">expr.alias</a></h3><p>无状态算子，重命名</p></article><article class="card"><h3><a href="all.html">expr.all</a></h3><p>全部为真判断</p></article><article class="card"><h3><a href="any.html">expr.any</a></h3><p>任一为真判断</p></article><article class="card"><h3><a href="arg_max.html">expr.arg_max</a></h3><p>行算子，最大值的位置</p></article><article class="card"><h3><a href="arg_max_n.html">expr.arg_max_n</a></h3><p>行算子，返回最大的 n 个值的位置（展开为 n 列）</p></article><article class="card"><h3><a href="arg_min.html">expr.arg_min</a></h3><p>行算子， 最小值位置</p></article><article class="card"><h3><a href="arg_min_n.html">expr.arg_min_n</a></h3><p>行算子，返回最小的 n 个值的位置（展开为 n 列）</p></article><article class="card"><h3><a href="attach_to_monitor.html">expr.attach_to_monitor</a></h3><p>给当前 expr 内唯一的 monitor plot 挂 callback。</p></article><article class="card"><h3><a href="batch.html">expr.batch</a></h3><p>上下文算子，按标签维护 batch 缓存与淘汰，并向下游传播 retract/update 状态流 📌</p></article><article class="card"><h3><a href="cache.html">expr.cache</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="cast.html">expr.cast</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="cbrt.html">expr.cbrt</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="ceil.html">expr.ceil</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="child_exprs.html">expr.child_exprs</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="clip.html">expr.clip</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="corr.html">expr.corr</a></h3><p>行算子, 计算两列的相关性</p></article><article class="card"><h3><a href="count.html">expr.count</a></h3><p>行算子，计数</p></article><article class="card"><h3><a href="count_last.html">expr.count_last</a></h3><p>行算子，返回“距离上次为 True 的行数”。</p></article><article class="card"><h3><a href="cov.html">expr.cov</a></h3><p>行算子, 计算两列的协方差</p></article><article class="card"><h3><a href="diff.html">expr.diff</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="dt.html">expr.dt</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="eq_missing.html">expr.eq_missing</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="ewm.html">expr.ewm</a></h3><p>行算子， 无retract，指数加权平均</p></article><article class="card"><h3><a href="expanding.html">expr.expanding</a></h3><p>上下文, 累积计算, 支持所有行算子</p></article><article class="card"><h3><a href="expanding_since.html">expr.expanding_since</a></h3><p>上下文算子，条件重置版累积计算（expanding with reset）📌</p></article><article class="card"><h3><a href="ffill.html">expr.ffill</a></h3><p>行算子， 前向填充</p></article><article class="card"><h3><a href="fill_nan.html">expr.fill_nan</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="fill_null.html">expr.fill_null</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="filter.html">expr.filter</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="filter_cb.html">expr.filter_cb</a></h3><p>上下文, 过滤计算, 先过滤掉行，然后计算，最后用null值把原先过滤掉的行填充回来</p></article><article class="card"><h3><a href="first_value.html">expr.first_value</a></h3><p>行算子，返回到当前行为止见过的第一个非空值。</p></article><article class="card"><h3><a href="floor.html">expr.floor</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="get_by_index.html">expr.get_by_index</a></h3><p>重排行算子，按参数表达式给出的 UInt32 行号，从当前输入里取行。</p></article><article class="card"><h3><a href="get_metadata.html">expr.get_metadata</a></h3><p>读取表达式全部 metadata。</p></article><article class="card"><h3><a href="get_metadata_value.html">expr.get_metadata_value</a></h3><p>读取 metadata 中指定 key 的值，不存在则返回 None。</p></article><article class="card"><h3><a href="group_by.html">expr.group_by</a></h3><p>上下文, 分组计算, 支持所有行算子, 对于非行算子，在算子后面加上.</p></article><article class="card"><h3><a href="if_else.html">expr.if_else</a></h3><p>行算子，三元条件分支。</p></article><article class="card"><h3><a href="is_between.html">expr.is_between</a></h3><p>行级区间判断。</p></article><article class="card"><h3><a href="is_finite.html">expr.is_finite</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="is_infinite.html">expr.is_infinite</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="is_nan.html">expr.is_nan</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="is_not_nan.html">expr.is_not_nan</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="is_not_null.html">expr.is_not_null</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="is_null.html">expr.is_null</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="kurtosis.html">expr.kurtosis</a></h3><p>行算子, 峰度</p></article><article class="card"><h3><a href="last_value.html">expr.last_value</a></h3><p>行算子，返回到当前行为止最近一个非空值。</p></article><article class="card"><h3><a href="load.html">expr.load</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="logical_and.html">expr.logical_and</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="logical_or.html">expr.logical_or</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="max.html">expr.max</a></h3><p>最大值</p></article><article class="card"><h3><a href="max_n.html">expr.max_n</a></h3><p>行算子，返回最大的 n 个值（展开为 n 列）</p></article><article class="card"><h3><a href="mean.html">expr.mean</a></h3><p>行算子，计算平均</p></article><article class="card"><h3><a href="median.html">expr.median</a></h3><p>行算子， 中位数</p></article><article class="card"><h3><a href="min.html">expr.min</a></h3><p>最小值</p></article><article class="card"><h3><a href="min_n.html">expr.min_n</a></h3><p>行算子，返回最小的 n 个值（展开为 n 列）</p></article><article class="card"><h3><a href="ne_missing.html">expr.ne_missing</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="near.html">expr.near</a></h3><p>布尔范围扩展算子，找到输入 bool 列中第一次和最后一次 True，并向两端扩展。</p></article><article class="card"><h3><a href="over.html">expr.over</a></h3><p>上下文, 分组计算</p></article><article class="card"><h3><a href="pct.html">expr.pct</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="perf.html">expr.perf</a></h3><p>无状态算子，打印算子的计算时间</p></article><article class="card"><h3><a href="pl.html">expr.pl</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="pow.html">expr.pow</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="print.html">expr.print</a></h3><p>无状态算子，打印当前算子的输出。</p></article><article class="card"><h3><a href="private.html">expr.private</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="projection_name.html">expr.projection_name</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="quantile.html">expr.quantile</a></h3><p>行算子， 分位数</p></article><article class="card"><h3><a href="rank.html">expr.rank</a></h3><p>行算子，计算当前行的排序位数</p></article><article class="card"><h3><a href="rolling.html">expr.rolling</a></h3><p>上下文，滚动</p></article><article class="card"><h3><a href="rolling_dynamic.html">expr.rolling_dynamic</a></h3><p>上下文，变化窗口的滚动计算</p></article><article class="card"><h3><a href="rolling_intra_day.html">expr.rolling_intra_day</a></h3><p>上下文，日内滚动计算</p></article><article class="card"><h3><a href="round.html">expr.round</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="save.html">expr.save</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="save_data.html">expr.save_data</a></h3><p>插件算子，自动创建并注册 DataPool，保存当前算子的输出。</p></article><article class="card"><h3><a href="save_data_inner.html">expr.save_data_inner</a></h3><p>插件算子，把当前算子的输出保存到显式 DataPool。</p></article><article class="card"><h3><a href="scatter_select.html">expr.scatter_select</a></h3><p>生成 scatter 点选 callback。</p></article><article class="card"><h3><a href="select.html">expr.select</a></h3><p>无状态算子，选择列</p></article><article class="card"><h3><a href="shift.html">expr.shift</a></h3><p>行算子，无retract，n只能大于0，n &lt; 0 会报错, 因为n小于0无法进行流式计算</p></article><article class="card"><h3><a href="shift_by.html">expr.shift_by</a></h3><p>行算子，动态 shift。</p></article><article class="card"><h3><a href="shift_intra.html">expr.shift_intra</a></h3><p>聚合行算子，按 intra 标记做一阶日内/段内 shift。</p></article><article class="card"><h3><a href="sign.html">expr.sign</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="skew.html">expr.skew</a></h3><p>行算子, 偏度</p></article><article class="card"><h3><a href="snapshot_by.html">expr.snapshot_by</a></h3><p>上下文算子（高级），按标签维护“执行器快照基线”，并在标签回流/乱序时做状态一致性重算。</p></article><article class="card"><h3><a href="sqrt.html">expr.sqrt</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="std.html">expr.std</a></h3><p>行算子， 标准差</p></article><article class="card"><h3><a href="sum.html">expr.sum</a></h3><p>行算子，求和</p></article><article class="card"><h3><a href="to.html">expr.to</a></h3><p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p></article><article class="card"><h3><a href="var.html">expr.var</a></h3><p>行算子， 方差</p></article><article class="card"><h3><a href="with_cols.html">expr.with_cols</a></h3><p>无状态算子， 和select类似，只不过保留输入列，如果新生成列和输入列有重复列，会只保留新生成的重复列</p></article><article class="card"><h3><a href="with_metadata.html">expr.with_metadata</a></h3><p>返回附加了 metadata 键值对的新表达式。</p></article><article class="card"><h3><a href="x_slider.html">expr.x_slider</a></h3><p>生成 x 轴区间选择 callback。</p></article>
+  </div>
+</section>
+
+      </main>
+      <aside class="toc" aria-label="页内目录">
+        <p class="toc-title">Table of contents</p>
+        <div id="page-toc"></div>
+      </aside>
+    </div>
+    <script src="../../assets/app.js"></script>
+  </body>
+</html>

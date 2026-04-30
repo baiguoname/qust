@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>dtype.duration - Otters / Qust 文档</title>
+    <meta name="description" content="dtype.duration" />
+    <link rel="stylesheet" href="../../assets/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark">Q</span><span>Otters / Qust 文档</span></a>
+      <nav aria-label="顶部导航">
+        <a href="../../operators/index.html">算子总览</a>
+        <a href="../../operators/expr/index.html">表达式</a>
+        <a href="../../operators/ta/index.html">TA</a>
+        <a href="../../operators/monitor/index.html">Monitor</a>
+        <a href="../../wasm.html">Wasm</a>
+      </nav>
+      <label class="search"><input id="site-search" type="search" placeholder="搜索左侧导航..." /></label>
+    </header>
+    <div class="layout">
+      <aside class="sidebar" aria-label="文档导航">
+        <p class="sidebar-title">Reference</p>
+<div class="nav-section">
+<a class="nav-link" href="../../index.html">首页</a>
+<a class="nav-link" href="../../operators/index.html">算子总览</a>
+<a class="nav-link" href="../../wasm.html">Wasm</a>
+<a class="nav-link" href="../../index.html#architecture">设计思想</a>
+</div>
+<div class="nav-section">
+<p class="nav-heading">命名空间</p>
+<a class="nav-link" href="../../operators/alpha/index.html">Alpha 命名空间 <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/batch_stock/index.html">批内股票命名空间 <span class="mini">(1)</span></a>
+<a class="nav-link" href="../../operators/batch_ta/index.html">批内技术分析命名空间 <span class="mini">(7)</span></a>
+<a class="nav-link" href="../../operators/bt/index.html">回测命名空间 <span class="mini">(4)</span></a>
+<a class="nav-link" href="../../operators/col/index.html">列选择入口 <span class="mini">(8)</span></a>
+<a class="nav-link" href="../../operators/dataframe/index.html">DataFrame 执行计划 <span class="mini">(10)</span></a>
+<a class="nav-link" href="../../operators/dt/index.html">日期时间命名空间 <span class="mini">(7)</span></a>
+<a class="nav-link active" href="../../operators/dtype/index.html">DataType API <span class="mini">(22)</span></a>
+<a class="nav-link" href="../../operators/expr/index.html">表达式核心 <span class="mini">(92)</span></a>
+<a class="nav-link" href="../../operators/fp/index.html">Fast Path 命名空间 <span class="mini">(3)</span></a>
+<a class="nav-link" href="../../operators/kline/index.html">K 线命名空间 <span class="mini">(9)</span></a>
+<a class="nav-link" href="../../operators/math/index.html">数学命名空间 <span class="mini">(16)</span></a>
+<a class="nav-link" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span class="mini">(16)</span></a>
+<a class="nav-link" href="../../operators/operator/index.html">表达式运算符 <span class="mini">(29)</span></a>
+<a class="nav-link" href="../../operators/params/index.html">参数 API <span class="mini">(15)</span></a>
+<a class="nav-link" href="../../operators/plugin/index.html">插件 API <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/stock/index.html">股票统计命名空间 <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/stra/index.html">策略命名空间 <span class="mini">(35)</span></a>
+<a class="nav-link" href="../../operators/ta/index.html">技术指标命名空间 <span class="mini">(144)</span></a>
+<a class="nav-link" href="../../operators/top-level/index.html">顶层 API <span class="mini">(9)</span></a>
+<a class="nav-link" href="../../operators/udf/index.html">UDF 命名空间 <span class="mini">(3)</span></a>
+</div>
+<div class="nav-section">
+<p class="nav-heading">当前：DataType API</p>
+<a class="nav-link" href="../../operators/dtype/index.html">命名空间首页</a>
+<a class="nav-link active" href="../../operators/dtype/duration.html">当前算子：dtype.duration</a>
+<a class="nav-link" href="../../operators/dtype/dictionary.html">上一个：dtype.dictionary</a>
+<a class="nav-link" href="../../operators/dtype/fixed_size_binary.html">下一个：dtype.fixed_size_binary</a>
+<a class="nav-link" href="../../operators/dtype/index.html">查看全部 22 个算子</a>
+</div>
+      </aside>
+      <main id="main" class="content">
+        
+<section class="page-header">
+  <p class="eyebrow">Reference / DataType API</p>
+  <h1>dtype.duration</h1>
+  <p class="lead">dtype.duration 是 DataType API 下的算子。</p>
+  <div class="badge-row">
+    <span class="badge">namespace: dtype</span>
+    <span class="badge">returns: &#x27;DataType&#x27;</span>
+  </div>
+</section>
+
+<section>
+  <h2>用法</h2>
+  <div class="code-block"><div class="code-title">Python</div><pre><code>dt.duration(&#x27;us&#x27;)</code></pre></div>
+  <p>如果这个算子返回 <code>Expr</code>，通常可以继续链式调用 <code>.alias(...)</code>、<code>.over(...)</code>、<code>.rolling(...)</code> 或放入 <code>qs.select(...)</code>。</p>
+</section>
+
+<section>
+  <h2>参数</h2>
+  <table><thead><tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr></thead><tbody><tr><td><code>unit</code></td><td><code>str</code></td><td><code>&#x27;us&#x27;</code></td><td>位置参数</td></tr></tbody></table>
+  
+</section>
+
+<section>
+  <h2>输入和输出</h2>
+  <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>输入表达式</td><td>当前表达式，例如 col(&quot;x&quot;)；具体列宽由底层算子校验。</td></tr><tr><td>返回类型</td><td><code>&#x27;DataType&#x27;</code></td></tr><tr><td>输出语义</td><td>返回新的表达式或 API 调用结果；列名通常由输入列名、alias 或底层算子决定。</td></tr></tbody></table>
+  
+  <h3>网页表格预览</h3>
+  <p>这里把算子的输入表达式、输出表达式、输入数据和输出结果直接渲染成网页表格，不需要看代码块或控制台。</p>
+  <h4>输入/输出表达式表格</h4>
+  <table><thead><tr><th>项目</th><th>表达式</th></tr></thead><tbody><tr><td>输入表达式</td><td><code>&#x27;us&#x27;</code></td></tr><tr><td>输出表达式</td><td><code>dt.duration(&#x27;us&#x27;)</code></td></tr></tbody></table>
+  <table><thead><tr><th>输入项</th><th>网页显示</th></tr></thead><tbody><tr><td>输入对象/参数</td><td><code>&#x27;us&#x27;</code></td></tr></tbody></table>
+  <h4>输出表达式表格</h4>
+  <table><thead><tr><th>项目</th><th>网页显示</th></tr></thead><tbody><tr><td>输出表达式</td><td><code>dt.duration(&#x27;us&#x27;)</code></td></tr><tr><td>输出变量</td><td><code>out</code> 或 <code>result</code></td></tr><tr><td>返回类型</td><td><code>&#x27;DataType&#x27;</code></td></tr></tbody></table>
+  <h4>输出结果表格</h4>
+  <div class="polars-frame"><div class="polars-shape">shape: (2, 2)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">输出项</span><span class="polars-dtype">str</span></th><th><span class="polars-col">值</span><span class="polars-dtype">str</span></th></tr></thead><tbody><tr><td>Python 表示</td><td>DataType({&#x27;kind&#x27;: &#x27;duration&#x27;, &#x27;unit&#x27;: &#x27;microsecond&#x27;})</td></tr><tr><td>Arrow dtype spec</td><td>{&quot;kind&quot;:&quot;duration&quot;,&quot;unit&quot;:&quot;microsecond&quot;}</td></tr></tbody></table></div>
+
+  
+  <h3>最小输入数据模板</h3>
+  <div class="code-block"><div class="code-title">Python</div><pre><code>data = pl.DataFrame(
+    {
+        &quot;x&quot;: [1.0, 2.0, 3.0],
+    }
+)</code></pre></div>
+  <h3>完整例子：打印输入和输出</h3>
+  <p>每个算子页面都必须有这一段完整例子：先打印输入表达式和输出表达式，再构造输入数据、打印输入数据、执行算子、打印输出结果。</p>
+  <div class="code-block"><div class="code-title">完整例子 / Python</div><pre><code>from qust import dt
+
+print(&quot;输入表达式:&quot;)
+print(&quot;&#x27;us&#x27;&quot;)
+print(&quot;输出表达式:&quot;)
+print(&quot;dt.duration(&#x27;us&#x27;)&quot;)
+
+print(&quot;输入参数:&quot;)
+print(&quot;dt.duration(&#x27;us&#x27;)&quot;)
+
+dtype = dt.duration(&#x27;us&#x27;)
+
+print(&quot;输出 DataType:&quot;)
+print(dtype)
+print(&quot;Arrow dtype spec:&quot;)
+print(dtype.__qust_arrow_dtype__)</code></pre></div>
+</section>
+
+<section>
+  <h2>使用场景</h2>
+  <p>用于声明 UDF 输出 Arrow 数据类型。</p>
+  <p>当你需要 <code>dtype.duration</code> 这种语义时，优先使用这个算子，而不是在 Python 里提前把数据取出来手写循环；这样才能保留流式状态、参数联动、Wasm 路径和 Monitor 重算能力。</p>
+</section>
+
+<section>
+  <h2>为什么这样设计</h2>
+  <p>DataType API 用来给 UDF 或复杂返回列声明 Arrow 类型。显式类型能让 Rust 侧提前知道 schema，减少运行时猜测和序列化歧义。</p>
+  <p>实际收益是：代码更短，但语义更完整；后续计算、画图、调参、保存和回调都能复用同一棵表达式树。</p>
+</section>
+
+<section>
+  <h2>注意事项</h2>
+  
+  <ul><li>确认输入列顺序和列类型符合页面说明。</li><li>需要分组时，把 <code>over(...)</code> 放在正确层级。</li><li>需要 monitor 参数联动时，不要提前把 <code>Params</code> 转成普通 Python 数字。</li></ul>
+</section>
+
+<section>
+  <h2>补充说明</h2>
+  <details class="doc-details">
+    <summary>展开查看更长说明</summary>
+    <p>这个算子没有额外长说明；本页已经根据函数签名、命名空间语义和项目约定补了用法、输入输出、设计动机和示例。</p>
+  </details>
+</section>
+
+      </main>
+      <aside class="toc" aria-label="页内目录">
+        <p class="toc-title">Table of contents</p>
+        <div id="page-toc"></div>
+      </aside>
+    </div>
+    <script src="../../assets/app.js"></script>
+  </body>
+</html>

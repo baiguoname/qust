@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>expr.get_by_index - Otters / Qust 文档</title>
+    <meta name="description" content="expr.get_by_index" />
+    <link rel="stylesheet" href="../../assets/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark">Q</span><span>Otters / Qust 文档</span></a>
+      <nav aria-label="顶部导航">
+        <a href="../../operators/index.html">算子总览</a>
+        <a href="../../operators/expr/index.html">表达式</a>
+        <a href="../../operators/ta/index.html">TA</a>
+        <a href="../../operators/monitor/index.html">Monitor</a>
+        <a href="../../wasm.html">Wasm</a>
+      </nav>
+      <label class="search"><input id="site-search" type="search" placeholder="搜索左侧导航..." /></label>
+    </header>
+    <div class="layout">
+      <aside class="sidebar" aria-label="文档导航">
+        <p class="sidebar-title">Reference</p>
+<div class="nav-section">
+<a class="nav-link" href="../../index.html">首页</a>
+<a class="nav-link" href="../../operators/index.html">算子总览</a>
+<a class="nav-link" href="../../wasm.html">Wasm</a>
+<a class="nav-link" href="../../index.html#architecture">设计思想</a>
+</div>
+<div class="nav-section">
+<p class="nav-heading">命名空间</p>
+<a class="nav-link" href="../../operators/alpha/index.html">Alpha 命名空间 <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/batch_stock/index.html">批内股票命名空间 <span class="mini">(1)</span></a>
+<a class="nav-link" href="../../operators/batch_ta/index.html">批内技术分析命名空间 <span class="mini">(7)</span></a>
+<a class="nav-link" href="../../operators/bt/index.html">回测命名空间 <span class="mini">(4)</span></a>
+<a class="nav-link" href="../../operators/col/index.html">列选择入口 <span class="mini">(8)</span></a>
+<a class="nav-link" href="../../operators/dataframe/index.html">DataFrame 执行计划 <span class="mini">(10)</span></a>
+<a class="nav-link" href="../../operators/dt/index.html">日期时间命名空间 <span class="mini">(7)</span></a>
+<a class="nav-link" href="../../operators/dtype/index.html">DataType API <span class="mini">(22)</span></a>
+<a class="nav-link active" href="../../operators/expr/index.html">表达式核心 <span class="mini">(92)</span></a>
+<a class="nav-link" href="../../operators/fp/index.html">Fast Path 命名空间 <span class="mini">(3)</span></a>
+<a class="nav-link" href="../../operators/kline/index.html">K 线命名空间 <span class="mini">(9)</span></a>
+<a class="nav-link" href="../../operators/math/index.html">数学命名空间 <span class="mini">(16)</span></a>
+<a class="nav-link" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span class="mini">(16)</span></a>
+<a class="nav-link" href="../../operators/operator/index.html">表达式运算符 <span class="mini">(29)</span></a>
+<a class="nav-link" href="../../operators/params/index.html">参数 API <span class="mini">(15)</span></a>
+<a class="nav-link" href="../../operators/plugin/index.html">插件 API <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/stock/index.html">股票统计命名空间 <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/stra/index.html">策略命名空间 <span class="mini">(35)</span></a>
+<a class="nav-link" href="../../operators/ta/index.html">技术指标命名空间 <span class="mini">(144)</span></a>
+<a class="nav-link" href="../../operators/top-level/index.html">顶层 API <span class="mini">(9)</span></a>
+<a class="nav-link" href="../../operators/udf/index.html">UDF 命名空间 <span class="mini">(3)</span></a>
+</div>
+<div class="nav-section">
+<p class="nav-heading">当前：表达式核心</p>
+<a class="nav-link" href="../../operators/expr/index.html">命名空间首页</a>
+<a class="nav-link active" href="../../operators/expr/get_by_index.html">当前算子：expr.get_by_index</a>
+<a class="nav-link" href="../../operators/expr/floor.html">上一个：expr.floor</a>
+<a class="nav-link" href="../../operators/expr/get_metadata.html">下一个：expr.get_metadata</a>
+<a class="nav-link" href="../../operators/expr/index.html">查看全部 92 个算子</a>
+</div>
+      </aside>
+      <main id="main" class="content">
+        
+<section class="page-header">
+  <p class="eyebrow">Reference / 表达式核心</p>
+  <h1>expr.get_by_index</h1>
+  <p class="lead">重排行算子，按参数表达式给出的 UInt32 行号，从当前输入里取行。</p>
+  <div class="badge-row">
+    <span class="badge">namespace: expr</span>
+    <span class="badge">returns: Expr</span>
+  </div>
+</section>
+
+<section>
+  <h2>用法</h2>
+  <div class="code-block"><div class="code-title">Python</div><pre><code>col(&quot;price&quot;).get_by_index(
+     col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row()
+ )</code></pre></div>
+  <p>如果这个算子返回 <code>Expr</code>，通常可以继续链式调用 <code>.alias(...)</code>、<code>.over(...)</code>、<code>.rolling(...)</code> 或放入 <code>qs.select(...)</code>。</p>
+</section>
+
+<section>
+  <h2>参数</h2>
+  <table><thead><tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr></thead><tbody><tr><td><code>index</code></td><td><code>ExprInput</code></td><td><code>必填</code></td><td>位置参数</td></tr><tr><td><code>keep</code></td><td><code>bool</code></td><td><code>False</code></td><td>位置参数</td></tr></tbody></table>
+  
+</section>
+
+<section>
+  <h2>输入和输出</h2>
+  <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>输入表达式</td><td>当前表达式，例如 col(&quot;x&quot;)；具体列宽由底层算子校验。</td></tr><tr><td>返回类型</td><td><code>Expr</code></td></tr><tr><td>输出语义</td><td>返回新的表达式或 API 调用结果；列名通常由输入列名、alias 或底层算子决定。</td></tr></tbody></table>
+  
+  <h3>网页表格预览</h3>
+  <p>这里把算子的输入表达式、输出表达式、输入数据和输出结果直接渲染成网页表格，不需要看代码块或控制台。</p>
+  <h4>输入/输出表达式表格</h4>
+  <table><thead><tr><th>项目</th><th>表达式</th></tr></thead><tbody><tr><td>输入表达式</td><td><code>col(&quot;price&quot;)</code></td></tr><tr><td>输出表达式</td><td><code>col(&quot;price&quot;).get_by_index(
+     col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row()
+ )</code></td></tr></tbody></table>
+  <h4>输入数据表格</h4><div class="polars-frame"><div class="polars-shape">shape: (3, 4)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">ExprInput</span><span class="polars-dtype">f64</span></th><th><span class="polars-col">price</span><span class="polars-dtype">f64</span></th><th><span class="polars-col">open_sig</span><span class="polars-dtype">bool</span></th><th><span class="polars-col">exit_sig</span><span class="polars-dtype">bool</span></th></tr></thead><tbody><tr><td>1.0</td><td>10.0</td><td>true</td><td>false</td></tr><tr><td>2.0</td><td>10.5</td><td>false</td><td>true</td></tr><tr><td>3.0</td><td>10.2</td><td>true</td><td>false</td></tr></tbody></table></div>
+  <h4>输出表达式表格</h4>
+  <table><thead><tr><th>项目</th><th>网页显示</th></tr></thead><tbody><tr><td>输出表达式</td><td><code>col(&quot;price&quot;).get_by_index(
+     col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row()
+ )</code></td></tr><tr><td>输出变量</td><td><code>out</code> 或 <code>result</code></td></tr><tr><td>返回类型</td><td><code>Expr</code></td></tr></tbody></table>
+  <h4>输出结果表格</h4>
+  <div class="polars-frame"><div class="polars-shape">shape: (2, 2)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">输出项</span><span class="polars-dtype">str</span></th><th><span class="polars-col">网页显示</span><span class="polars-dtype">str</span></th></tr></thead><tbody><tr><td>输出表达式</td><td>col(&quot;price&quot;).get_by_index(
+     col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row()
+ )</td></tr><tr><td>输出结果</td><td>该算子需要运行时上下文、Monitor、文件、分组/窗口状态或更多真实数据；完整例子会在运行时打印实际输出。</td></tr></tbody></table></div>
+
+  <h3>文档示例输入/输出</h3>
+<p>这一组保留了 DataFrame 打印形态，方便你直接对照运行结果。</p>
+<div class="code-block"><div class="code-title">文档示例：输入</div><pre><code>&gt;&gt;&gt; data = pl.DataFrame({
+...     &quot;price&quot;: [10, 20, 30, 40],
+...     &quot;open_sig&quot;: [True, False, True, False],
+...     &quot;exit_sig&quot;: [False, True, False, True],
+... })
+&gt;&gt;&gt; data
+shape: (4, 3)
+┌───────┬──────────┬──────────┐
+│ price ┆ open_sig ┆ exit_sig │
+│ ---   ┆ ---      ┆ ---      │
+│ i64   ┆ bool     ┆ bool     │
+╞═══════╪══════════╪══════════╡
+│ 10    ┆ true     ┆ false    │
+│ 20    ┆ false    ┆ true     │
+│ 30    ┆ true     ┆ false    │
+│ 40    ┆ false    ┆ true     │
+└───────┴──────────┴──────────┘</code></pre></div>
+<div class="code-block"><div class="code-title">文档示例：调用</div><pre><code>&gt;&gt;&gt; col(&quot;price&quot;).get_by_index(
+...     col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row()
+... )
+&gt;&gt;&gt; col(&quot;price&quot;).get_by_index(
+...     col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row(),
+...     keep=True,
+... )</code></pre></div>
+<div class="code-block"><div class="code-title">文档示例：输出</div><pre><code>&gt;&gt;&gt; qs.select(
+...     col(&quot;price&quot;).get_by_index(col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row())
+... ).calc_data(data)
+shape: (2, 2)
+┌───────────────────┬──────────────────┐
+│ price_at_entry_index ┆ price_at_exit_index │
+│ ---               ┆ ---              │
+│ i64               ┆ i64              │
+╞═══════════════════╪══════════════════╡
+│ 10                ┆ 20               │
+│ 30                ┆ 40               │
+└───────────────────┴──────────────────┘
+&gt;&gt;&gt; qs.select(
+...     col(&quot;price&quot;).get_by_index(
+...         col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row(),
+...         keep=True,
+...     )
+... ).calc_data(data)
+shape: (2, 4)
+┌─────────────┬────────────┬───────────────────┬──────────────────┐
+│ entry_index ┆ exit_index ┆ price_at_entry_index ┆ price_at_exit_index │
+│ ---         ┆ ---        ┆ ---               ┆ ---              │
+│ u32         ┆ u32        ┆ i64               ┆ i64              │
+╞═════════════╪════════════╪═══════════════════╪══════════════════╡
+│ 0           ┆ 1          ┆ 10                ┆ 20               │
+│ 2           ┆ 3          ┆ 30                ┆ 40               │
+└─────────────┴────────────┴───────────────────┴──────────────────┘</code></pre></div>
+  <h3>最小输入数据模板</h3>
+  <div class="code-block"><div class="code-title">Python</div><pre><code>data = pl.DataFrame(
+    {
+        &quot;ExprInput&quot;: [1.0, 2.0, 3.0],
+        &quot;price&quot;: [10.0, 10.5, 10.2],
+        &quot;open_sig&quot;: [True, False, True],
+        &quot;exit_sig&quot;: [False, True, False],
+    }
+)</code></pre></div>
+  <h3>完整例子：打印输入和输出</h3>
+  <p>每个算子页面都必须有这一段完整例子：先打印输入表达式和输出表达式，再构造输入数据、打印输入数据、执行算子、打印输出结果。</p>
+  <div class="code-block"><div class="code-title">完整例子 / Python</div><pre><code>import polars as pl
+import qust as qs
+from qust import col
+
+print(&quot;输入表达式:&quot;)
+print(&#x27;col(&quot;price&quot;)&#x27;)
+print(&quot;输出表达式:&quot;)
+print(&#x27;col(&quot;price&quot;).get_by_index(\n     col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row()\n )&#x27;)
+
+data = pl.DataFrame(
+    {
+        &quot;ExprInput&quot;: [1.0, 2.0, 3.0],
+        &quot;price&quot;: [10.0, 10.5, 10.2],
+        &quot;open_sig&quot;: [True, False, True],
+        &quot;exit_sig&quot;: [False, True, False],
+    }
+)
+
+print(&quot;输入 DataFrame:&quot;)
+print(data)
+
+expr = col(&quot;price&quot;).get_by_index(
+     col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row()
+ )
+df = qs.select(expr)
+out = df.calc_data(data)
+
+print(&quot;输出 DataFrame:&quot;)
+print(out)</code></pre></div>
+</section>
+
+<section>
+  <h2>使用场景</h2>
+  <p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p>
+  <p>当你需要 <code>expr.get_by_index</code> 这种语义时，优先使用这个算子，而不是在 Python 里提前把数据取出来手写循环；这样才能保留流式状态、参数联动、Wasm 路径和 Monitor 重算能力。</p>
+</section>
+
+<section>
+  <h2>为什么这样设计</h2>
+  <p>Qust 把这一类能力做成表达式节点，是为了把“用户想算什么”保留下来。只要语义还在表达式树里，后续就可以统一处理分组上下文、窗口状态、参数联动、Wasm 执行和 Monitor 可视化。</p>
+  <p>实际收益是：代码更短，但语义更完整；后续计算、画图、调参、保存和回调都能复用同一棵表达式树。</p>
+</section>
+
+<section>
+  <h2>注意事项</h2>
+  
+  <pre><code>- `index` 没有以前缀 `UInt32` 列开头：会报输入类型错误
+- `index` 含 `null`：会直接报错
+- 普通上下文下，`index` 必须是整条输入累计行号
+- 外层 `over(...)` 上下文下，`index` 必须是同一 group 内的组内行号
+- `index` 子表达式自己带 `over(...)` 会报错；请把 `over(...)` 写在外层</code></pre>
+</section>
+
+<section>
+  <h2>补充说明</h2>
+  <details class="doc-details">
+    <summary>展开查看更长说明</summary>
+    <pre><code>**重排行算子**，按参数表达式给出的 `UInt32` 行号，从当前输入里取行。
+
+核心语义 ✅
+----------
+- 当前输入可以是 1 列或多列。
+- `index` 必须是一个表达式，计算结果必须以 **一列或多列 `UInt32`** 开头。
+- 开头连续的 `UInt32` 列会被当作取数 index。
+- 如果后面还有非 `UInt32` 列，这些列是 payload，不参与取数。
+- 输出按“输入列 × index 列”做笛卡尔展开，只使用前缀 `UInt32` index 列。
+- 输出列名规则：
+  `输入列名_at_索引列名`
+
+例如：
+- 输入列：`A, B`
+- `index` 输出列：`a, b, c`
+- 结果列：
+  `A_at_a, A_at_b, A_at_c, B_at_a, B_at_b, B_at_c`
+
+`keep=True` 时，会先把 `index` 自己的输出列一并保留，再接结果列。
+这会保留 `trade_row()` 双边交易输出里的 `side: u8`：
+- `a, b, c, A_at_a, A_at_b, A_at_c, B_at_a, B_at_b, B_at_c`
+
+输入 📥
+-------
+- 函数签名：
+  `get_by_index(index: ExprInput, keep: bool = False)`
+- `index`：
+  - 必须以前缀 `UInt32` 列开头
+  - 前缀 `UInt32` 列会被当作 index
+  - 后缀非 `UInt32` 列会被当作 payload
+  - 不允许出现 `null`
+  - 行顺序按 `index` 原顺序保留
+  - 重复 index 允许，结果会重复取对应行
+- `keep`：
+  - `False`：只返回取出的结果列
+  - `True`：先返回 `index` 的全部输出列（包括 payload），再返回取出的结果列
+
+返回 📤
+-------
+- 返回类型：`Expr`
+- 返回语义：返回一个新的表达式；上下文直接穿透，不主动改写 `over/batch` 等上下文。
+- 在普通上下文下，`index` 按整条输入累计的行号解释。
+- 在外层 `over(...)` 上下文下，`index` 按同一个 group 内从 0 开始的组内行号解释。
+- `index` 自己不能再带 `over(...)`；需要把 `over(...)` 放在 `get_by_index(...)` 外层，让输入和 index 继承同一个上下文。
+
+DataFrame 输入
+--------------
+&gt;&gt;&gt; data = pl.DataFrame({
+...     &quot;price&quot;: [10, 20, 30, 40],
+...     &quot;open_sig&quot;: [True, False, True, False],
+...     &quot;exit_sig&quot;: [False, True, False, True],
+... })
+&gt;&gt;&gt; data
+shape: (4, 3)
+┌───────┬──────────┬──────────┐
+│ price ┆ open_sig ┆ exit_sig │
+│ ---   ┆ ---      ┆ ---      │
+│ i64   ┆ bool     ┆ bool     │
+╞═══════╪══════════╪══════════╡
+│ 10    ┆ true     ┆ false    │
+│ 20    ┆ false    ┆ true     │
+│ 30    ┆ true     ┆ false    │
+│ 40    ┆ false    ┆ true     │
+└───────┴──────────┴──────────┘
+
+调用
+----
+&gt;&gt;&gt; col(&quot;price&quot;).get_by_index(
+...     col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row()
+... )
+&gt;&gt;&gt; col(&quot;price&quot;).get_by_index(
+...     col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row(),
+...     keep=True,
+... )
+
+输出
+----
+&gt;&gt;&gt; qs.select(
+...     col(&quot;price&quot;).get_by_index(col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row())
+... ).calc_data(data)
+shape: (2, 2)
+┌───────────────────┬──────────────────┐
+│ price_at_entry_index ┆ price_at_exit_index │
+│ ---               ┆ ---              │
+│ i64               ┆ i64              │
+╞═══════════════════╪══════════════════╡
+│ 10                ┆ 20               │
+│ 30                ┆ 40               │
+└───────────────────┴──────────────────┘
+&gt;&gt;&gt; qs.select(
+...     col(&quot;price&quot;).get_by_index(
+...         col(&quot;open_sig&quot;, &quot;exit_sig&quot;).stra.trade_row(),
+...         keep=True,
+...     )
+... ).calc_data(data)
+shape: (2, 4)
+┌─────────────┬────────────┬───────────────────┬──────────────────┐
+│ entry_index ┆ exit_index ┆ price_at_entry_index ┆ price_at_exit_index │
+│ ---         ┆ ---        ┆ ---               ┆ ---              │
+│ u32         ┆ u32        ┆ i64               ┆ i64              │
+╞═════════════╪════════════╪═══════════════════╪══════════════════╡
+│ 0           ┆ 1          ┆ 10                ┆ 20               │
+│ 2           ┆ 3          ┆ 30                ┆ 40               │
+└─────────────┴────────────┴───────────────────┴──────────────────┘
+
+示例 💡
+-------
+&gt;&gt;&gt; e = col(&quot;A&quot;, &quot;B&quot;).get_by_index(col(&quot;idx_a&quot;, &quot;idx_b&quot;))
+&gt;&gt;&gt; e = col(&quot;price&quot;).get_by_index(col(&quot;trade_row_idx&quot;), keep=True)
+
+可能出错的地方 ⚠️
+------------------
+- `index` 没有以前缀 `UInt32` 列开头：会报输入类型错误
+- `index` 含 `null`：会直接报错
+- 普通上下文下，`index` 必须是整条输入累计行号
+- 外层 `over(...)` 上下文下，`index` 必须是同一 group 内的组内行号
+- `index` 子表达式自己带 `over(...)` 会报错；请把 `over(...)` 写在外层</code></pre>
+  </details>
+</section>
+
+      </main>
+      <aside class="toc" aria-label="页内目录">
+        <p class="toc-title">Table of contents</p>
+        <div id="page-toc"></div>
+      </aside>
+    </div>
+    <script src="../../assets/app.js"></script>
+  </body>
+</html>

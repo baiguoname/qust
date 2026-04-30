@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>expr.mean - Otters / Qust 文档</title>
+    <meta name="description" content="expr.mean" />
+    <link rel="stylesheet" href="../../assets/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark">Q</span><span>Otters / Qust 文档</span></a>
+      <nav aria-label="顶部导航">
+        <a href="../../operators/index.html">算子总览</a>
+        <a href="../../operators/expr/index.html">表达式</a>
+        <a href="../../operators/ta/index.html">TA</a>
+        <a href="../../operators/monitor/index.html">Monitor</a>
+        <a href="../../wasm.html">Wasm</a>
+      </nav>
+      <label class="search"><input id="site-search" type="search" placeholder="搜索左侧导航..." /></label>
+    </header>
+    <div class="layout">
+      <aside class="sidebar" aria-label="文档导航">
+        <p class="sidebar-title">Reference</p>
+<div class="nav-section">
+<a class="nav-link" href="../../index.html">首页</a>
+<a class="nav-link" href="../../operators/index.html">算子总览</a>
+<a class="nav-link" href="../../wasm.html">Wasm</a>
+<a class="nav-link" href="../../index.html#architecture">设计思想</a>
+</div>
+<div class="nav-section">
+<p class="nav-heading">命名空间</p>
+<a class="nav-link" href="../../operators/alpha/index.html">Alpha 命名空间 <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/batch_stock/index.html">批内股票命名空间 <span class="mini">(1)</span></a>
+<a class="nav-link" href="../../operators/batch_ta/index.html">批内技术分析命名空间 <span class="mini">(7)</span></a>
+<a class="nav-link" href="../../operators/bt/index.html">回测命名空间 <span class="mini">(4)</span></a>
+<a class="nav-link" href="../../operators/col/index.html">列选择入口 <span class="mini">(8)</span></a>
+<a class="nav-link" href="../../operators/dataframe/index.html">DataFrame 执行计划 <span class="mini">(10)</span></a>
+<a class="nav-link" href="../../operators/dt/index.html">日期时间命名空间 <span class="mini">(7)</span></a>
+<a class="nav-link" href="../../operators/dtype/index.html">DataType API <span class="mini">(22)</span></a>
+<a class="nav-link active" href="../../operators/expr/index.html">表达式核心 <span class="mini">(92)</span></a>
+<a class="nav-link" href="../../operators/fp/index.html">Fast Path 命名空间 <span class="mini">(3)</span></a>
+<a class="nav-link" href="../../operators/kline/index.html">K 线命名空间 <span class="mini">(9)</span></a>
+<a class="nav-link" href="../../operators/math/index.html">数学命名空间 <span class="mini">(16)</span></a>
+<a class="nav-link" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span class="mini">(16)</span></a>
+<a class="nav-link" href="../../operators/operator/index.html">表达式运算符 <span class="mini">(29)</span></a>
+<a class="nav-link" href="../../operators/params/index.html">参数 API <span class="mini">(15)</span></a>
+<a class="nav-link" href="../../operators/plugin/index.html">插件 API <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/stock/index.html">股票统计命名空间 <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/stra/index.html">策略命名空间 <span class="mini">(35)</span></a>
+<a class="nav-link" href="../../operators/ta/index.html">技术指标命名空间 <span class="mini">(144)</span></a>
+<a class="nav-link" href="../../operators/top-level/index.html">顶层 API <span class="mini">(9)</span></a>
+<a class="nav-link" href="../../operators/udf/index.html">UDF 命名空间 <span class="mini">(3)</span></a>
+</div>
+<div class="nav-section">
+<p class="nav-heading">当前：表达式核心</p>
+<a class="nav-link" href="../../operators/expr/index.html">命名空间首页</a>
+<a class="nav-link active" href="../../operators/expr/mean.html">当前算子：expr.mean</a>
+<a class="nav-link" href="../../operators/expr/max_n.html">上一个：expr.max_n</a>
+<a class="nav-link" href="../../operators/expr/median.html">下一个：expr.median</a>
+<a class="nav-link" href="../../operators/expr/index.html">查看全部 92 个算子</a>
+</div>
+      </aside>
+      <main id="main" class="content">
+        
+<section class="page-header">
+  <p class="eyebrow">Reference / 表达式核心</p>
+  <h1>expr.mean</h1>
+  <p class="lead">行算子，计算平均</p>
+  <div class="badge-row">
+    <span class="badge">namespace: expr</span>
+    <span class="badge">returns: Expr</span>
+  </div>
+</section>
+
+<section>
+  <h2>用法</h2>
+  <div class="code-block"><div class="code-title">Python</div><pre><code>col(&quot;a&quot;).mean()</code></pre></div>
+  <p>如果这个算子返回 <code>Expr</code>，通常可以继续链式调用 <code>.alias(...)</code>、<code>.over(...)</code>、<code>.rolling(...)</code> 或放入 <code>qs.select(...)</code>。</p>
+</section>
+
+<section>
+  <h2>参数</h2>
+  <table><thead><tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr></thead><tbody><tr><td><code>axis</code></td><td><code>int</code></td><td><code>0</code></td><td>位置参数</td></tr><tr><td><code>ignore_nulls</code></td><td><code>bool</code></td><td><code>True</code></td><td>位置参数</td></tr></tbody></table>
+  <h3>参数补充说明</h3><pre><code>axis:
+    - `0`: 列方向聚合（默认）
+    - `1`: 行方向跨列聚合
+ignore_nulls:
+    `axis=1` 时是否忽略 null</code></pre>
+</section>
+
+<section>
+  <h2>输入和输出</h2>
+  <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>输入表达式</td><td>当前表达式，例如 col(&quot;x&quot;)；具体列宽由底层算子校验。</td></tr><tr><td>返回类型</td><td><code>Expr</code></td></tr><tr><td>输出语义</td><td>- 返回类型：Expr - 上面的 DataFrame 输入 / 调用 / 输出 已给出常见用法与真实打印结果。</td></tr></tbody></table>
+  
+  <h3>网页表格预览</h3>
+  <p>这里把算子的输入表达式、输出表达式、输入数据和输出结果直接渲染成网页表格，不需要看代码块或控制台。</p>
+  <h4>输入/输出表达式表格</h4>
+  <table><thead><tr><th>项目</th><th>表达式</th></tr></thead><tbody><tr><td>输入表达式</td><td><code>col(&quot;a&quot;)</code></td></tr><tr><td>输出表达式</td><td><code>col(&quot;a&quot;).mean()</code></td></tr></tbody></table>
+  <h4>输入数据表格</h4><div class="polars-frame"><div class="polars-shape">shape: (3, 1)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">a</span><span class="polars-dtype">i64</span></th></tr></thead><tbody><tr><td>3</td></tr><tr><td>1</td></tr><tr><td>2</td></tr></tbody></table></div>
+  <h4>输出表达式表格</h4>
+  <table><thead><tr><th>项目</th><th>网页显示</th></tr></thead><tbody><tr><td>输出表达式</td><td><code>col(&quot;a&quot;).mean()</code></td></tr><tr><td>输出变量</td><td><code>out</code> 或 <code>result</code></td></tr><tr><td>返回类型</td><td><code>Expr</code></td></tr></tbody></table>
+  <h4>输出结果表格</h4>
+  <div class="polars-frame"><div class="polars-shape">shape: (1, 1)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">a</span><span class="polars-dtype">f64</span></th></tr></thead><tbody><tr><td>2.0</td></tr></tbody></table></div>
+
+  
+  <h3>最小输入数据模板</h3>
+  <div class="code-block"><div class="code-title">Python</div><pre><code>data = pl.DataFrame(
+    {
+        &quot;a&quot;: [3, 1, 2],
+    }
+)</code></pre></div>
+  <h3>完整例子：打印输入和输出</h3>
+  <p>每个算子页面都必须有这一段完整例子：先打印输入表达式和输出表达式，再构造输入数据、打印输入数据、执行算子、打印输出结果。</p>
+  <div class="code-block"><div class="code-title">完整例子 / Python</div><pre><code>import polars as pl
+import qust as qs
+from qust import col
+
+print(&quot;输入表达式:&quot;)
+print(&#x27;col(&quot;a&quot;)&#x27;)
+print(&quot;输出表达式:&quot;)
+print(&#x27;col(&quot;a&quot;).mean()&#x27;)
+
+data = pl.DataFrame(
+    {
+        &quot;a&quot;: [3, 1, 2],
+    }
+)
+
+print(&quot;输入 DataFrame:&quot;)
+print(data)
+
+expr = col(&quot;a&quot;).mean()
+df = qs.select(expr)
+out = df.calc_data(data)
+
+print(&quot;输出 DataFrame:&quot;)
+print(out)</code></pre></div>
+</section>
+
+<section>
+  <h2>使用场景</h2>
+  <p>用于构造表达式链路中的核心计算、上下文切换、调试或元数据操作。</p>
+  <p>当你需要 <code>expr.mean</code> 这种语义时，优先使用这个算子，而不是在 Python 里提前把数据取出来手写循环；这样才能保留流式状态、参数联动、Wasm 路径和 Monitor 重算能力。</p>
+</section>
+
+<section>
+  <h2>为什么这样设计</h2>
+  <p>Qust 把这一类能力做成表达式节点，是为了把“用户想算什么”保留下来。只要语义还在表达式树里，后续就可以统一处理分组上下文、窗口状态、参数联动、Wasm 执行和 Monitor 可视化。</p>
+  <p>实际收益是：代码更短，但语义更完整；后续计算、画图、调参、保存和回调都能复用同一棵表达式树。</p>
+</section>
+
+<section>
+  <h2>注意事项</h2>
+  
+  <ul><li>确认输入列顺序和列类型符合页面说明。</li><li>需要分组时，把 <code>over(...)</code> 放在正确层级。</li><li>需要 monitor 参数联动时，不要提前把 <code>Params</code> 转成普通 Python 数字。</li></ul>
+</section>
+
+<section>
+  <h2>补充说明</h2>
+  <details class="doc-details">
+    <summary>展开查看更长说明</summary>
+    <pre><code>**行算子**，计算平均
+
+参数
+-----
+axis:
+    - `0`: 列方向聚合（默认）
+    - `1`: 行方向跨列聚合
+ignore_nulls:
+    `axis=1` 时是否忽略 null
+
+例子
+-------
+&gt;&gt;&gt; col(&quot;a&quot;).mean()
+&gt;&gt;&gt; col(&quot;a&quot;).mean().over(&quot;code&quot;)
+&gt;&gt;&gt; col(&quot;a&quot;).mean().expanding()
+&gt;&gt;&gt; col(&quot;a&quot;).mean().rolling(10)
+&gt;&gt;&gt; col(&quot;a&quot;).mean().expanding().over(&quot;code&quot;)
+&gt;&gt;&gt; col(&quot;a&quot;).mean().std().rolling(20, 10).over(&quot;code&quot;, &quot;stock&quot;)
+
+示例1
+^^^^^^
+&gt;&gt;&gt; data = pl.DataFrame({
+...     &quot;price&quot;: range(5),
+...     &quot;code&quot;: [&quot;a&quot;, &quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;b&quot;]
+... })
+&gt;&gt;&gt; data_next = pl.DataFrame({
+...     &quot;price&quot;: [2, 3, 10],
+...     &quot;code&quot;: [&quot;c&quot;, &quot;c&quot;, &quot;a&quot;]
+... })
+
+&gt;&gt;&gt; df1 = qs.with_cols(col(&quot;price1&quot;).mean())
+&gt;&gt;&gt; df1.calc_data(data)
+shape: (1, 1)
+┌────────────┐
+│ price_mean │
+│ ---        │
+│ f64        │
+╞════════════╡
+│ 2.692308   │
+└────────────┘
+&gt;&gt;&gt; df1.calc_data(data_next)
+shape: (1, 1)
+┌────────────┐
+│ price_mean │
+│ ---        │
+│ f64        │
+╞════════════╡
+│ 3.125      │
+└────────────┘
+
+示例1.1（`axis=1`）
+^^^^^^^^^^^^^^^^^^^^
+&gt;&gt;&gt; data_axis1 = pl.DataFrame({&quot;a&quot;: [1, 2, 3], &quot;b&quot;: [4, 5, 6]})
+&gt;&gt;&gt; data_axis1
+shape: (3, 2)
+┌─────┬─────┐
+│ a   ┆ b   │
+│ --- ┆ --- │
+│ i64 ┆ i64 │
+╞═════╪═════╡
+│ 1   ┆ 4   │
+│ 2   ┆ 5   │
+│ 3   ┆ 6   │
+└─────┴─────┘
+&gt;&gt;&gt; qs.select(col(&quot;a&quot;, &quot;b&quot;).mean(axis=1).alias(&quot;mean_ab&quot;)).calc_data(data_axis1)
+shape: (3, 1)
+┌─────────┐
+│ mean_ab │
+│ ---     │
+│ f64     │
+╞═════════╡
+│ 2.5     │
+│ 3.5     │
+│ 4.5     │
+└─────────┘
+
+示例2
+^^^^^^
+&gt;&gt;&gt; df2 = qs.with_cols(col(&quot;price&quot;).mean().expanding().alias(&quot;price_mean&quot;))
+&gt;&gt;&gt; df2.calc_data(data)
+shape: (5, 3)
+┌───────┬──────┬────────────┐
+│ price ┆ code ┆ price_mean │
+│ ---   ┆ ---  ┆ ---        │
+│ i64   ┆ str  ┆ f64        │
+╞═══════╪══════╪════════════╡
+│ 0     ┆ a    ┆ 0.0        │
+│ 1     ┆ a    ┆ 0.5        │
+│ 2     ┆ a    ┆ 1.0        │
+│ 3     ┆ b    ┆ 1.5        │
+│ 4     ┆ b    ┆ 2.0        │
+└───────┴──────┴────────────┘
+&gt;&gt;&gt; df2.calc_data(data_next)
+shape: (3, 3)
+┌───────┬──────┬────────────┐
+│ price ┆ code ┆ price_mean │
+│ ---   ┆ ---  ┆ ---        │
+│ i64   ┆ str  ┆ f64        │
+╞═══════╪══════╪════════════╡
+│ 2     ┆ c    ┆ 2.642857   │
+│ 3     ┆ c    ┆ 2.666667   │
+│ 10    ┆ a    ┆ 3.125      │
+└───────┴──────┴────────────┘
+
+示例3
+^^^^^
+&gt;&gt;&gt; df3 = qs.with_cols(col(&quot;price&quot;).mean().rolling(2).alias(&quot;price_mean&quot;))
+&gt;&gt;&gt; df3.calc_data(data)
+shape: (5, 3)
+┌───────┬──────┬────────────┐
+│ price ┆ code ┆ price_mean │
+│ ---   ┆ ---  ┆ ---        │
+│ i64   ┆ str  ┆ f64        │
+╞═══════╪══════╪════════════╡
+│ 0     ┆ a    ┆ null       │
+│ 1     ┆ a    ┆ 0.5        │
+│ 2     ┆ a    ┆ 1.5        │
+│ 3     ┆ b    ┆ 2.5        │
+│ 4     ┆ b    ┆ 3.5        │
+└───────┴──────┴────────────┘
+&gt;&gt;&gt; df3.calc_data(data_next)
+shape: (3, 3)
+┌───────┬──────┬────────────┐
+│ price ┆ code ┆ price_mean │
+│ ---   ┆ ---  ┆ ---        │
+│ i64   ┆ str  ┆ f64        │
+╞═══════╪══════╪════════════╡
+│ 2     ┆ c    ┆ 3.0        │
+│ 3     ┆ c    ┆ 2.5        │
+│ 10    ┆ a    ┆ 6.5        │
+└───────┴──────┴────────────┘
+
+示例4
+^^^^
+&gt;&gt;&gt; df4 = qs.with_cols(col(&quot;price&quot;).mean().expanding().over(&quot;code&quot;).alias(&quot;price_mean&quot;))
+&gt;&gt;&gt; df4.calc_data(data)
+shape: (5, 3)
+┌───────┬──────┬────────────┐
+│ price ┆ code ┆ price_mean │
+│ ---   ┆ ---  ┆ ---        │
+│ i64   ┆ str  ┆ f64        │
+╞═══════╪══════╪════════════╡
+│ 0     ┆ a    ┆ 0.0        │
+│ 1     ┆ a    ┆ 0.5        │
+│ 2     ┆ a    ┆ 1.0        │
+│ 3     ┆ b    ┆ 3.0        │
+│ 4     ┆ b    ┆ 3.5        │
+└───────┴──────┴────────────┘
+&gt;&gt;&gt; df4.calc_data(data_next)
+shape: (3, 3)
+┌───────┬──────┬────────────┐
+│ price ┆ code ┆ price_mean │
+│ ---   ┆ ---  ┆ ---        │
+│ i64   ┆ str  ┆ f64        │
+╞═══════╪══════╪════════════╡
+│ 2     ┆ c    ┆ 2.0        │
+│ 3     ┆ c    ┆ 2.5        │
+│ 10    ┆ a    ┆ 3.25       │
+└───────┴──────┴────────────┘
+
+示例5
+^^^^
+&gt;&gt;&gt; df5 = qs.select(col(&quot;price&quot;).mean().group_by(&quot;code&quot;))
+&gt;&gt;&gt; df5.calc_data(data)
+shape: (2, 2)
+┌──────┬───────┐
+│ code ┆ price │
+│ ---  ┆ ---   │
+│ str  ┆ f64   │
+╞══════╪═══════╡
+│ a    ┆ 1.0   │
+│ b    ┆ 3.5   │
+└──────┴───────┘
+&gt;&gt;&gt; df5.calc_data(data_next)
+shape: (3, 2)
+┌──────┬───────┐
+│ code ┆ price │
+│ ---  ┆ ---   │
+│ str  ┆ f64   │
+╞══════╪═══════╡
+│ a    ┆ 3.25  │
+│ b    ┆ 3.5   │
+│ c    ┆ 2.5   │
+└──────┴───────┘
+返回 📤
+-------
+- 返回类型：`Expr`
+- 上面的 `DataFrame 输入 / 调用 / 输出` 已给出常见用法与真实打印结果。</code></pre>
+  </details>
+</section>
+
+      </main>
+      <aside class="toc" aria-label="页内目录">
+        <p class="toc-title">Table of contents</p>
+        <div id="page-toc"></div>
+      </aside>
+    </div>
+    <script src="../../assets/app.js"></script>
+  </body>
+</html>

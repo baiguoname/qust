@@ -1,4 +1,4 @@
-import { createEvalEngineCore } from "./wasm-eval-core.js?v=20260429_211904";
+import { createEvalEngineCore } from "./wasm-eval-core.js?v=20260430_125300";
 
 function progress(percent, label) {
   self.postMessage({

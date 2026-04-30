@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>kline namespace - Otters / Qust 文档</title>
+    <meta name="description" content="kline namespace" />
+    <link rel="stylesheet" href="../../assets/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <header class="topbar">
+      <a class="brand" href="../../index.html"><span class="brand-mark">Q</span><span>Otters / Qust 文档</span></a>
+      <nav aria-label="顶部导航">
+        <a href="../../operators/index.html">算子总览</a>
+        <a href="../../operators/expr/index.html">表达式</a>
+        <a href="../../operators/ta/index.html">TA</a>
+        <a href="../../operators/monitor/index.html">Monitor</a>
+        <a href="../../wasm.html">Wasm</a>
+      </nav>
+      <label class="search"><input id="site-search" type="search" placeholder="搜索左侧导航..." /></label>
+    </header>
+    <div class="layout">
+      <aside class="sidebar" aria-label="文档导航">
+        <p class="sidebar-title">Reference</p>
+<div class="nav-section">
+<a class="nav-link" href="../../index.html">首页</a>
+<a class="nav-link" href="../../operators/index.html">算子总览</a>
+<a class="nav-link" href="../../wasm.html">Wasm</a>
+<a class="nav-link" href="../../index.html#architecture">设计思想</a>
+</div>
+<div class="nav-section">
+<p class="nav-heading">命名空间</p>
+<a class="nav-link" href="../../operators/alpha/index.html">Alpha 命名空间 <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/batch_stock/index.html">批内股票命名空间 <span class="mini">(1)</span></a>
+<a class="nav-link" href="../../operators/batch_ta/index.html">批内技术分析命名空间 <span class="mini">(7)</span></a>
+<a class="nav-link" href="../../operators/bt/index.html">回测命名空间 <span class="mini">(4)</span></a>
+<a class="nav-link" href="../../operators/col/index.html">列选择入口 <span class="mini">(8)</span></a>
+<a class="nav-link" href="../../operators/dataframe/index.html">DataFrame 执行计划 <span class="mini">(10)</span></a>
+<a class="nav-link" href="../../operators/dt/index.html">日期时间命名空间 <span class="mini">(7)</span></a>
+<a class="nav-link" href="../../operators/dtype/index.html">DataType API <span class="mini">(22)</span></a>
+<a class="nav-link" href="../../operators/expr/index.html">表达式核心 <span class="mini">(92)</span></a>
+<a class="nav-link" href="../../operators/fp/index.html">Fast Path 命名空间 <span class="mini">(3)</span></a>
+<a class="nav-link active" href="../../operators/kline/index.html">K 线命名空间 <span class="mini">(9)</span></a>
+<a class="nav-link" href="../../operators/math/index.html">数学命名空间 <span class="mini">(16)</span></a>
+<a class="nav-link" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span class="mini">(16)</span></a>
+<a class="nav-link" href="../../operators/operator/index.html">表达式运算符 <span class="mini">(29)</span></a>
+<a class="nav-link" href="../../operators/params/index.html">参数 API <span class="mini">(15)</span></a>
+<a class="nav-link" href="../../operators/plugin/index.html">插件 API <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/stock/index.html">股票统计命名空间 <span class="mini">(2)</span></a>
+<a class="nav-link" href="../../operators/stra/index.html">策略命名空间 <span class="mini">(35)</span></a>
+<a class="nav-link" href="../../operators/ta/index.html">技术指标命名空间 <span class="mini">(144)</span></a>
+<a class="nav-link" href="../../operators/top-level/index.html">顶层 API <span class="mini">(9)</span></a>
+<a class="nav-link" href="../../operators/udf/index.html">UDF 命名空间 <span class="mini">(3)</span></a>
+</div>
+<div class="nav-section">
+<p class="nav-heading">当前：K 线命名空间</p>
+<a class="nav-link" href="../../operators/kline/index.html">命名空间首页</a>
+<a class="nav-link" href="../../operators/kline/index.html">查看全部 9 个算子</a>
+</div>
+      </aside>
+      <main id="main" class="content">
+        
+<section class="page-header">
+  <p class="eyebrow">Namespace</p>
+  <h1>K 线命名空间</h1>
+  <p class="lead">用于 K 线、盘口和周期切片相关预处理。</p>
+  <div class="badge-row"><span class="badge">9 operators</span><span class="badge">namespace: kline</span></div>
+</section>
+<section>
+  <h2>算子列表</h2>
+  <div class="grid operator-grid">
+    <article class="card"><h3><a href="even_slice.html">kline.even_slice</a></h3><p>等分日内k线</p></article><article class="card"><h3><a href="future_ra1m.html">kline.future_ra1m</a></h3><p>用于 K 线、盘口和周期切片相关预处理。</p></article><article class="card"><h3><a href="future_rl5m_day.html">kline.future_rl5m_day</a></h3><p>用于 K 线、盘口和周期切片相关预处理。</p></article><article class="card"><h3><a href="ha.html">kline.ha</a></h3><p>ha k线</p></article><article class="card"><h3><a href="intervals.html">kline.intervals</a></h3><p>详细列举生成切分点</p></article><article class="card"><h3><a href="rl1m.html">kline.rl1m</a></h3><p>用于 K 线、盘口和周期切片相关预处理。</p></article><article class="card"><h3><a href="rl30m.html">kline.rl30m</a></h3><p>用于 K 线、盘口和周期切片相关预处理。</p></article><article class="card"><h3><a href="rl5m.html">kline.rl5m</a></h3><p>用于 K 线、盘口和周期切片相关预处理。</p></article><article class="card"><h3><a href="with_order_flow_info.html">kline.with_order_flow_info</a></h3><p>在合成k线的时候，加入当前k线中的订单流信息</p></article>
+  </div>
+</section>
+
+      </main>
+      <aside class="toc" aria-label="页内目录">
+        <p class="toc-title">Table of contents</p>
+        <div id="page-toc"></div>
+      </aside>
+    </div>
+    <script src="../../assets/app.js"></script>
+  </body>
+</html>
