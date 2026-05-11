@@ -1,5 +1,7 @@
 # Qust / Otters
 
+[在线文档](https://baiguoname.github.io/qust/examples/docs/) · [Wasm 在线运行](https://baiguoname.github.io/qust/examples/wasm/)
+
 Qust 是一个面向量化研究、因子分析、策略回测、组合分析和交互式调参的高性能计算框架。
 
 你可以把它理解成：**用 Python 写 DataFrame 风格表达式，用 Rust 底层执行有状态的流式计算，再用 Monitor 和 Wasm 把结果变成可交互、可分享的研究环境。**
