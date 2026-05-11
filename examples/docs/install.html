@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>安装 - Qust Docs</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html">Qust Docs</a>
+    <input id="search" type="search" placeholder="搜索算子或页面" />
+  </header>
+  <div class="shell">
+    <aside class="sidebar"><div class="nav-block">
+<a href="index.html">基础</a>
+<a href="install.html">安装</a>
+<a href="quickstart.html">简单例子</a>
+<a href="operators/index.html">算子</a>
+<a href="df.html">DF</a>
+<a href="polars.html">Polars</a>
+<a href="wasm.html">Wasm</a>
+<a href="qust_portfolio/index.html">Portfolio</a>
+</div><div class="nav-block"><p>命名空间</p>
+<a href="operators/alpha/index.html">Alpha 命名空间 <span>2</span></a>
+<a href="operators/batch/index.html">批内/截面命名空间 <span>32</span></a>
+<a href="operators/batch_stock/index.html">批内股票命名空间 <span>1</span></a>
+<a href="operators/bt/index.html">回测命名空间 <span>4</span></a>
+<a href="operators/col/index.html">列选择入口 <span>9</span></a>
+<a href="operators/dataframe/index.html">DataFrame 执行计划 <span>8</span></a>
+<a href="operators/dt/index.html">日期时间命名空间 <span>7</span></a>
+<a href="operators/dtype/index.html">DataType API <span>22</span></a>
+<a href="operators/expr/index.html">表达式核心 <span>100</span></a>
+<a href="operators/fp/index.html">Fast Path 命名空间 <span>3</span></a>
+<a href="operators/kline/index.html">K 线命名空间 <span>9</span></a>
+<a href="operators/math/index.html">数学命名空间 <span>16</span></a>
+<a href="operators/monitor/index.html">Monitor 图表命名空间 <span>16</span></a>
+<a href="operators/operator/index.html">表达式运算符 <span>29</span></a>
+<a href="operators/params/index.html">参数 API <span>15</span></a>
+<a href="operators/plugin/index.html">插件 API <span>3</span></a>
+<a href="operators/stock/index.html">股票统计命名空间 <span>1</span></a>
+<a href="operators/stra/index.html">策略命名空间 <span>35</span></a>
+<a href="operators/ta/index.html">技术指标命名空间 <span>144</span></a>
+<a href="operators/top-level/index.html">顶层 API <span>3</span></a>
+<a href="operators/udf/index.html">UDF 命名空间 <span>3</span></a>
+</div></aside>
+    <main>
+<section class="hero small"><h1>安装</h1><p>给普通用户看的安装方式。Python 版本要求：<code>&gt;=3.9,&lt;3.13</code>。</p></section>
+<section>
+  <h2>安装 Qust</h2>
+  <figure class="code"><figcaption>Shell</figcaption><pre><code>pip install qust
+python -c &quot;import qust as qs; from qust import col; print(qs.__name__, col)&quot;</code></pre></figure>
+  <h3>国内镜像</h3>
+  <figure class="code"><figcaption>Shell</figcaption><pre><code>pip install -i https://pypi.tuna.tsinghua.edu.cn/simple qust</code></pre></figure>
+  <h3>组合优化扩展</h3>
+  <p>需要 <code>qust_portfolio</code> 时再安装：</p>
+  <figure class="code"><figcaption>Shell</figcaption><pre><code>pip install qust-portfolio</code></pre></figure>
+</section>
+<section><h2>在线地址</h2><p>在线文档：<a href="https://baiguoname.github.io/qust/examples/docs/">https://baiguoname.github.io/qust/examples/docs/</a></p><p>Wasm 页面：<a href="https://baiguoname.github.io/qust/examples/wasm/">https://baiguoname.github.io/qust/examples/wasm/</a></p></section>
+</main>
+  </div>
+  <script src="assets/app.js"></script>
+</body>
+</html>

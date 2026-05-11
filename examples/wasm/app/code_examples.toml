@@ -25,11 +25,11 @@ e_factor = col(
 )
 
 # alphalen_analysis 会把 summary、quantile、IC、event 等面板注册到 monitor。
-df = qs.select(
+df = col(
     e_factor
         .alpha
         .alphalen_analysis(monitor)
-)
+).runtime()
 
 # df.plot 等价于计算参数、生成 monitor 包，并在本地 wasm 页面显示。
 df.plot(data, monitor)
@@ -59,11 +59,11 @@ stras_e = pms(stras).as_expr().over("ticker").select(
 monitor = qs.Monitor(background="black")
 
 # sig_stra_analysis 会根据 open/exit 信号做回测，并把净值、交易散点、回调图等画到 monitor。
-df = qs.with_cols(
+df = col.with_cols(
     stras_e
 ).select(
     col.all.bt.sig_stra_analysis(monitor)
-)
+).runtime()
 
 df.plot(data, monitor)
 '''
@@ -89,7 +89,7 @@ params0 = pms(10, 100).value(30).title("window mean")
 params1 = pms(-2.5, 2.5).step(0.1).value(1.5).title("window_params")
 
 # 这个例子先计算布林带，再生成开平仓信号，最后交给回测分析面板。
-df = qs.select(
+df = col(
     col.all
         .with_cols(
             col(
@@ -123,7 +123,7 @@ df = qs.select(
         .select(
             col.all.bt.sig_stra_analysis(monitor)
         )
-)
+).runtime()
 
 df.plot(data, monitor, open_in_jupyter=False, height=1000)
 '''
@@ -133,10 +133,11 @@ df.plot(data, monitor, open_in_jupyter=False, height=1000)
 name = "scatter_stack"
 code = '''
 import qust as qs
+import polars as pl
 from qust import col
 
 # 构造一个内联 DataFrame，适合快速试图形 API。
-data = qs.DataFrame({
+data = pl.DataFrame({
   "a": [1, 2, 3, 1],
   "b": [2, 3, 4, 5],
   "c": ["a", "a", "b", "b"],
@@ -144,12 +145,12 @@ data = qs.DataFrame({
 
 # scatter 的输入是 x/y 两列；over("c") 后按 c 分组。
 # over_type="stack" 表示多个组叠在同一张 scatter 图里。
-df = qs.select(
+df = (
     col("a", "b")
         .monitor(over_type="stack")
         .scatter(size=0.1)
         .over("c")
-)
+).runtime()
 df.plot(data)
 '''
 
@@ -157,21 +158,22 @@ df.plot(data)
 name = "callback_scatter_histogram"
 code = '''
 import qust as qs
+import polars as pl
 from qust import col
 
 # 构造一个小数据集，用来演示图和回调图之间的联动。
-data = qs.DataFrame({
+data = pl.DataFrame({
   "a": [1, 2, 3, 1],
   "b": [2, 3, 4, 5],
 })
 
-# 主图是 scatter；attach_to_monitor 里的 x_slider 是回调图。
+# 主图是 scatter；attach_to_monitor 里的 monitor_cb.x_slider 是回调图。
 # 在主图上拖动 x 轴区间后，回调表达式会用同一份 source 数据重新过滤并画 histogram。
-df = qs.select(
+df = (
   col("a", "b").monitor.scatter().attach_to_monitor(
-    col.all.filter(col("a") != 0).monitor.histogram().x_slider()
+    col.all.filter(col("a") != 0).monitor.histogram().monitor_cb.x_slider()
   )
-)
+).runtime()
 df.plot(data)
 '''
 
@@ -179,10 +181,11 @@ df.plot(data)
 name = "scatter_select_kline"
 code = '''
 import qust as qs
+import polars as pl
 from qust import col
 
 # 这个小数据集同时包含 scatter 需要的交易统计列，以及 kline 需要的 OHLC 列。
-data = qs.DataFrame({
+data = pl.DataFrame({
   "datetime": [
     "2024-01-01 09:30:00", "2024-01-01 09:31:00", "2024-01-01 09:32:00",
     "2024-01-01 09:33:00", "2024-01-01 09:34:00", "2024-01-01 09:35:00",
@@ -198,40 +201,219 @@ data = qs.DataFrame({
 })
 
 # 主图是 hold_kline_period/ret 的 scatter。
-# 点选 scatter 中的点后，scatter_select 会把该点携带的 entry/exit 时间拼回 source，
+# 点选 scatter 中的点后，monitor_cb.source.scatter_select 会把该点携带的 entry/exit 时间拼回 source，
 # 再用 filter_expr 筛出对应区间并绘制 kline 回调图。
-df = qs.select(
+df = (
   col("hold_kline_period", "ret", "datetime-entry_index", "datetime-exit_index")
     .monitor.scatter(size=0.05)
     .attach_to_monitor(
-      col("datetime", "open", "high", "low", "close").monitor.kline().scatter_select(
+      col("datetime", "open", "high", "low", "close").monitor.kline().monitor_cb.source.scatter_select(
         col("datetime").is_between(
           "datetime-entry_index",
           "datetime-exit_index",
         ),
       )
     )
-)
+).runtime()
 df.plot(data)
+'''
+
+[[example]]
+name = "monitor_all_callbacks_grid"
+code = '''
+import qust as qs
+import polars as pl
+from qust import col
+
+# 这个例子用于在同一个 Monitor 里完整测试所有 monitor_cb callback。
+#
+# 设计原则：
+# - 每个 callback 单独占一个 grid slot，每个 slot 只有一个按钮，避免按钮被裁切或互相覆盖。
+# - 同一个 callback 同时保留 plot/source/hybrid 版本，方便确认 resolver 走向。
+# - callback 结果统一渲染成表格或 kline，触发后应弹出“查询结果”窗口。
+# - source.* 必须传 filter_expr；plot.* 只使用当前图选中的 plot data。
+
+data = pl.DataFrame({
+  "t": [float(i) for i in range(1, 25)],
+  "x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0] * 4,
+  "y": [2.0, 4.0, 3.0, 7.0, 5.0, 9.0, 3.0, 5.0, 6.0, 8.0, 7.0, 10.0] * 2,
+  "value": [0.8, 1.1, 1.4, 1.0, 1.8, 2.2, 1.6, 2.4, 2.1, 2.8, 2.5, 3.0,
+            2.7, 3.2, 3.6, 3.1, 3.9, 4.3, 3.8, 4.6, 4.2, 5.0, 4.7, 5.2],
+  "value2": [1.2, 1.0, 1.5, 1.7, 1.4, 2.0, 2.1, 1.9, 2.4, 2.6, 2.2, 2.8,
+             3.0, 2.7, 3.3, 3.5, 3.1, 3.7, 4.0, 3.8, 4.2, 4.5, 4.1, 4.8],
+  "group": [1.0, 1.0, 2.0, 2.0, 3.0, 3.0] * 4,
+  "cat": [1.0, 2.0, 3.0, 1.0, 2.0, 3.0] * 4,
+  "open": [100.0 + i * 0.4 for i in range(24)],
+  "high": [101.0 + i * 0.4 for i in range(24)],
+  "low": [99.2 + i * 0.4 for i in range(24)],
+  "close": [100.4 + i * 0.4 + (0.3 if i % 2 == 0 else -0.2) for i in range(24)],
+  "entry": [5.0] * 24,
+  "exit": [16.0] * 24,
+})
+
+# callback 输出目标。plot_table 看当前图选区，source_table/source_kline 看回源过滤后的数据。
+plot_table = col.all.monitor("plot data").table()
+source_table = col.all.monitor("source data").table()
+source_kline = col("t", "open", "high", "low", "close").monitor("source kline").kline()
+source_all = col("value") > col.lit(-999.0)
+source_window = col("t").is_between("entry", "exit")
+
+
+def range_slot(slot, callback):
+  return (
+    col("t", "value", "entry", "exit")
+      .monitor(slot)
+      .line()
+      .attach_to_monitor(callback)
+  )
+
+
+def scatter_slot(slot, callback):
+  return (
+    col("x", "y", "t", "value", "entry", "exit", "group")
+      .monitor(slot)
+      .scatter(size=0.05)
+      .attach_to_monitor(callback)
+  )
+
+
+def point_slot(slot, callback):
+  return scatter_slot(slot, callback)
+
+
+def kline_slot(slot, callback):
+  return (
+    col("t", "open", "high", "low", "close", "entry", "exit")
+      .monitor(slot)
+      .kline()
+      .attach_to_monitor(callback)
+  )
+
+
+def bar_slot(slot, callback):
+  return col("cat", "value").monitor(slot).bar().attach_to_monitor(callback)
+
+
+def hist_slot(slot, callback):
+  return col("value").monitor(slot).histogram().attach_to_monitor(callback)
+
+
+def heatmap_slot(slot, callback):
+  return col("x", "cat", "value").monitor(slot).heatmap().attach_to_monitor(callback)
+
+
+def table_slot(slot, callback):
+  return (
+    col("t", "x", "y", "value", "group")
+      .monitor(slot)
+      .table()
+      .attach_to_monitor(callback)
+  )
+
+
+def box_slot(slot, callback):
+  return col("group", "value", "value2").monitor(slot).boxplot().attach_to_monitor(callback)
+
+
+def violin_slot(slot, callback):
+  return col("group", "value").monitor(slot).violin().attach_to_monitor(callback)
+
+
+def group_slot(slot, callback):
+  return (
+    col("t", "value")
+      .monitor(slot, over_type="stack")
+      .line()
+      .over("group")
+      .attach_to_monitor(callback)
+  )
+
+
+def action_slot(slot, callback):
+  return col("t", "value").monitor(slot).line().attach_to_monitor(callback)
+
+
+slot_specs = [
+  ("cb01_x_range_plot", lambda s: range_slot(s, plot_table.monitor_cb.plot.x_range().with_name("x_range 无source"))),
+  ("cb02_x_slider_plot", lambda s: range_slot(s, plot_table.monitor_cb.plot.x_slider().with_name("x_slider 别名"))),
+  ("cb03_x_range_source", lambda s: range_slot(s, source_table.monitor_cb.source.x_range(source_all).with_name("x_range source"))),
+  ("cb04_x_range_hybrid", lambda s: range_slot(s, plot_table.monitor_cb.x_range(source_all).with_name("x_range hybrid"))),
+  ("cb05_y_range_plot", lambda s: range_slot(s, plot_table.monitor_cb.plot.y_range().with_name("y_range 无source"))),
+  ("cb06_y_range_source", lambda s: range_slot(s, source_table.monitor_cb.source.y_range(source_all).with_name("y_range source"))),
+
+  ("cb07_xy_rect_plot", lambda s: scatter_slot(s, plot_table.monitor_cb.plot.xy_rect().with_name("xy_rect 无source"))),
+  ("cb08_xy_rect_source", lambda s: scatter_slot(s, source_table.monitor_cb.source.xy_rect(source_all).with_name("xy_rect source"))),
+  ("cb09_lasso_plot", lambda s: scatter_slot(s, plot_table.monitor_cb.plot.lasso().with_name("lasso 无source"))),
+  ("cb10_lasso_source", lambda s: scatter_slot(s, source_table.monitor_cb.source.lasso(source_all).with_name("lasso source"))),
+  ("cb11_polygon_plot", lambda s: scatter_slot(s, plot_table.monitor_cb.plot.polygon_select().with_name("polygon 无source"))),
+  ("cb12_polygon_source", lambda s: scatter_slot(s, source_table.monitor_cb.source.polygon_select(source_all).with_name("polygon source"))),
+
+  ("cb13_point_plot", lambda s: point_slot(s, plot_table.monitor_cb.plot.point_select().with_name("point 无source"))),
+  ("cb14_point_source", lambda s: point_slot(s, source_kline.monitor_cb.source.point_select(source_window).with_name("point source"))),
+  ("cb15_point_hybrid", lambda s: point_slot(s, plot_table.monitor_cb.point_select(source_window).with_name("point hybrid"))),
+  ("cb16_nearest", lambda s: point_slot(s, plot_table.monitor_cb.plot.nearest_select().with_name("nearest_select"))),
+  ("cb17_multi_point", lambda s: point_slot(s, plot_table.monitor_cb.plot.multi_point_select().with_name("multi_point"))),
+  ("cb18_scatter_select_plot", lambda s: point_slot(s, plot_table.monitor_cb.plot.scatter_select().with_name("scatter_select 无source"))),
+  ("cb19_scatter_select_source", lambda s: point_slot(s, source_kline.monitor_cb.source.scatter_select(source_window).with_name("scatter_select source"))),
+  ("cb20_scatter_select_hybrid", lambda s: point_slot(s, plot_table.monitor_cb.scatter_select(source_window).with_name("scatter_select hybrid"))),
+  ("cb21_scatter_rect", lambda s: point_slot(s, plot_table.monitor_cb.plot.scatter_rect().with_name("scatter_rect"))),
+  ("cb22_scatter_lasso", lambda s: point_slot(s, plot_table.monitor_cb.plot.scatter_lasso().with_name("scatter_lasso"))),
+
+  ("cb23_kline_range_plot", lambda s: kline_slot(s, plot_table.monitor_cb.plot.kline_range().with_name("kline_range 无source"))),
+  ("cb24_kline_range_source", lambda s: kline_slot(s, source_kline.monitor_cb.source.kline_range(source_all).with_name("kline_range source"))),
+  ("cb25_kline_select_plot", lambda s: kline_slot(s, plot_table.monitor_cb.plot.kline_select().with_name("kline_select 无source"))),
+  ("cb26_kline_select_source", lambda s: kline_slot(s, source_kline.monitor_cb.source.kline_select(source_window).with_name("kline_select source"))),
+
+  ("cb27_bar_select", lambda s: bar_slot(s, plot_table.monitor_cb.plot.bar_select().with_name("bar_select"))),
+  ("cb28_hist_bin", lambda s: hist_slot(s, plot_table.monitor_cb.plot.hist_bin_select().with_name("hist_bin_select"))),
+  ("cb29_heatmap_cell", lambda s: heatmap_slot(s, plot_table.monitor_cb.plot.heatmap_cell_select().with_name("heatmap_cell"))),
+  ("cb30_row_select", lambda s: table_slot(s, plot_table.monitor_cb.plot.row_select().with_name("row_select"))),
+  ("cb31_table_row", lambda s: table_slot(s, plot_table.monitor_cb.plot.table_row_select().with_name("table_row"))),
+  ("cb32_table_cell", lambda s: table_slot(s, plot_table.monitor_cb.plot.table_cell_select().with_name("table_cell"))),
+  ("cb33_box_select", lambda s: box_slot(s, plot_table.monitor_cb.plot.box_select().with_name("box_select"))),
+  ("cb34_violin_select", lambda s: violin_slot(s, plot_table.monitor_cb.plot.violin_select().with_name("violin_select"))),
+
+  ("cb35_group_select", lambda s: group_slot(s, plot_table.monitor_cb.plot.group_select().with_name("group_select"))),
+  ("cb36_legend_select", lambda s: group_slot(s, plot_table.monitor_cb.plot.legend_select().with_name("legend_select"))),
+  ("cb37_series_select", lambda s: group_slot(s, plot_table.monitor_cb.plot.series_select().with_name("series_select"))),
+  ("cb38_slot_select", lambda s: group_slot(s, plot_table.monitor_cb.plot.slot_select().with_name("slot_select"))),
+
+  ("cb39_button", lambda s: action_slot(s, plot_table.monitor_cb.button().with_name("button"))),
+  ("cb40_context_menu", lambda s: action_slot(s, plot_table.monitor_cb.context_menu().with_name("context_menu"))),
+  ("cb41_double_click", lambda s: action_slot(s, plot_table.monitor_cb.double_click().with_name("double_click"))),
+  ("cb42_hover_query", lambda s: action_slot(s, plot_table.monitor_cb.hover_query().with_name("hover_query"))),
+  ("cb43_visible_range", lambda s: action_slot(s, plot_table.monitor_cb.visible_range().with_name("visible_range"))),
+  ("cb44_viewport_change", lambda s: action_slot(s, plot_table.monitor_cb.viewport_change().with_name("viewport_change"))),
+  ("cb45_zoom_change", lambda s: action_slot(s, plot_table.monitor_cb.zoom_change().with_name("zoom_change"))),
+  ("cb46_pan_change", lambda s: action_slot(s, plot_table.monitor_cb.pan_change().with_name("pan_change"))),
+]
+
+grid = [[slot_specs[i][0], slot_specs[i + 1][0]] for i in range(0, len(slot_specs), 2)]
+monitor = qs.Monitor(background="black").make_grid(grid)
+plots = [factory(slot) for slot, factory in slot_specs]
+
+df = col(*plots).runtime()
+df.plot(data, monitor, open_in_jupyter=False, height=1100)
 '''
 
 [[example]]
 name = "line"
 code = '''
 import qust as qs
+import polars as pl
 from qust import col
 
 # 一个最小 line 图例子：按 date 聚合 pnl，再画累计结果。
-data = qs.DataFrame({
+data = pl.DataFrame({
   "date": ["2024-01-01", "2024-01-01", "2024-01-02", "2024-01-02"],
   "pnl": [1.0, -0.2, 0.4, 0.8],
 })
 
 # group_by 后先得到每日 pnl，再 with_cols 计算 expanding 累计值。
-df = qs.select(
+df = (
   col("pnl").sum().group_by("date").with_cols(
     col("pnl").sum().expanding().alias("pnl_expanding")
   ).monitor.line()
-)
+).runtime()
 df.plot(data)
 '''

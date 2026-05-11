@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Polars - Qust Docs</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html">Qust Docs</a>
+    <input id="search" type="search" placeholder="搜索算子或页面" />
+  </header>
+  <div class="shell">
+    <aside class="sidebar"><div class="nav-block">
+<a href="index.html">基础</a>
+<a href="install.html">安装</a>
+<a href="quickstart.html">简单例子</a>
+<a href="operators/index.html">算子</a>
+<a href="df.html">DF</a>
+<a href="polars.html">Polars</a>
+<a href="wasm.html">Wasm</a>
+<a href="qust_portfolio/index.html">Portfolio</a>
+</div><div class="nav-block"><p>命名空间</p>
+<a href="operators/alpha/index.html">Alpha 命名空间 <span>2</span></a>
+<a href="operators/batch/index.html">批内/截面命名空间 <span>32</span></a>
+<a href="operators/batch_stock/index.html">批内股票命名空间 <span>1</span></a>
+<a href="operators/bt/index.html">回测命名空间 <span>4</span></a>
+<a href="operators/col/index.html">列选择入口 <span>9</span></a>
+<a href="operators/dataframe/index.html">DataFrame 执行计划 <span>8</span></a>
+<a href="operators/dt/index.html">日期时间命名空间 <span>7</span></a>
+<a href="operators/dtype/index.html">DataType API <span>22</span></a>
+<a href="operators/expr/index.html">表达式核心 <span>100</span></a>
+<a href="operators/fp/index.html">Fast Path 命名空间 <span>3</span></a>
+<a href="operators/kline/index.html">K 线命名空间 <span>9</span></a>
+<a href="operators/math/index.html">数学命名空间 <span>16</span></a>
+<a href="operators/monitor/index.html">Monitor 图表命名空间 <span>16</span></a>
+<a href="operators/operator/index.html">表达式运算符 <span>29</span></a>
+<a href="operators/params/index.html">参数 API <span>15</span></a>
+<a href="operators/plugin/index.html">插件 API <span>3</span></a>
+<a href="operators/stock/index.html">股票统计命名空间 <span>1</span></a>
+<a href="operators/stra/index.html">策略命名空间 <span>35</span></a>
+<a href="operators/ta/index.html">技术指标命名空间 <span>144</span></a>
+<a href="operators/top-level/index.html">顶层 API <span>3</span></a>
+<a href="operators/udf/index.html">UDF 命名空间 <span>3</span></a>
+</div></aside>
+    <main>
+<section class="hero small"><h1>Polars 与 Qust 互操作</h1><p>Polars 做数据表和前处理，Qust 做状态表达式、参数联动、Monitor 和 Wasm 路径。</p></section>
+<section><figure class="code"><figcaption>Python</figcaption><pre><code>import polars as pl
+import qust as qs
+from qust import col
+
+data = pl.DataFrame({&quot;x&quot;: [1.0, 2.0, 3.0], &quot;y&quot;: [10.0, 20.0, 30.0]})
+
+# Polars 负责数据承载和预处理
+data = data.with_columns((pl.col(&quot;x&quot;) * 2).alias(&quot;x2&quot;))
+
+# Qust 负责表达式执行计划
+df = col.with_cols((col(&quot;x2&quot;) + col(&quot;y&quot;)).alias(&quot;score&quot;)).runtime()
+print(df.calc_data(data))
+
+# 需要 Polars 命名空间桥接时显式启用
+qs.enable_polars_namespace()</code></pre></figure></section>
+</main>
+  </div>
+  <script src="assets/app.js"></script>
+</body>
+</html>

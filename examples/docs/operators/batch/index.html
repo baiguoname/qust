@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>batch namespace - Qust Docs</title>
+  <link rel="stylesheet" href="../../assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">Qust Docs</a>
+    <input id="search" type="search" placeholder="搜索算子或页面" />
+  </header>
+  <div class="shell">
+    <aside class="sidebar"><div class="nav-block">
+<a href="../../index.html">基础</a>
+<a href="../../install.html">安装</a>
+<a href="../../quickstart.html">简单例子</a>
+<a href="../../operators/index.html">算子</a>
+<a href="../../df.html">DF</a>
+<a href="../../polars.html">Polars</a>
+<a href="../../wasm.html">Wasm</a>
+<a href="../../qust_portfolio/index.html">Portfolio</a>
+</div><div class="nav-block"><p>命名空间</p>
+<a href="../../operators/alpha/index.html">Alpha 命名空间 <span>2</span></a>
+<a class="active" href="../../operators/batch/index.html">批内/截面命名空间 <span>32</span></a>
+<a href="../../operators/batch_stock/index.html">批内股票命名空间 <span>1</span></a>
+<a href="../../operators/bt/index.html">回测命名空间 <span>4</span></a>
+<a href="../../operators/col/index.html">列选择入口 <span>9</span></a>
+<a href="../../operators/dataframe/index.html">DataFrame 执行计划 <span>8</span></a>
+<a href="../../operators/dt/index.html">日期时间命名空间 <span>7</span></a>
+<a href="../../operators/dtype/index.html">DataType API <span>22</span></a>
+<a href="../../operators/expr/index.html">表达式核心 <span>100</span></a>
+<a href="../../operators/fp/index.html">Fast Path 命名空间 <span>3</span></a>
+<a href="../../operators/kline/index.html">K 线命名空间 <span>9</span></a>
+<a href="../../operators/math/index.html">数学命名空间 <span>16</span></a>
+<a href="../../operators/monitor/index.html">Monitor 图表命名空间 <span>16</span></a>
+<a href="../../operators/operator/index.html">表达式运算符 <span>29</span></a>
+<a href="../../operators/params/index.html">参数 API <span>15</span></a>
+<a href="../../operators/plugin/index.html">插件 API <span>3</span></a>
+<a href="../../operators/stock/index.html">股票统计命名空间 <span>1</span></a>
+<a href="../../operators/stra/index.html">策略命名空间 <span>35</span></a>
+<a href="../../operators/ta/index.html">技术指标命名空间 <span>144</span></a>
+<a href="../../operators/top-level/index.html">顶层 API <span>3</span></a>
+<a href="../../operators/udf/index.html">UDF 命名空间 <span>3</span></a>
+</div></aside>
+    <main>
+<section class="hero small">
+  <p class="eyebrow">Namespace</p>
+  <h1>batch</h1>
+  <p>批内和截面计算。</p>
+  <div class="badges"><span>32 个算子</span></div>
+</section>
+<section>
+  <h2>算子输入 / 输出</h2>
+  <table><thead><tr><th>算子</th><th>输入</th><th>输出</th><th>例子</th></tr></thead><tbody><tr><td><a href="bottom.html"><code>batch.bottom</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="bottom_k.html"><code>batch.bottom_k</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="center.html"><code>batch.center</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="clip_quantile.html"><code>batch.clip_quantile</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="count.html"><code>batch.count</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="demean.html"><code>batch.demean</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="dense_rank.html"><code>batch.dense_rank</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="head.html"><code>batch.head</code></a></td><td><code>datetime</code>, <code>code</code>, <code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="lag.html"><code>batch.lag</code></a></td><td><code>datetime</code>, <code>code</code>, <code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="lead.html"><code>batch.lead</code></a></td><td><code>datetime</code>, <code>code</code>, <code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="max.html"><code>batch.max</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="mean.html"><code>batch.mean</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="median.html"><code>batch.median</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="min.html"><code>batch.min</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="minmax_scale.html"><code>batch.minmax_scale</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="normalize.html"><code>batch.normalize</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="ordinal_rank.html"><code>batch.ordinal_rank</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="pct_rank.html"><code>batch.pct_rank</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="quantile.html"><code>batch.quantile</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="rank.html"><code>batch.rank</code></a></td><td><code>datetime</code>, <code>code</code>, <code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="residual.html"><code>batch.residual</code></a></td><td><code>y</code>, <code>x1</code>, <code>x2</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="slice.html"><code>batch.slice</code></a></td><td><code>datetime</code>, <code>code</code>, <code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="sort.html"><code>batch.sort</code></a></td><td><code>datetime</code>, <code>code</code>, <code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="standardize.html"><code>batch.standardize</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="std.html"><code>batch.std</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="sum.html"><code>batch.sum</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="tail.html"><code>batch.tail</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="top.html"><code>batch.top</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="top_k.html"><code>batch.top_k</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="var.html"><code>batch.var</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="winsorize.html"><code>batch.winsorize</code></a></td><td><code>x</code></td><td>返回 Expr</td><td>可执行</td></tr><tr><td><a href="zscore.html"><code>batch.zscore</code></a></td><td><code>datetime</code>, <code>code</code>, <code>x</code></td><td>返回 Expr</td><td>可执行</td></tr></tbody></table>
+</section>
+</main>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
+</html>

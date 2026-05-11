@@ -1,4 +1,4 @@
-const WORKER_URL = new URL("./wasm-eval-worker.js?v=20260430_125300", import.meta.url);
+const WORKER_URL = new URL("./wasm-eval-worker.js?v=20260510_134112", import.meta.url);
 
 function createRpcWorker(deps = {}) {
   const worker = new Worker(WORKER_URL, { type: "module" });
@@ -329,6 +329,28 @@ export function createEvalEngine(deps) {
     ));
   }
 
+  async function buildMonitorQueryResultFromCallbackSelectionRequest(params = {}) {
+    const callbackSelectionRequestBytes =
+      params.callbackSelectionRequestBytes == null ? null : toU8(params.callbackSelectionRequestBytes);
+    const transfer = [];
+    if (
+      callbackSelectionRequestBytes instanceof Uint8Array
+      && callbackSelectionRequestBytes.byteOffset === 0
+      && callbackSelectionRequestBytes.byteLength === callbackSelectionRequestBytes.buffer.byteLength
+    ) {
+      transfer.push(callbackSelectionRequestBytes.buffer);
+    }
+    return withRecovery(() => rpc.call(
+      "buildMonitorQueryResultFromCallbackSelectionRequest",
+      {
+        code: String(params.code ?? ""),
+        callbackSelectionRequestBytes,
+        theme: params.theme,
+      },
+      transfer,
+    ));
+  }
+
   function terminate() {
     try {
       rpc.worker.terminate();
@@ -362,6 +384,7 @@ export function createEvalEngine(deps) {
     drainLogs,
     buildMonitorQueryResultFromSelectionPayload,
     buildMonitorQueryResultFromScatterSelectRequest,
+    buildMonitorQueryResultFromCallbackSelectionRequest,
     terminate,
   };
 }

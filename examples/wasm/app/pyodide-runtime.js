@@ -1840,6 +1840,29 @@ _qb.compile_expr_bytes(${payload})`
     );
   }
 
+  function buildMonitorQueryResultFromCallbackSelectionRequest({
+    code,
+    callbackSelectionRequestBytes,
+    theme,
+  }) {
+    return runPyQueryResult(
+      [
+        "from qust import qust_core",
+        "qust_core.build_monitor_query_result_binary_from_callback_selection_request(",
+        "    str(__otters_query_code),",
+        "    callback_selection_request_bytes=(None if (__otters_callback_selection_request_bytes is None or type(__otters_callback_selection_request_bytes).__name__ == 'JsNull') else bytes(__otters_callback_selection_request_bytes)),",
+        "    theme=str(__otters_theme),",
+        ")",
+      ].join("\n"),
+      {
+        __otters_query_code: String(code ?? ""),
+        __otters_callback_selection_request_bytes:
+          callbackSelectionRequestBytes == null ? null : toUint8(callbackSelectionRequestBytes),
+        __otters_theme: String(theme ?? "dark"),
+      }
+    );
+  }
+
 
   return {
     init,
@@ -1866,5 +1889,6 @@ _qb.compile_expr_bytes(${payload})`
     lastScriptMeta,
     buildMonitorQueryResultFromSelectionPayload,
     buildMonitorQueryResultFromScatterSelectRequest,
+    buildMonitorQueryResultFromCallbackSelectionRequest,
   };
 }

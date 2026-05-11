@@ -1,186 +1,197 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>stra.t07_dyn_n - Otters / Qust 文档</title>
-    <meta name="description" content="stra.t07_dyn_n" />
-    <link rel="stylesheet" href="../../assets/styles.css" />
-  </head>
-  <body>
-    <a class="skip-link" href="#main">跳到正文</a>
-    <header class="topbar">
-      <a class="brand" href="../../index.html"><span class="brand-mark">Q</span><span>Otters / Qust 文档</span></a>
-      <nav aria-label="顶部导航">
-        <a href="../../operators/index.html">算子总览</a>
-        <a href="../../operators/expr/index.html">表达式</a>
-        <a href="../../operators/ta/index.html">TA</a>
-        <a href="../../operators/monitor/index.html">Monitor</a>
-        <a href="../../wasm.html">Wasm</a>
-      </nav>
-      <label class="search"><input id="site-search" type="search" placeholder="搜索左侧导航..." /></label>
-    </header>
-    <div class="layout">
-      <aside class="sidebar" aria-label="文档导航">
-        <p class="sidebar-title">Reference</p>
-<div class="nav-section">
-<a class="nav-link" href="../../index.html">首页</a>
-<a class="nav-link" href="../../operators/index.html">算子总览</a>
-<a class="nav-link" href="../../wasm.html">Wasm</a>
-<a class="nav-link" href="../../index.html#architecture">设计思想</a>
-</div>
-<div class="nav-section">
-<p class="nav-heading">命名空间</p>
-<a class="nav-link" href="../../operators/alpha/index.html">Alpha 命名空间 <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/batch_stock/index.html">批内股票命名空间 <span class="mini">(1)</span></a>
-<a class="nav-link" href="../../operators/batch_ta/index.html">批内技术分析命名空间 <span class="mini">(7)</span></a>
-<a class="nav-link" href="../../operators/bt/index.html">回测命名空间 <span class="mini">(4)</span></a>
-<a class="nav-link" href="../../operators/col/index.html">列选择入口 <span class="mini">(8)</span></a>
-<a class="nav-link" href="../../operators/dataframe/index.html">DataFrame 执行计划 <span class="mini">(10)</span></a>
-<a class="nav-link" href="../../operators/dt/index.html">日期时间命名空间 <span class="mini">(7)</span></a>
-<a class="nav-link" href="../../operators/dtype/index.html">DataType API <span class="mini">(22)</span></a>
-<a class="nav-link" href="../../operators/expr/index.html">表达式核心 <span class="mini">(92)</span></a>
-<a class="nav-link" href="../../operators/fp/index.html">Fast Path 命名空间 <span class="mini">(3)</span></a>
-<a class="nav-link" href="../../operators/kline/index.html">K 线命名空间 <span class="mini">(9)</span></a>
-<a class="nav-link" href="../../operators/math/index.html">数学命名空间 <span class="mini">(16)</span></a>
-<a class="nav-link" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span class="mini">(16)</span></a>
-<a class="nav-link" href="../../operators/operator/index.html">表达式运算符 <span class="mini">(29)</span></a>
-<a class="nav-link" href="../../operators/params/index.html">参数 API <span class="mini">(15)</span></a>
-<a class="nav-link" href="../../operators/plugin/index.html">插件 API <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/stock/index.html">股票统计命名空间 <span class="mini">(2)</span></a>
-<a class="nav-link active" href="../../operators/stra/index.html">策略命名空间 <span class="mini">(35)</span></a>
-<a class="nav-link" href="../../operators/ta/index.html">技术指标命名空间 <span class="mini">(144)</span></a>
-<a class="nav-link" href="../../operators/top-level/index.html">顶层 API <span class="mini">(9)</span></a>
-<a class="nav-link" href="../../operators/udf/index.html">UDF 命名空间 <span class="mini">(3)</span></a>
-</div>
-<div class="nav-section">
-<p class="nav-heading">当前：策略命名空间</p>
-<a class="nav-link" href="../../operators/stra/index.html">命名空间首页</a>
-<a class="nav-link active" href="../../operators/stra/t07_dyn_n.html">当前算子：stra.t07_dyn_n</a>
-<a class="nav-link" href="../../operators/stra/t06_ama_band.html">上一个：stra.t06_ama_band</a>
-<a class="nav-link" href="../../operators/stra/t07_range_orders.html">下一个：stra.t07_range_orders</a>
-<a class="nav-link" href="../../operators/stra/index.html">查看全部 35 个算子</a>
-</div>
-      </aside>
-      <main id="main" class="content">
-        
-<section class="page-header">
-  <p class="eyebrow">Reference / 策略命名空间</p>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>stra.t07_dyn_n - Qust Docs</title>
+  <link rel="stylesheet" href="../../assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">Qust Docs</a>
+    <input id="search" type="search" placeholder="搜索算子或页面" />
+  </header>
+  <div class="shell">
+    <aside class="sidebar"><div class="nav-block">
+<a href="../../index.html">基础</a>
+<a href="../../install.html">安装</a>
+<a href="../../quickstart.html">简单例子</a>
+<a href="../../operators/index.html">算子</a>
+<a href="../../df.html">DF</a>
+<a href="../../polars.html">Polars</a>
+<a href="../../wasm.html">Wasm</a>
+<a href="../../qust_portfolio/index.html">Portfolio</a>
+</div><div class="nav-block"><p>命名空间</p>
+<a href="../../operators/alpha/index.html">Alpha 命名空间 <span>2</span></a>
+<a href="../../operators/batch/index.html">批内/截面命名空间 <span>32</span></a>
+<a href="../../operators/batch_stock/index.html">批内股票命名空间 <span>1</span></a>
+<a href="../../operators/bt/index.html">回测命名空间 <span>4</span></a>
+<a href="../../operators/col/index.html">列选择入口 <span>9</span></a>
+<a href="../../operators/dataframe/index.html">DataFrame 执行计划 <span>8</span></a>
+<a href="../../operators/dt/index.html">日期时间命名空间 <span>7</span></a>
+<a href="../../operators/dtype/index.html">DataType API <span>22</span></a>
+<a href="../../operators/expr/index.html">表达式核心 <span>100</span></a>
+<a href="../../operators/fp/index.html">Fast Path 命名空间 <span>3</span></a>
+<a href="../../operators/kline/index.html">K 线命名空间 <span>9</span></a>
+<a href="../../operators/math/index.html">数学命名空间 <span>16</span></a>
+<a href="../../operators/monitor/index.html">Monitor 图表命名空间 <span>16</span></a>
+<a href="../../operators/operator/index.html">表达式运算符 <span>29</span></a>
+<a href="../../operators/params/index.html">参数 API <span>15</span></a>
+<a href="../../operators/plugin/index.html">插件 API <span>3</span></a>
+<a href="../../operators/stock/index.html">股票统计命名空间 <span>1</span></a>
+<a class="active" href="../../operators/stra/index.html">策略命名空间 <span>35</span></a>
+<a href="../../operators/ta/index.html">技术指标命名空间 <span>144</span></a>
+<a href="../../operators/top-level/index.html">顶层 API <span>3</span></a>
+<a href="../../operators/udf/index.html">UDF 命名空间 <span>3</span></a>
+</div></aside>
+    <main>
+<section class="hero small">
+  <p class="eyebrow">策略命名空间 / future.py</p>
   <h1>stra.t07_dyn_n</h1>
-  <p class="lead">行算子，根据 delta 递推动态窗口长度并做区间裁剪。</p>
-  <div class="badge-row">
-    <span class="badge">namespace: stra</span>
-    <span class="badge">returns: Expr</span>
+  <p>行算子，根据 `delta` 递推动态窗口长度并做区间裁剪。</p>
+  <div class="badges"><span>接口示例</span><span>returns: Expr</span><span>stra</span></div>
+</section>
+
+<section>
+  <h2>输入 / 输出</h2>
+  
+  <div class="io-grid">
+    <div>
+      <h3>输入</h3>
+      <p class="muted">按下表列名和类型准备输入。</p>
+      <table><thead><tr><th>输入项</th><th>类型</th><th>示例</th></tr></thead><tbody><tr><td><code>open</code></td><td><code>Float64</code></td><td>9.9</td></tr><tr><td><code>high</code></td><td><code>Float64</code></td><td>10.25</td></tr><tr><td><code>low</code></td><td><code>Float64</code></td><td>9.68</td></tr><tr><td><code>close</code></td><td><code>Float64</code></td><td>10.0</td></tr></tbody></table>
+    </div>
+    <div>
+      <h3>输出</h3>
+      <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>返回类型</td><td><code>Expr</code></td></tr><tr><td>输出对象</td><td>表达式/执行计划/配置对象</td></tr><tr><td>输出语义</td><td>输出列由算子、alias 或底层实现决定；需要稳定列名时显式使用 alias。</td></tr><tr><td>执行方式</td><td>先构造对象，再放入 DataSet、Monitor、UDF 或真实执行上下文。</td></tr><tr><td>核心调用</td><td><code>col(&#x27;open&#x27;, &#x27;high&#x27;, &#x27;low&#x27;, &#x27;close&#x27;).stra.t07_dyn_n(3, 3)</code></td></tr></tbody></table>
+    </div>
   </div>
+
 </section>
 
 <section>
-  <h2>用法</h2>
-  <div class="code-block"><div class="code-title">Python</div><pre><code>col(&#x27;delta&#x27;).stra.t07_dyn_n(14, 14)</code></pre></div>
-  <p>如果这个算子返回 <code>Expr</code>，通常可以继续链式调用 <code>.alias(...)</code>、<code>.over(...)</code>、<code>.rolling(...)</code> 或放入 <code>qs.select(...)</code>。</p>
+  <h2>打印输入 / 打印输出</h2>
+  
+  <p class="muted">下面内容来自本页示例代码真实执行后的 stdout，不是手写占位。</p>
+  <div class="print-grid">
+    <div>
+      <h3>打印输入</h3>
+      <figure class="terminal"><figcaption>print(data)</figcaption><pre>shape: (20, 4)
+┌──────┬───────┬───────┬───────┐
+│ open ┆ high  ┆ low   ┆ close │
+│ ---  ┆ ---   ┆ ---   ┆ ---   │
+│ f64  ┆ f64   ┆ f64   ┆ f64   │
+╞══════╪═══════╪═══════╪═══════╡
+│ 9.9  ┆ 10.25 ┆ 9.68  ┆ 10.0  │
+│ 10.3 ┆ 10.55 ┆ 9.98  ┆ 10.2  │
+│ 10.0 ┆ 10.35 ┆ 9.78  ┆ 10.1  │
+│ 10.6 ┆ 10.85 ┆ 10.28 ┆ 10.5  │
+│ 10.6 ┆ 10.95 ┆ 10.38 ┆ 10.7  │
+│ …    ┆ …     ┆ …     ┆ …     │
+│ 12.5 ┆ 12.75 ┆ 12.18 ┆ 12.4  │
+│ 12.1 ┆ 12.45 ┆ 11.88 ┆ 12.2  │
+│ 12.8 ┆ 13.05 ┆ 12.48 ┆ 12.7  │
+│ 12.8 ┆ 13.15 ┆ 12.58 ┆ 12.9  │
+│ 13.2 ┆ 13.45 ┆ 12.88 ┆ 13.1  │
+└──────┴───────┴───────┴───────┘</pre></figure>
+    </div>
+    <div>
+      <h3>打印输出</h3>
+      <figure class="terminal"><figcaption>print(out)</figcaption><pre>shape: (4, 2)
+┌────────────────┬─────────────────────────────────┐
+│ 项目           ┆ 内容                            │
+│ ---            ┆ ---                             │
+│ str            ┆ str                             │
+╞════════════════╪═════════════════════════════════╡
+│ 调用           ┆ col(&#x27;open&#x27;, &#x27;high&#x27;, &#x27;low&#x27;, &#x27;cl… │
+│ 返回类型       ┆ Expr                            │
+│ 状态           ┆ 表达式构造完成                  │
+│ 怎么得到业务表 ┆ 放进                            │
+│                ┆ col(...).runtime().calc_dat…    │
+└────────────────┴─────────────────────────────────┘</pre></figure>
+    </div>
+  </div>
+
 </section>
 
 <section>
-  <h2>参数</h2>
+  <h2>调用</h2>
+  <figure class="code"><figcaption>Python</figcaption><pre><code>col(&#x27;open&#x27;, &#x27;high&#x27;, &#x27;low&#x27;, &#x27;close&#x27;).stra.t07_dyn_n(3, 3)</code></pre></figure>
   <table><thead><tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr></thead><tbody><tr><td><code>min_n</code></td><td><code>int | Params</code></td><td><code>必填</code></td><td>位置参数</td></tr><tr><td><code>max_n</code></td><td><code>int | Params</code></td><td><code>必填</code></td><td>位置参数</td></tr></tbody></table>
-  <h3>参数补充说明</h3><pre><code>- `min_n`: 动态窗口下限
-- `max_n`: 动态窗口上限</code></pre>
+  <h3>源码参数说明</h3><pre>- `min_n`: 动态窗口下限
+- `max_n`: 动态窗口上限</pre>
 </section>
 
 <section>
-  <h2>输入和输出</h2>
-  <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>输入表达式</td><td>- col(delta)：单列 f64 | None</td></tr><tr><td>返回类型</td><td><code>Expr</code></td></tr><tr><td>输出语义</td><td>- 单列 dynamic_n: u32</td></tr></tbody></table>
-  
-  <h3>网页表格预览</h3>
-  <p>这里把算子的输入表达式、输出表达式、输入数据和输出结果直接渲染成网页表格，不需要看代码块或控制台。</p>
-  <h4>输入/输出表达式表格</h4>
-  <table><thead><tr><th>项目</th><th>表达式</th></tr></thead><tbody><tr><td>输入表达式</td><td><code>col(&#x27;delta&#x27;)</code></td></tr><tr><td>输出表达式</td><td><code>col(&#x27;delta&#x27;).stra.t07_dyn_n(14, 14)</code></td></tr></tbody></table>
-  <h4>输入数据表格</h4><div class="polars-frame"><div class="polars-shape">shape: (3, 1)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">delta</span><span class="polars-dtype">f64</span></th></tr></thead><tbody><tr><td>1.0</td></tr><tr><td>2.0</td></tr><tr><td>3.0</td></tr></tbody></table></div>
-  <h4>输出表达式表格</h4>
-  <table><thead><tr><th>项目</th><th>网页显示</th></tr></thead><tbody><tr><td>输出表达式</td><td><code>col(&#x27;delta&#x27;).stra.t07_dyn_n(14, 14)</code></td></tr><tr><td>输出变量</td><td><code>out</code> 或 <code>result</code></td></tr><tr><td>返回类型</td><td><code>Expr</code></td></tr></tbody></table>
-  <h4>输出结果表格</h4>
-  <div class="polars-frame"><div class="polars-shape">shape: (2, 2)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">输出项</span><span class="polars-dtype">str</span></th><th><span class="polars-col">网页显示</span><span class="polars-dtype">str</span></th></tr></thead><tbody><tr><td>输出表达式</td><td>col(&#x27;delta&#x27;).stra.t07_dyn_n(14, 14)</td></tr><tr><td>输出结果</td><td>该算子需要运行时上下文、Monitor、文件、分组/窗口状态或更多真实数据；完整例子会在运行时打印实际输出。</td></tr></tbody></table></div>
-
-  
-  <h3>最小输入数据模板</h3>
-  <div class="code-block"><div class="code-title">Python</div><pre><code>data = pl.DataFrame(
-    {
-        &quot;delta&quot;: [1.0, 2.0, 3.0],
-    }
-)</code></pre></div>
-  <h3>完整例子：打印输入和输出</h3>
-  <p>每个算子页面都必须有这一段完整例子：先打印输入表达式和输出表达式，再构造输入数据、打印输入数据、执行算子、打印输出结果。</p>
-  <div class="code-block"><div class="code-title">完整例子 / Python</div><pre><code>import polars as pl
+  <h2>完整代码</h2>
+  <div class="note warn">这个算子页使用接口示例：不伪造计算结果。需要真实上下文、多输入源、Monitor session、UDF 回调、策略状态，或当前底层实现之后再执行。</div>
+  <details class="code-details">
+    <summary>展开可复制完整代码</summary>
+    <figure class="code"><figcaption>Python</figcaption><pre><code>import datetime as dt
+import polars as pl
 import qust as qs
-from qust import col
-
-print(&quot;输入表达式:&quot;)
-print(&quot;col(&#x27;delta&#x27;)&quot;)
-print(&quot;输出表达式:&quot;)
-print(&quot;col(&#x27;delta&#x27;).stra.t07_dyn_n(14, 14)&quot;)
+from qust import col, pms
 
 data = pl.DataFrame(
     {
-        &quot;delta&quot;: [1.0, 2.0, 3.0],
+        &quot;open&quot;: [9.9, 10.3, 10.0, 10.6, 10.6, 10.5, 10.8, 11.2, 10.7, 11.4, 11.5, 11.5, 11.8, 12.2, 11.7, 12.5, 12.1, 12.8, 12.8, 13.2],
+        &quot;high&quot;: [10.25, 10.55, 10.35, 10.85, 10.95, 10.75, 11.15, 11.45, 11.05, 11.65, 11.85, 11.75, 12.15, 12.45, 12.05, 12.75, 12.45, 13.05, 13.15, 13.45],
+        &quot;low&quot;: [9.68, 9.98, 9.78, 10.28, 10.38, 10.18, 10.58, 10.88, 10.48, 11.08, 11.28, 11.18, 11.58, 11.88, 11.48, 12.18, 11.88, 12.48, 12.58, 12.88],
+        &quot;close&quot;: [10.0, 10.2, 10.1, 10.5, 10.7, 10.4, 10.9, 11.1, 10.8, 11.3, 11.6, 11.4, 11.9, 12.1, 11.8, 12.4, 12.2, 12.7, 12.9, 13.1],
     }
 )
 
-print(&quot;输入 DataFrame:&quot;)
+pool = qs.DataPool(&quot;doc_pool&quot;)
+monitor = qs.Monitor()
+right = qs.DataSource(&quot;right&quot;)
+schema = [(&quot;x&quot;, qs.dt.Float64)]
+plot_expr = col(&quot;x&quot;)
+df = col(&quot;x&quot;).runtime()
+
+print(&quot;算子:&quot;)
+print(&#x27;stra.t07_dyn_n&#x27;)
+print(&quot;场景:&quot;)
+print(&#x27;策略信号：把开平仓信号、价格和状态转成交易状态表达式。&#x27;)
+print(&quot;模式:&quot;)
+print(&#x27;接口示例：只构造表达式或对象，不伪造计算结果。&#x27;)
+print(&quot;输入列:&quot;)
+print(&#x27;open, high, low, close&#x27;)
+print(&quot;调用:&quot;)
+print(&quot;col(&#x27;open&#x27;, &#x27;high&#x27;, &#x27;low&#x27;, &#x27;close&#x27;).stra.t07_dyn_n(3, 3)&quot;)
+print(&quot;输入数据模板:&quot;)
 print(data)
-
-expr = col(&#x27;delta&#x27;).stra.t07_dyn_n(14, 14)
-df = qs.select(expr)
-out = df.calc_data(data)
-
-print(&quot;输出 DataFrame:&quot;)
-print(out)</code></pre></div>
-</section>
-
-<section>
-  <h2>使用场景</h2>
-  <p>用于策略信号、持仓状态、出入场和交易行号生成。</p>
-  <p>当你需要 <code>stra.t07_dyn_n</code> 这种语义时，优先使用这个算子，而不是在 Python 里提前把数据取出来手写循环；这样才能保留流式状态、参数联动、Wasm 路径和 Monitor 重算能力。</p>
-</section>
-
-<section>
-  <h2>为什么这样设计</h2>
-  <p>策略和回测算子被设计成表达式，是为了让信号、持仓、成交、收益可以和 over/rolling/monitor 组合。这比在 Python for 循环里维护状态更容易复用，也能在分组和流式数据里保持一致语义。</p>
-  <p>实际收益是：策略信号、交易轮次、持仓收益和交易明细可以直接接到图表和 DataPool，方便定位每一笔交易。</p>
+try:
+    result = col(&#x27;open&#x27;, &#x27;high&#x27;, &#x27;low&#x27;, &#x27;close&#x27;).stra.t07_dyn_n(3, 3)
+except BaseException as err:
+    out = pl.DataFrame({
+        &quot;项目&quot;: [&quot;调用&quot;, &quot;状态&quot;, &quot;错误类型&quot;, &quot;错误信息&quot;],
+        &quot;内容&quot;: [&quot;col(&#x27;open&#x27;, &#x27;high&#x27;, &#x27;low&#x27;, &#x27;close&#x27;).stra.t07_dyn_n(3, 3)&quot;, &quot;未执行成数据表&quot;, type(err).__name__, str(err)[:200]],
+    })
+    print(&quot;输出:&quot;)
+    print(out)
+else:
+    out = pl.DataFrame({
+        &quot;项目&quot;: [&quot;调用&quot;, &quot;返回类型&quot;, &quot;状态&quot;, &quot;怎么得到业务表&quot;],
+        &quot;内容&quot;: [&quot;col(&#x27;open&#x27;, &#x27;high&#x27;, &#x27;low&#x27;, &#x27;close&#x27;).stra.t07_dyn_n(3, 3)&quot;, type(result).__name__, &quot;表达式构造完成&quot;, &quot;放进 col(...).runtime().calc_data(data)、col.with_cols(...).runtime().calc_data(data)，或对应 Monitor/DataSet 运行上下文。&quot;],
+    })
+    print(&quot;输出:&quot;)
+    print(out)</code></pre></figure>
+  </details>
+  <h3>改成业务代码</h3>
+  <table><thead><tr><th>改哪里</th><th>怎么改</th></tr></thead><tbody><tr><td>列名</td><td>把示例 DataFrame 里的列名换成你的真实列名，列顺序保持和用法一致。</td></tr><tr><td>参数</td><td>只改函数括号里的参数；不要随意改变 <code>rolling/over/batch/select</code> 的链式层级。</td></tr><tr><td>输出名</td><td>需要稳定输出列名时，在表达式尾部加 <code>.alias("name")</code>。</td></tr><tr><td>调试</td><td>先打印输入数据和调用字符串，再执行 <code>calc_data</code>；报 schema 错时先检查列数和 dtype。</td></tr></tbody></table>
 </section>
 
 <section>
   <h2>注意事项</h2>
-  
-  <ul><li>确认输入列顺序和列类型符合页面说明。</li><li>需要分组时，把 <code>over(...)</code> 放在正确层级。</li><li>需要 monitor 参数联动时，不要提前把 <code>Params</code> 转成普通 Python 数字。</li></ul>
+  <ul><li>先确认输入列名、顺序、类型和本页一致。</li><li>输出列名不符合业务语义时，显式追加 <code>.alias(...)</code>。</li><li>窗口和分组类算子要确认 <code>rolling/expanding/over/batch</code> 的链式层级。</li></ul>
 </section>
 
 <section>
-  <h2>补充说明</h2>
-  <details class="doc-details">
-    <summary>展开查看更长说明</summary>
-    <pre><code>**行算子**，根据 `delta` 递推动态窗口长度并做区间裁剪。
-
-输入
-----
-- `col(delta)`：单列 `f64 | None`
-
-参数
-----
-- `min_n`: 动态窗口下限
-- `max_n`: 动态窗口上限
-
-返回
-----
-- 单列 `dynamic_n: u32`</code></pre>
-  </details>
+  <h2>来源</h2>
+  <table><thead><tr><th>项目</th><th>位置</th></tr></thead><tbody><tr><td>源码文件</td><td><code>future.py</code></td></tr><tr><td>类/对象</td><td><code>Stra</code></td></tr></tbody></table>
 </section>
-
-      </main>
-      <aside class="toc" aria-label="页内目录">
-        <p class="toc-title">Table of contents</p>
-        <div id="page-toc"></div>
-      </aside>
-    </div>
-    <script src="../../assets/app.js"></script>
-  </body>
+</main>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
 </html>

@@ -1,93 +1,123 @@
-# Qust
-Qust is a Rust libraries for building live-trading and back-test systems. It has the following features:
-* **Fast**: It's way to handle or to save the kline data, tick data and strategy makes the backtest and live trading fast.
-* **Extensible**: It provide many ways to build a strategy, and new ways can be implemented by needs, so that you can focus what you care. You can build a simple strategy or complicated one, then backtest it on kline data(for quick scruch) or tick data, on put it on live trading directly. For example, you can build a strategy by following ways:
-    1. Accept kline flow, and return a target position.
-    2. Accept tick data flow, and return a target position.
-    3. Accept tick data flow, and return an order action.
-    4. Accept kline and tick flow, return a target positon or an order action.
-    5. Accept kline flow, and return a bool.(a least two of it make a  strategy, one for open position, another for close)
-    6. Add filter conditions to an existed strategy.
-    7. Add algorithm method to an existed strategy.
-    8. Add order matching methods when backtest a strategy.
-    9. Add valitality manager to strategies.
-    10. Add portoflio manager to a pool of strategies.
-    and so on.
+# qust
 
+`qust` 是项目中的底层包目录之一。普通 Python 用户不需要从这里开始阅读，推荐直接看项目主页和在线文档。
 
-See this [notebook Example](https://github.com/baiguoname/qust/blob/main/examples/git_test/git_test.ipynb) for more detail.
+常用入口：
 
-# Examples
-Add this to `Cargo.toml`:
-```rust
-qust-derive = { version = ">=0.1" }
-qust-ds = { version = ">=0.1" }
-qust = { version = ">=0.1" }
-qust-api = { version = ">=0.1"}
-qust-io = {  version = ">=0.1"}
-serde = "*"
-serde_json = "*"
-itertools = "*"
-typetag = "*"
-tokio = "*"
-ta = { version = "0.5.0" }
-```
-You can build a strategy basing on kline data and backtest in on kline:
-```rust
-use qust_derive::*;
-use qust_ds::prelude::*;
-use qust::prelude::*;
-use qust_api::prelude::*;
-use qust_io::prelude::*;
-use ta::{ Next, indicators::SimpleMovingAverage as SMA };
+| 内容 | 地址 |
+| --- | --- |
+| 项目主页 | https://github.com/baiguoname/qust |
+| 在线文档 | https://baiguoname.github.io/qust/examples/docs/ |
+| Wasm 在线运行 | https://baiguoname.github.io/qust/examples/wasm/ |
+| Wasm 使用说明 | https://baiguoname.github.io/qust/examples/docs/wasm.html |
 
-#[ta_derive2]
-pub struct TwoMaStra {
-    pub short_period: usize,
-    pub long_period: usize,
-}
+## Qust 是什么
 
-#[typetag::serde]
-impl Ktn for TwoMaStra {
-    fn ktn(&self,_di: &Di) -> RetFnKtn {
-        let mut last_norm_hold = NormHold::No;
-        let mut short_ma = SMA::new(self.short_period).unwrap();
-        let mut long_ma = SMA::new(self.long_period).unwrap();
-        let mut last_short_value = 0f64;
-        let mut last_long_value = 0f64;
-        Box::new(move |di_kline| {
-            let c = di_kline.di.c()[di_kline.i] as f64;
-            let short_value = short_ma.next(c);
-            let long_value = long_ma.next(c);
-            match last_norm_hold {
-                NormHold::No if di_kline.i != 0 => {
-                    if last_short_value < last_long_value && short_value >= long_value {
-                        last_norm_hold = NormHold::Lo(1.);
-                    }
-                }
-                NormHold::Lo(_) if short_value < long_value => {
-                    last_norm_hold = NormHold::No;
-                }
-                _ => {}
-            }
-            last_short_value = short_value;
-            last_long_value = long_value;
-            last_norm_hold.clone()
-        })
-    }
-}
+Qust 是一个面向量化研究的表达式计算框架。用户通常在 Python 里使用它：
 
-#[tokio::main]
-async fn main() {
-    let di = read_remote_kline_data().await;
-    let two_ma_stra = TwoMaStra { short_period: 9, long_period: 20 };
-    let two_ma_stra_ptm: Ptm = two_ma_stra.ktn_box().to_ktn().to_ptm();
-    let pnl_res_dt: PnlRes<dt> = two_ma_stra_ptm.bt_kline((&di, cs1));
-    pnl_res_dt.to_csv("pnl_res_dt.csv"); // save the pnl to local csv;
-}
-
+```python
+import qust as qs
+from qust import col, pms, Monitor
 ```
 
-# 更新 version: 0.1.5
-1. 支持tick级别的横截面，目前不支持k线级别，可以在tick里面手动更新k线。需要指定各个ticker的到达时间，详见[例子](https://github.com/baiguoname/qust/qust-stra/src/bin/main_test.rs);
-2. 每个策略(`ApiBridgeBox`)都有自身的订单管理，api程序停止运行后，到下次重开程序，中间过程中如果没有手动开平仓，历史的订单会被读取
+它的特点是：
+
+- 写法接近 DataFrame 表达式。
+- 底层由 Rust 执行核心计算。
+- 支持有状态流式计算。
+- 支持 rolling、expanding、over、batch 等量化常用语义。
+- 支持 Monitor 图表和参数调优。
+- 支持 Wasm 在线运行。
+
+## 最小 Python 示例
+
+```python
+import qust as qs
+from qust import col
+
+df = qs.with_cols(
+    col("price").mean().rolling(20).over("code").alias("ma20")
+)
+
+result = df.calc_data(data)
+```
+
+这段代码表达的是：
+
+- 按 `code` 分组。
+- 对每个分组里的 `price` 计算 20 窗口均值。
+- 新增一列 `ma20`。
+
+## 和 Polars 一起用
+
+Qust 可以直接接收 Polars DataFrame，也可以和 Polars 表达式互相转换：
+
+```python
+import polars as pl
+import qust as qs
+from qust import col
+
+data = pl.DataFrame({"price": [1, 2, 3, 4, 5]})
+
+df = qs.with_cols(
+    (pl.col("price") + 1).alias("price_plus_1"),
+    col("price").mean().rolling(3).alias("ma3"),
+)
+
+out = df.calc_data(data)
+```
+
+Qust 表达式也可以用 `.pl` 放进 Polars：
+
+```python
+out = data.select(
+    col("price").mean().rolling(3).alias("ma3").pl
+)
+```
+
+如果要从 Polars DataFrame 直接调 Qust：
+
+```python
+qs.enable_polars_namespace()
+
+out = data.qs.with_cols(
+    col("price").mean().rolling(3).alias("ma3")
+)
+```
+
+## 为什么底层有 Rust
+
+量化研究里很多计算不是一次性表格变换，而是有状态的：
+
+- rolling 指标。
+- expanding 累计统计。
+- 按股票、合约、账户分组的状态。
+- tick / kline 数据流。
+- 回测中的持仓和交易状态。
+- 参数变化后的重复计算。
+
+Rust 适合承担这些底层计算；Python 适合提供易用 API。Qust 把这两部分结合起来，让用户写起来像 Python DataFrame，执行时尽量走高性能底层。
+
+## 在线体验
+
+如果你只想试用，不需要安装本地环境：
+
+```text
+https://baiguoname.github.io/qust/examples/wasm/
+```
+
+Wasm 页面可以直接在浏览器中运行 Qust 示例，适合演示、教学和分享。
+
+## 更多文档
+
+完整用户文档：
+
+```text
+https://baiguoname.github.io/qust/examples/docs/
+```
+
+如果你在找算子用法，先看：
+
+```text
+https://baiguoname.github.io/qust/examples/docs/operators/
+```

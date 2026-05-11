@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>qust_portfolio - Qust Docs</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Qust Docs</a>
+    <input id="search" type="search" placeholder="搜索算子或页面" />
+  </header>
+  <div class="shell">
+    <aside class="sidebar"><div class="nav-block">
+<a href="../index.html">基础</a>
+<a href="../install.html">安装</a>
+<a href="../quickstart.html">简单例子</a>
+<a href="../operators/index.html">算子</a>
+<a href="../df.html">DF</a>
+<a href="../polars.html">Polars</a>
+<a href="../wasm.html">Wasm</a>
+<a href="../qust_portfolio/index.html">Portfolio</a>
+</div><div class="nav-block"><p>命名空间</p>
+<a href="../operators/alpha/index.html">Alpha 命名空间 <span>2</span></a>
+<a href="../operators/batch/index.html">批内/截面命名空间 <span>32</span></a>
+<a href="../operators/batch_stock/index.html">批内股票命名空间 <span>1</span></a>
+<a href="../operators/bt/index.html">回测命名空间 <span>4</span></a>
+<a href="../operators/col/index.html">列选择入口 <span>9</span></a>
+<a href="../operators/dataframe/index.html">DataFrame 执行计划 <span>8</span></a>
+<a href="../operators/dt/index.html">日期时间命名空间 <span>7</span></a>
+<a href="../operators/dtype/index.html">DataType API <span>22</span></a>
+<a href="../operators/expr/index.html">表达式核心 <span>100</span></a>
+<a href="../operators/fp/index.html">Fast Path 命名空间 <span>3</span></a>
+<a href="../operators/kline/index.html">K 线命名空间 <span>9</span></a>
+<a href="../operators/math/index.html">数学命名空间 <span>16</span></a>
+<a href="../operators/monitor/index.html">Monitor 图表命名空间 <span>16</span></a>
+<a href="../operators/operator/index.html">表达式运算符 <span>29</span></a>
+<a href="../operators/params/index.html">参数 API <span>15</span></a>
+<a href="../operators/plugin/index.html">插件 API <span>3</span></a>
+<a href="../operators/stock/index.html">股票统计命名空间 <span>1</span></a>
+<a href="../operators/stra/index.html">策略命名空间 <span>35</span></a>
+<a href="../operators/ta/index.html">技术指标命名空间 <span>144</span></a>
+<a href="../operators/top-level/index.html">顶层 API <span>3</span></a>
+<a href="../operators/udf/index.html">UDF 命名空间 <span>3</span></a>
+</div></aside>
+    <main>
+<section class="hero">
+  <p class="eyebrow">qust_portfolio</p>
+  <h1>组合优化算子</h1>
+  <p>这里按算子独立写组合优化页面。当前建议是先在 Python 层复用成熟优化库，稳定接口和输出 schema 后再下沉到底层。</p>
+</section>
+<section class="grid"><a class="card" href="mean_variance.html"><strong>qp.mean_variance</strong><span>均值-方差组合优化：根据预期收益、风险列或协方差模型生成目标权重。</span><em>date, code, expected_return, vol/risk_model/covariance</em></a><a class="card" href="min_variance.html"><strong>qp.min_variance</strong><span>最小方差组合：不依赖收益预测，优先降低组合风险。</span><em>date, code, vol/risk_model/covariance</em></a><a class="card" href="max_sharpe.html"><strong>qp.max_sharpe</strong><span>最大 Sharpe 组合：在收益预测和风险估计之间寻找单位风险收益最高的权重。</span><em>date, code, expected_return, vol/risk_model, risk_free</em></a><a class="card" href="risk_parity.html"><strong>qp.risk_parity</strong><span>风险平价：让资产或风险桶的风险贡献接近目标比例。</span><em>date, code, vol/risk_model, group?</em></a><a class="card" href="rebalance.html"><strong>qp.rebalance</strong><span>调仓算子：把目标权重、当前权重、价格和资金规模转为交易权重或交易数量。</span><em>date, code, target_weight, current_weight, price, nav</em></a><a class="card" href="constraints.html"><strong>qp.constraints</strong><span>约束配置：描述 long_only、杠杆、单资产上限、行业暴露、换手和交易成本。</span><em>constraint config, exposure columns, previous_weight</em></a></section>
+</main>
+  </div>
+  <script src="../assets/app.js"></script>
+</body>
+</html>

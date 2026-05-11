@@ -1,164 +1,148 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>dtype.large_list - Otters / Qust 文档</title>
-    <meta name="description" content="dtype.large_list" />
-    <link rel="stylesheet" href="../../assets/styles.css" />
-  </head>
-  <body>
-    <a class="skip-link" href="#main">跳到正文</a>
-    <header class="topbar">
-      <a class="brand" href="../../index.html"><span class="brand-mark">Q</span><span>Otters / Qust 文档</span></a>
-      <nav aria-label="顶部导航">
-        <a href="../../operators/index.html">算子总览</a>
-        <a href="../../operators/expr/index.html">表达式</a>
-        <a href="../../operators/ta/index.html">TA</a>
-        <a href="../../operators/monitor/index.html">Monitor</a>
-        <a href="../../wasm.html">Wasm</a>
-      </nav>
-      <label class="search"><input id="site-search" type="search" placeholder="搜索左侧导航..." /></label>
-    </header>
-    <div class="layout">
-      <aside class="sidebar" aria-label="文档导航">
-        <p class="sidebar-title">Reference</p>
-<div class="nav-section">
-<a class="nav-link" href="../../index.html">首页</a>
-<a class="nav-link" href="../../operators/index.html">算子总览</a>
-<a class="nav-link" href="../../wasm.html">Wasm</a>
-<a class="nav-link" href="../../index.html#architecture">设计思想</a>
-</div>
-<div class="nav-section">
-<p class="nav-heading">命名空间</p>
-<a class="nav-link" href="../../operators/alpha/index.html">Alpha 命名空间 <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/batch_stock/index.html">批内股票命名空间 <span class="mini">(1)</span></a>
-<a class="nav-link" href="../../operators/batch_ta/index.html">批内技术分析命名空间 <span class="mini">(7)</span></a>
-<a class="nav-link" href="../../operators/bt/index.html">回测命名空间 <span class="mini">(4)</span></a>
-<a class="nav-link" href="../../operators/col/index.html">列选择入口 <span class="mini">(8)</span></a>
-<a class="nav-link" href="../../operators/dataframe/index.html">DataFrame 执行计划 <span class="mini">(10)</span></a>
-<a class="nav-link" href="../../operators/dt/index.html">日期时间命名空间 <span class="mini">(7)</span></a>
-<a class="nav-link active" href="../../operators/dtype/index.html">DataType API <span class="mini">(22)</span></a>
-<a class="nav-link" href="../../operators/expr/index.html">表达式核心 <span class="mini">(92)</span></a>
-<a class="nav-link" href="../../operators/fp/index.html">Fast Path 命名空间 <span class="mini">(3)</span></a>
-<a class="nav-link" href="../../operators/kline/index.html">K 线命名空间 <span class="mini">(9)</span></a>
-<a class="nav-link" href="../../operators/math/index.html">数学命名空间 <span class="mini">(16)</span></a>
-<a class="nav-link" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span class="mini">(16)</span></a>
-<a class="nav-link" href="../../operators/operator/index.html">表达式运算符 <span class="mini">(29)</span></a>
-<a class="nav-link" href="../../operators/params/index.html">参数 API <span class="mini">(15)</span></a>
-<a class="nav-link" href="../../operators/plugin/index.html">插件 API <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/stock/index.html">股票统计命名空间 <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/stra/index.html">策略命名空间 <span class="mini">(35)</span></a>
-<a class="nav-link" href="../../operators/ta/index.html">技术指标命名空间 <span class="mini">(144)</span></a>
-<a class="nav-link" href="../../operators/top-level/index.html">顶层 API <span class="mini">(9)</span></a>
-<a class="nav-link" href="../../operators/udf/index.html">UDF 命名空间 <span class="mini">(3)</span></a>
-</div>
-<div class="nav-section">
-<p class="nav-heading">当前：DataType API</p>
-<a class="nav-link" href="../../operators/dtype/index.html">命名空间首页</a>
-<a class="nav-link active" href="../../operators/dtype/large_list.html">当前算子：dtype.large_list</a>
-<a class="nav-link" href="../../operators/dtype/interval.html">上一个：dtype.interval</a>
-<a class="nav-link" href="../../operators/dtype/large_list_view.html">下一个：dtype.large_list_view</a>
-<a class="nav-link" href="../../operators/dtype/index.html">查看全部 22 个算子</a>
-</div>
-      </aside>
-      <main id="main" class="content">
-        
-<section class="page-header">
-  <p class="eyebrow">Reference / DataType API</p>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>dtype.large_list - Qust Docs</title>
+  <link rel="stylesheet" href="../../assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">Qust Docs</a>
+    <input id="search" type="search" placeholder="搜索算子或页面" />
+  </header>
+  <div class="shell">
+    <aside class="sidebar"><div class="nav-block">
+<a href="../../index.html">基础</a>
+<a href="../../install.html">安装</a>
+<a href="../../quickstart.html">简单例子</a>
+<a href="../../operators/index.html">算子</a>
+<a href="../../df.html">DF</a>
+<a href="../../polars.html">Polars</a>
+<a href="../../wasm.html">Wasm</a>
+<a href="../../qust_portfolio/index.html">Portfolio</a>
+</div><div class="nav-block"><p>命名空间</p>
+<a href="../../operators/alpha/index.html">Alpha 命名空间 <span>2</span></a>
+<a href="../../operators/batch/index.html">批内/截面命名空间 <span>32</span></a>
+<a href="../../operators/batch_stock/index.html">批内股票命名空间 <span>1</span></a>
+<a href="../../operators/bt/index.html">回测命名空间 <span>4</span></a>
+<a href="../../operators/col/index.html">列选择入口 <span>9</span></a>
+<a href="../../operators/dataframe/index.html">DataFrame 执行计划 <span>8</span></a>
+<a href="../../operators/dt/index.html">日期时间命名空间 <span>7</span></a>
+<a class="active" href="../../operators/dtype/index.html">DataType API <span>22</span></a>
+<a href="../../operators/expr/index.html">表达式核心 <span>100</span></a>
+<a href="../../operators/fp/index.html">Fast Path 命名空间 <span>3</span></a>
+<a href="../../operators/kline/index.html">K 线命名空间 <span>9</span></a>
+<a href="../../operators/math/index.html">数学命名空间 <span>16</span></a>
+<a href="../../operators/monitor/index.html">Monitor 图表命名空间 <span>16</span></a>
+<a href="../../operators/operator/index.html">表达式运算符 <span>29</span></a>
+<a href="../../operators/params/index.html">参数 API <span>15</span></a>
+<a href="../../operators/plugin/index.html">插件 API <span>3</span></a>
+<a href="../../operators/stock/index.html">股票统计命名空间 <span>1</span></a>
+<a href="../../operators/stra/index.html">策略命名空间 <span>35</span></a>
+<a href="../../operators/ta/index.html">技术指标命名空间 <span>144</span></a>
+<a href="../../operators/top-level/index.html">顶层 API <span>3</span></a>
+<a href="../../operators/udf/index.html">UDF 命名空间 <span>3</span></a>
+</div></aside>
+    <main>
+<section class="hero small">
+  <p class="eyebrow">DataType API / dtype.py</p>
   <h1>dtype.large_list</h1>
-  <p class="lead">dtype.large_list 是 DataType API 下的算子。</p>
-  <div class="badge-row">
-    <span class="badge">namespace: dtype</span>
-    <span class="badge">returns: &#x27;DataType&#x27;</span>
+  <p>UDF/Arrow 类型声明。</p>
+  <div class="badges"><span>可执行示例</span><span>returns: DataType</span><span>dtype</span></div>
+</section>
+
+<section>
+  <h2>输入 / 输出</h2>
+  
+  <div class="io-grid">
+    <div>
+      <h3>输入</h3>
+      <p class="muted">按下表列名和类型准备输入。</p>
+      <table><thead><tr><th>输入项</th><th>类型</th><th>示例</th></tr></thead><tbody><tr><td>当前对象</td><td>Expr / DataFrame / Params</td><td>由调用链左侧对象提供</td></tr></tbody></table>
+    </div>
+    <div>
+      <h3>输出</h3>
+      <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>返回类型</td><td><code>DataType</code></td></tr><tr><td>输出对象</td><td>Python 对象</td></tr><tr><td>输出语义</td><td>输出列由算子、alias 或底层实现决定；需要稳定列名时显式使用 alias。</td></tr><tr><td>执行方式</td><td>直接调用并读取返回对象。</td></tr><tr><td>核心调用</td><td><code>dt.large_list(dt.Float64, &#x27;item&#x27;, True)</code></td></tr></tbody></table>
+    </div>
   </div>
+
 </section>
 
 <section>
-  <h2>用法</h2>
-  <div class="code-block"><div class="code-title">Python</div><pre><code>dt.large_list(dt.Float64, &#x27;item&#x27;, True)</code></pre></div>
-  <p>如果这个算子返回 <code>Expr</code>，通常可以继续链式调用 <code>.alias(...)</code>、<code>.over(...)</code>、<code>.rolling(...)</code> 或放入 <code>qs.select(...)</code>。</p>
+  <h2>打印输入 / 打印输出</h2>
+  
+  <p class="muted">下面内容来自本页示例代码真实执行后的 stdout，不是手写占位。</p>
+  <div class="print-grid">
+    <div>
+      <h3>打印输入</h3>
+      <figure class="terminal"><figcaption>print(data)</figcaption><pre>无表格输入；本例直接使用调用参数、当前对象或类型构造器。</pre></figure>
+    </div>
+    <div>
+      <h3>打印输出</h3>
+      <figure class="terminal"><figcaption>print(out)</figcaption><pre>shape: (2, 2)
+┌──────┬─────────────────────────────────┐
+│ 项目 ┆ 内容                            │
+│ ---  ┆ ---                             │
+│ str  ┆ str                             │
+╞══════╪═════════════════════════════════╡
+│ 调用 ┆ dt.large_list(dt.Float64, &#x27;ite… │
+│ 输出 ┆ DataType({&#x27;kind&#x27;: &#x27;large_list&#x27;… │
+└──────┴─────────────────────────────────┘</pre></figure>
+    </div>
+  </div>
+
 </section>
 
 <section>
-  <h2>参数</h2>
+  <h2>调用</h2>
+  <figure class="code"><figcaption>Python</figcaption><pre><code>dt.large_list(dt.Float64, &#x27;item&#x27;, True)</code></pre></figure>
   <table><thead><tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr></thead><tbody><tr><td><code>inner</code></td><td><code>&#x27;DataType&#x27;</code></td><td><code>必填</code></td><td>位置参数</td></tr><tr><td><code>name</code></td><td><code>str</code></td><td><code>&#x27;item&#x27;</code></td><td>位置参数</td></tr><tr><td><code>nullable</code></td><td><code>bool</code></td><td><code>True</code></td><td>位置参数</td></tr></tbody></table>
   
 </section>
 
 <section>
-  <h2>输入和输出</h2>
-  <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>输入表达式</td><td>当前表达式，例如 col(&quot;x&quot;)；具体列宽由底层算子校验。</td></tr><tr><td>返回类型</td><td><code>&#x27;DataType&#x27;</code></td></tr><tr><td>输出语义</td><td>返回新的表达式或 API 调用结果；列名通常由输入列名、alias 或底层算子决定。</td></tr></tbody></table>
-  
-  <h3>网页表格预览</h3>
-  <p>这里把算子的输入表达式、输出表达式、输入数据和输出结果直接渲染成网页表格，不需要看代码块或控制台。</p>
-  <h4>输入/输出表达式表格</h4>
-  <table><thead><tr><th>项目</th><th>表达式</th></tr></thead><tbody><tr><td>输入表达式</td><td><code>dt.Float64, &#x27;item&#x27;, True</code></td></tr><tr><td>输出表达式</td><td><code>dt.large_list(dt.Float64, &#x27;item&#x27;, True)</code></td></tr></tbody></table>
-  <table><thead><tr><th>输入项</th><th>网页显示</th></tr></thead><tbody><tr><td>输入对象/参数</td><td><code>dt.Float64, &#x27;item&#x27;, True</code></td></tr></tbody></table>
-  <h4>输出表达式表格</h4>
-  <table><thead><tr><th>项目</th><th>网页显示</th></tr></thead><tbody><tr><td>输出表达式</td><td><code>dt.large_list(dt.Float64, &#x27;item&#x27;, True)</code></td></tr><tr><td>输出变量</td><td><code>out</code> 或 <code>result</code></td></tr><tr><td>返回类型</td><td><code>&#x27;DataType&#x27;</code></td></tr></tbody></table>
-  <h4>输出结果表格</h4>
-  <div class="polars-frame"><div class="polars-shape">shape: (2, 2)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">输出项</span><span class="polars-dtype">str</span></th><th><span class="polars-col">值</span><span class="polars-dtype">str</span></th></tr></thead><tbody><tr><td>Python 表示</td><td>DataType({&#x27;kind&#x27;: &#x27;large_list&#x27;, &#x27;field&#x27;: {&#x27;name&#x27;: &#x27;item&#x27;, &#x27;dtype&#x27;: {&#x27;kind&#x27;: &#x27;float64&#x27;}, &#x27;nullable&#x27;: True}})</td></tr><tr><td>Arrow dtype spec</td><td>{&quot;kind&quot;:&quot;large_list&quot;,&quot;field&quot;:{&quot;name&quot;:&quot;item&quot;,&quot;dtype&quot;:{&quot;kind&quot;:&quot;float64&quot;},&quot;nullable&quot;:true}}</td></tr></tbody></table></div>
+  <h2>完整代码</h2>
+  <div class="note ok">本页完整例子会执行真实的 <code>calc_data</code> 或对象调用。</div>
+  <details class="code-details">
+    <summary>展开可复制完整代码</summary>
+    <figure class="code"><figcaption>Python</figcaption><pre><code>from qust import dt
 
-  
-  <h3>最小输入数据模板</h3>
-  <div class="code-block"><div class="code-title">Python</div><pre><code>data = pl.DataFrame(
-    {
-        &quot;x&quot;: [1.0, 2.0, 3.0],
-    }
-)</code></pre></div>
-  <h3>完整例子：打印输入和输出</h3>
-  <p>每个算子页面都必须有这一段完整例子：先打印输入表达式和输出表达式，再构造输入数据、打印输入数据、执行算子、打印输出结果。</p>
-  <div class="code-block"><div class="code-title">完整例子 / Python</div><pre><code>from qust import dt
-
-print(&quot;输入表达式:&quot;)
-print(&quot;dt.Float64, &#x27;item&#x27;, True&quot;)
-print(&quot;输出表达式:&quot;)
+print(&quot;算子:&quot;)
+print(&#x27;dtype.large_list&#x27;)
+print(&quot;场景:&quot;)
+print(&#x27;类型：给 UDF 或 Arrow schema 声明类型或 literal。&#x27;)
+print(&quot;模式:&quot;)
+print(&#x27;对象示例：打印返回对象。&#x27;)
+print(&quot;输入列:&quot;)
+print(&#x27;无固定表格输入列&#x27;)
+print(&quot;调用:&quot;)
 print(&quot;dt.large_list(dt.Float64, &#x27;item&#x27;, True)&quot;)
-
-print(&quot;输入参数:&quot;)
-print(&quot;dt.large_list(dt.Float64, &#x27;item&#x27;, True)&quot;)
-
-dtype = dt.large_list(dt.Float64, &#x27;item&#x27;, True)
-
-print(&quot;输出 DataType:&quot;)
-print(dtype)
-print(&quot;Arrow dtype spec:&quot;)
-print(dtype.__qust_arrow_dtype__)</code></pre></div>
-</section>
-
-<section>
-  <h2>使用场景</h2>
-  <p>用于声明 UDF 输出 Arrow 数据类型。</p>
-  <p>当你需要 <code>dtype.large_list</code> 这种语义时，优先使用这个算子，而不是在 Python 里提前把数据取出来手写循环；这样才能保留流式状态、参数联动、Wasm 路径和 Monitor 重算能力。</p>
-</section>
-
-<section>
-  <h2>为什么这样设计</h2>
-  <p>DataType API 用来给 UDF 或复杂返回列声明 Arrow 类型。显式类型能让 Rust 侧提前知道 schema，减少运行时猜测和序列化歧义。</p>
-  <p>实际收益是：代码更短，但语义更完整；后续计算、画图、调参、保存和回调都能复用同一棵表达式树。</p>
+result = dt.large_list(dt.Float64, &#x27;item&#x27;, True)
+print(&quot;输出:&quot;)
+print(result)
+if hasattr(result, &quot;__qust_arrow_dtype__&quot;):
+    print(&quot;Arrow dtype:&quot;)
+    print(result.__qust_arrow_dtype__)
+else:
+    print(&quot;Python 类型:&quot;)
+    print(type(result).__name__)</code></pre></figure>
+  </details>
+  <h3>改成业务代码</h3>
+  <table><thead><tr><th>改哪里</th><th>怎么改</th></tr></thead><tbody><tr><td>列名</td><td>把示例 DataFrame 里的列名换成你的真实列名，列顺序保持和用法一致。</td></tr><tr><td>参数</td><td>只改函数括号里的参数；不要随意改变 <code>rolling/over/batch/select</code> 的链式层级。</td></tr><tr><td>输出名</td><td>需要稳定输出列名时，在表达式尾部加 <code>.alias("name")</code>。</td></tr><tr><td>调试</td><td>先打印输入数据和调用字符串，再执行 <code>calc_data</code>；报 schema 错时先检查列数和 dtype。</td></tr></tbody></table>
 </section>
 
 <section>
   <h2>注意事项</h2>
-  
-  <ul><li>确认输入列顺序和列类型符合页面说明。</li><li>需要分组时，把 <code>over(...)</code> 放在正确层级。</li><li>需要 monitor 参数联动时，不要提前把 <code>Params</code> 转成普通 Python 数字。</li></ul>
+  <ul><li>先确认输入列名、顺序、类型和本页一致。</li><li>输出列名不符合业务语义时，显式追加 <code>.alias(...)</code>。</li><li>窗口和分组类算子要确认 <code>rolling/expanding/over/batch</code> 的链式层级。</li></ul>
 </section>
 
 <section>
-  <h2>补充说明</h2>
-  <details class="doc-details">
-    <summary>展开查看更长说明</summary>
-    <p>这个算子没有额外长说明；本页已经根据函数签名、命名空间语义和项目约定补了用法、输入输出、设计动机和示例。</p>
-  </details>
+  <h2>来源</h2>
+  <table><thead><tr><th>项目</th><th>位置</th></tr></thead><tbody><tr><td>源码文件</td><td><code>dtype.py</code></td></tr><tr><td>类/对象</td><td><code>DataType</code></td></tr></tbody></table>
 </section>
-
-      </main>
-      <aside class="toc" aria-label="页内目录">
-        <p class="toc-title">Table of contents</p>
-        <div id="page-toc"></div>
-      </aside>
-    </div>
-    <script src="../../assets/app.js"></script>
-  </body>
+</main>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
 </html>

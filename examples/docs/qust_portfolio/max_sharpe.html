@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>qp.max_sharpe - Qust Docs</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html">Qust Docs</a>
+    <input id="search" type="search" placeholder="搜索算子或页面" />
+  </header>
+  <div class="shell">
+    <aside class="sidebar"><div class="nav-block">
+<a href="../index.html">基础</a>
+<a href="../install.html">安装</a>
+<a href="../quickstart.html">简单例子</a>
+<a href="../operators/index.html">算子</a>
+<a href="../df.html">DF</a>
+<a href="../polars.html">Polars</a>
+<a href="../wasm.html">Wasm</a>
+<a href="../qust_portfolio/index.html">Portfolio</a>
+</div><div class="nav-block"><p>命名空间</p>
+<a href="../operators/alpha/index.html">Alpha 命名空间 <span>2</span></a>
+<a href="../operators/batch/index.html">批内/截面命名空间 <span>32</span></a>
+<a href="../operators/batch_stock/index.html">批内股票命名空间 <span>1</span></a>
+<a href="../operators/bt/index.html">回测命名空间 <span>4</span></a>
+<a href="../operators/col/index.html">列选择入口 <span>9</span></a>
+<a href="../operators/dataframe/index.html">DataFrame 执行计划 <span>8</span></a>
+<a href="../operators/dt/index.html">日期时间命名空间 <span>7</span></a>
+<a href="../operators/dtype/index.html">DataType API <span>22</span></a>
+<a href="../operators/expr/index.html">表达式核心 <span>100</span></a>
+<a href="../operators/fp/index.html">Fast Path 命名空间 <span>3</span></a>
+<a href="../operators/kline/index.html">K 线命名空间 <span>9</span></a>
+<a href="../operators/math/index.html">数学命名空间 <span>16</span></a>
+<a href="../operators/monitor/index.html">Monitor 图表命名空间 <span>16</span></a>
+<a href="../operators/operator/index.html">表达式运算符 <span>29</span></a>
+<a href="../operators/params/index.html">参数 API <span>15</span></a>
+<a href="../operators/plugin/index.html">插件 API <span>3</span></a>
+<a href="../operators/stock/index.html">股票统计命名空间 <span>1</span></a>
+<a href="../operators/stra/index.html">策略命名空间 <span>35</span></a>
+<a href="../operators/ta/index.html">技术指标命名空间 <span>144</span></a>
+<a href="../operators/top-level/index.html">顶层 API <span>3</span></a>
+<a href="../operators/udf/index.html">UDF 命名空间 <span>3</span></a>
+</div></aside>
+    <main>
+<section class="hero small">
+  <p class="eyebrow">qust_portfolio / operator</p>
+  <h1>qp.max_sharpe</h1>
+  <p>最大 Sharpe 组合：在收益预测和风险估计之间寻找单位风险收益最高的权重。</p>
+</section>
+<section><h2>输入输出</h2><table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>输入</td><td>date, code, expected_return, vol/risk_model, risk_free</td></tr><tr><td>输出</td><td>date, code, target_weight, expected_return, expected_risk, sharpe</td></tr><tr><td>调用</td><td><code>qp.max_sharpe(return_col=&quot;expected_return&quot;, risk_col=&quot;vol&quot;, risk_free=0.0)</code></td></tr></tbody></table></section>
+<section><h2>打印输入 / 打印输出</h2>
+  <p class="muted">下面内容来自本页示例代码真实执行后的 stdout，不是手写占位。</p>
+  <div class="print-grid">
+    <div>
+      <h3>打印输入</h3>
+      <figure class="terminal"><figcaption>print(data)</figcaption><pre>shape: (3, 8)
+┌────────────┬──────┬─────────────────┬──────┬───────────────┬────────────────┬───────┬─────┐
+│ date       ┆ code ┆ expected_return ┆ vol  ┆ target_weight ┆ current_weight ┆ price ┆ nav │
+│ ---        ┆ ---  ┆ ---             ┆ ---  ┆ ---           ┆ ---            ┆ ---   ┆ --- │
+│ str        ┆ str  ┆ f64             ┆ f64  ┆ f64           ┆ f64            ┆ f64   ┆ f64 │
+╞════════════╪══════╪═════════════════╪══════╪═══════════════╪════════════════╪═══════╪═════╡
+│ 2026-01-01 ┆ AAA  ┆ 0.08            ┆ 0.2  ┆ 0.4           ┆ 0.2            ┆ 10.0  ┆ 1e6 │
+│ 2026-01-01 ┆ BBB  ┆ 0.04            ┆ 0.15 ┆ 0.3           ┆ 0.5            ┆ 20.0  ┆ 1e6 │
+│ 2026-01-01 ┆ CCC  ┆ 0.06            ┆ 0.18 ┆ 0.3           ┆ 0.3            ┆ 30.0  ┆ 1e6 │
+└────────────┴──────┴─────────────────┴──────┴───────────────┴────────────────┴───────┴─────┘</pre></figure>
+    </div>
+    <div>
+      <h3>打印输出</h3>
+      <figure class="terminal"><figcaption>print(out)</figcaption><pre>shape: (2, 2)
+┌──────┬─────────────────────────────────┐
+│ 项目 ┆ 内容                            │
+│ ---  ┆ ---                             │
+│ str  ┆ str                             │
+╞══════╪═════════════════════════════════╡
+│ 调用 ┆ qp.max_sharpe(return_col=&quot;expe… │
+│ 输出 ┆ AttributeError: module &#x27;qust_p… │
+└──────┴─────────────────────────────────┘</pre></figure>
+    </div>
+  </div>
+</section>
+<section><h2>完整代码</h2><details class="code-details"><summary>展开可复制完整代码</summary><figure class="code"><figcaption>Python</figcaption><pre><code>import polars as pl
+import qust as qs
+from qust import col
+
+try:
+    import qust_portfolio as qp
+except ImportError:
+    qp = None
+
+data = pl.DataFrame({
+    &quot;date&quot;: [&quot;2026-01-01&quot;, &quot;2026-01-01&quot;, &quot;2026-01-01&quot;],
+    &quot;code&quot;: [&quot;AAA&quot;, &quot;BBB&quot;, &quot;CCC&quot;],
+    &quot;expected_return&quot;: [0.08, 0.04, 0.06],
+    &quot;vol&quot;: [0.20, 0.15, 0.18],
+    &quot;target_weight&quot;: [0.40, 0.30, 0.30],
+    &quot;current_weight&quot;: [0.20, 0.50, 0.30],
+    &quot;price&quot;: [10.0, 20.0, 30.0],
+    &quot;nav&quot;: [1_000_000.0, 1_000_000.0, 1_000_000.0],
+})
+
+print(&quot;算子:&quot;)
+print(&#x27;qp.max_sharpe&#x27;)
+print(&quot;输入数据:&quot;)
+print(data)
+print(&quot;调用:&quot;)
+print(&#x27;qp.max_sharpe(return_col=&quot;expected_return&quot;, risk_col=&quot;vol&quot;, risk_free=0.0)&#x27;)
+
+if qp is None:
+    print(&quot;当前环境未安装 qust_portfolio；本例展示推荐 API、输入列和输出 schema。&quot;)
+else:
+    try:
+        expr = qp.max_sharpe(return_col=&quot;expected_return&quot;, risk_col=&quot;vol&quot;, risk_free=0.0)
+        out = col.with_cols(expr).runtime().calc_data(data)
+        print(&quot;输出:&quot;)
+        print(out)
+    except Exception as err:
+        print(&quot;当前版本提示:&quot;)
+        print(type(err).__name__ + &quot;: &quot; + str(err))</code></pre></figure></details></section>
+<section><h2>业务改写</h2><table><thead><tr><th>步骤</th><th>说明</th></tr></thead><tbody><tr><td>资产池</td><td>先过滤停牌、涨跌停、成交额不足和缺失价格。</td></tr><tr><td>风险模型</td><td>收益预测和风险估计必须按 rebalance date 对齐，避免未来函数。</td></tr><tr><td>约束</td><td>long_only、杠杆、单资产上限、行业暴露和换手要显式进入优化器。</td></tr><tr><td>输出</td><td>目标权重最好接 Monitor 检查权重分布、风险贡献和换手。</td></tr></tbody></table></section>
+</main>
+  </div>
+  <script src="../assets/app.js"></script>
+</body>
+</html>

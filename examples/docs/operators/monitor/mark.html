@@ -1,204 +1,200 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>monitor.mark - Otters / Qust 文档</title>
-    <meta name="description" content="monitor.mark" />
-    <link rel="stylesheet" href="../../assets/styles.css" />
-  </head>
-  <body>
-    <a class="skip-link" href="#main">跳到正文</a>
-    <header class="topbar">
-      <a class="brand" href="../../index.html"><span class="brand-mark">Q</span><span>Otters / Qust 文档</span></a>
-      <nav aria-label="顶部导航">
-        <a href="../../operators/index.html">算子总览</a>
-        <a href="../../operators/expr/index.html">表达式</a>
-        <a href="../../operators/ta/index.html">TA</a>
-        <a href="../../operators/monitor/index.html">Monitor</a>
-        <a href="../../wasm.html">Wasm</a>
-      </nav>
-      <label class="search"><input id="site-search" type="search" placeholder="搜索左侧导航..." /></label>
-    </header>
-    <div class="layout">
-      <aside class="sidebar" aria-label="文档导航">
-        <p class="sidebar-title">Reference</p>
-<div class="nav-section">
-<a class="nav-link" href="../../index.html">首页</a>
-<a class="nav-link" href="../../operators/index.html">算子总览</a>
-<a class="nav-link" href="../../wasm.html">Wasm</a>
-<a class="nav-link" href="../../index.html#architecture">设计思想</a>
-</div>
-<div class="nav-section">
-<p class="nav-heading">命名空间</p>
-<a class="nav-link" href="../../operators/alpha/index.html">Alpha 命名空间 <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/batch_stock/index.html">批内股票命名空间 <span class="mini">(1)</span></a>
-<a class="nav-link" href="../../operators/batch_ta/index.html">批内技术分析命名空间 <span class="mini">(7)</span></a>
-<a class="nav-link" href="../../operators/bt/index.html">回测命名空间 <span class="mini">(4)</span></a>
-<a class="nav-link" href="../../operators/col/index.html">列选择入口 <span class="mini">(8)</span></a>
-<a class="nav-link" href="../../operators/dataframe/index.html">DataFrame 执行计划 <span class="mini">(10)</span></a>
-<a class="nav-link" href="../../operators/dt/index.html">日期时间命名空间 <span class="mini">(7)</span></a>
-<a class="nav-link" href="../../operators/dtype/index.html">DataType API <span class="mini">(22)</span></a>
-<a class="nav-link" href="../../operators/expr/index.html">表达式核心 <span class="mini">(92)</span></a>
-<a class="nav-link" href="../../operators/fp/index.html">Fast Path 命名空间 <span class="mini">(3)</span></a>
-<a class="nav-link" href="../../operators/kline/index.html">K 线命名空间 <span class="mini">(9)</span></a>
-<a class="nav-link" href="../../operators/math/index.html">数学命名空间 <span class="mini">(16)</span></a>
-<a class="nav-link active" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span class="mini">(16)</span></a>
-<a class="nav-link" href="../../operators/operator/index.html">表达式运算符 <span class="mini">(29)</span></a>
-<a class="nav-link" href="../../operators/params/index.html">参数 API <span class="mini">(15)</span></a>
-<a class="nav-link" href="../../operators/plugin/index.html">插件 API <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/stock/index.html">股票统计命名空间 <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/stra/index.html">策略命名空间 <span class="mini">(35)</span></a>
-<a class="nav-link" href="../../operators/ta/index.html">技术指标命名空间 <span class="mini">(144)</span></a>
-<a class="nav-link" href="../../operators/top-level/index.html">顶层 API <span class="mini">(9)</span></a>
-<a class="nav-link" href="../../operators/udf/index.html">UDF 命名空间 <span class="mini">(3)</span></a>
-</div>
-<div class="nav-section">
-<p class="nav-heading">当前：Monitor 图表命名空间</p>
-<a class="nav-link" href="../../operators/monitor/index.html">命名空间首页</a>
-<a class="nav-link active" href="../../operators/monitor/mark.html">当前算子：monitor.mark</a>
-<a class="nav-link" href="../../operators/monitor/line.html">上一个：monitor.line</a>
-<a class="nav-link" href="../../operators/monitor/qq.html">下一个：monitor.qq</a>
-<a class="nav-link" href="../../operators/monitor/index.html">查看全部 16 个算子</a>
-</div>
-      </aside>
-      <main id="main" class="content">
-        
-<section class="page-header">
-  <p class="eyebrow">Reference / Monitor 图表命名空间</p>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>monitor.mark - Qust Docs</title>
+  <link rel="stylesheet" href="../../assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">Qust Docs</a>
+    <input id="search" type="search" placeholder="搜索算子或页面" />
+  </header>
+  <div class="shell">
+    <aside class="sidebar"><div class="nav-block">
+<a href="../../index.html">基础</a>
+<a href="../../install.html">安装</a>
+<a href="../../quickstart.html">简单例子</a>
+<a href="../../operators/index.html">算子</a>
+<a href="../../df.html">DF</a>
+<a href="../../polars.html">Polars</a>
+<a href="../../wasm.html">Wasm</a>
+<a href="../../qust_portfolio/index.html">Portfolio</a>
+</div><div class="nav-block"><p>命名空间</p>
+<a href="../../operators/alpha/index.html">Alpha 命名空间 <span>2</span></a>
+<a href="../../operators/batch/index.html">批内/截面命名空间 <span>32</span></a>
+<a href="../../operators/batch_stock/index.html">批内股票命名空间 <span>1</span></a>
+<a href="../../operators/bt/index.html">回测命名空间 <span>4</span></a>
+<a href="../../operators/col/index.html">列选择入口 <span>9</span></a>
+<a href="../../operators/dataframe/index.html">DataFrame 执行计划 <span>8</span></a>
+<a href="../../operators/dt/index.html">日期时间命名空间 <span>7</span></a>
+<a href="../../operators/dtype/index.html">DataType API <span>22</span></a>
+<a href="../../operators/expr/index.html">表达式核心 <span>100</span></a>
+<a href="../../operators/fp/index.html">Fast Path 命名空间 <span>3</span></a>
+<a href="../../operators/kline/index.html">K 线命名空间 <span>9</span></a>
+<a href="../../operators/math/index.html">数学命名空间 <span>16</span></a>
+<a class="active" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span>16</span></a>
+<a href="../../operators/operator/index.html">表达式运算符 <span>29</span></a>
+<a href="../../operators/params/index.html">参数 API <span>15</span></a>
+<a href="../../operators/plugin/index.html">插件 API <span>3</span></a>
+<a href="../../operators/stock/index.html">股票统计命名空间 <span>1</span></a>
+<a href="../../operators/stra/index.html">策略命名空间 <span>35</span></a>
+<a href="../../operators/ta/index.html">技术指标命名空间 <span>144</span></a>
+<a href="../../operators/top-level/index.html">顶层 API <span>3</span></a>
+<a href="../../operators/udf/index.html">UDF 命名空间 <span>3</span></a>
+</div></aside>
+    <main>
+<section class="hero small">
+  <p class="eyebrow">Monitor 图表命名空间 / monitor.py</p>
   <h1>monitor.mark</h1>
-  <p class="lead">标记图层。</p>
-  <div class="badge-row">
-    <span class="badge">namespace: monitor</span>
-    <span class="badge">returns: Expr</span>
+  <p>标记图层。</p>
+  <div class="badges"><span>接口示例</span><span>returns: Expr</span><span>monitor</span></div>
+</section>
+
+<section>
+  <h2>输入 / 输出</h2>
+  
+  <div class="io-grid">
+    <div>
+      <h3>输入</h3>
+      <p class="muted">- 2 列：x、flag；flag 为真/非零时在基线附近画标记。 - 至少 3 列：x、y、...、flag；flag 使用最后一列，标记画在第 2 列 y 上。</p>
+      <table><thead><tr><th>输入项</th><th>类型</th><th>示例</th></tr></thead><tbody><tr><td><code>x</code></td><td><code>Float64</code></td><td>1.0</td></tr><tr><td><code>y</code></td><td><code>Float64</code></td><td>1.5</td></tr></tbody></table>
+    </div>
+    <div>
+      <h3>输出</h3>
+      <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>返回类型</td><td><code>Expr</code></td></tr><tr><td>输出对象</td><td>表达式/执行计划/配置对象</td></tr><tr><td>输出语义</td><td>输出列由算子、alias 或底层实现决定；需要稳定列名时显式使用 alias。</td></tr><tr><td>执行方式</td><td>先构造对象，再放入 DataSet、Monitor、UDF 或真实执行上下文。</td></tr><tr><td>核心调用</td><td><code>col(&#x27;x&#x27;, &#x27;y&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, &#x27;red&#x27;, 1.0, 0.5)</code></td></tr></tbody></table>
+    </div>
   </div>
+
 </section>
 
 <section>
-  <h2>用法</h2>
-  <div class="code-block"><div class="code-title">Python</div><pre><code>col(&#x27;x&#x27;, &#x27;y&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, &#x27;red&#x27;, 1.0, 0.5)</code></pre></div>
-  <p>如果这个算子返回 <code>Expr</code>，通常可以继续链式调用 <code>.alias(...)</code>、<code>.over(...)</code>、<code>.rolling(...)</code> 或放入 <code>qs.select(...)</code>。</p>
+  <h2>打印输入 / 打印输出</h2>
+  
+  <p class="muted">下面内容来自本页示例代码真实执行后的 stdout，不是手写占位。</p>
+  <div class="print-grid">
+    <div>
+      <h3>打印输入</h3>
+      <figure class="terminal"><figcaption>print(data)</figcaption><pre>shape: (20, 2)
+┌──────┬─────┐
+│ x    ┆ y   │
+│ ---  ┆ --- │
+│ f64  ┆ f64 │
+╞══════╪═════╡
+│ 1.0  ┆ 1.5 │
+│ 1.25 ┆ 2.1 │
+│ 1.5  ┆ 2.7 │
+│ 1.75 ┆ 2.7 │
+│ 2.0  ┆ 3.3 │
+│ …    ┆ …   │
+│ 4.75 ┆ 7.5 │
+│ 5.0  ┆ 8.1 │
+│ 5.25 ┆ 8.7 │
+│ 5.5  ┆ 8.7 │
+│ 5.75 ┆ 9.3 │
+└──────┴─────┘</pre></figure>
+    </div>
+    <div>
+      <h3>打印输出</h3>
+      <figure class="terminal"><figcaption>print(out)</figcaption><pre>shape: (4, 2)
+┌──────────┬─────────────────────────────────┐
+│ 项目     ┆ 内容                            │
+│ ---      ┆ ---                             │
+│ str      ┆ str                             │
+╞══════════╪═════════════════════════════════╡
+│ 调用     ┆ col(&#x27;x&#x27;, &#x27;y&#x27;).monitor(&quot;main&quot;).… │
+│ 状态     ┆ 未执行成数据表                  │
+│ 错误类型 ┆ NameError                       │
+│ 错误信息 ┆ name &#x27;mark_shape&#x27; is not defin… │
+└──────────┴─────────────────────────────────┘</pre></figure>
+    </div>
+  </div>
+
 </section>
 
 <section>
-  <h2>参数</h2>
-  <table><thead><tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr></thead><tbody><tr><td><code>shape</code></td><td><code>未显式标注</code></td><td><code>mark_shape.triangle_up</code></td><td>位置参数</td></tr><tr><td><code>color</code></td><td><code>str</code></td><td><code>&#x27;red&#x27;</code></td><td>位置参数</td></tr><tr><td><code>opacity</code></td><td><code>float</code></td><td><code>1.0</code></td><td>位置参数</td></tr><tr><td><code>width</code></td><td><code>float</code></td><td><code>0.5</code></td><td>位置参数</td></tr></tbody></table>
-  <h3>参数补充说明</h3><pre><code>- `shape=mark_shape.triangle_up`：向上三角标记。
+  <h2>调用</h2>
+  <figure class="code"><figcaption>Python</figcaption><pre><code>col(&#x27;x&#x27;, &#x27;y&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, &#x27;red&#x27;, 1.0, 0.5)</code></pre></figure>
+  <table><thead><tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr></thead><tbody><tr><td><code>shape</code></td><td><code>未标注</code></td><td><code>mark_shape.triangle_up</code></td><td>位置参数</td></tr><tr><td><code>color</code></td><td><code>str</code></td><td><code>&#x27;red&#x27;</code></td><td>位置参数</td></tr><tr><td><code>opacity</code></td><td><code>float</code></td><td><code>1.0</code></td><td>位置参数</td></tr><tr><td><code>width</code></td><td><code>float</code></td><td><code>0.5</code></td><td>位置参数</td></tr></tbody></table>
+  <h3>源码参数说明</h3><pre>- `shape=mark_shape.triangle_up`：向上三角标记。
 - `shape=mark_shape.triangle_down`：向下三角标记。
 - `shape=mark_shape.circle` / `cross` / `plus` / `square` / `diamond`：Plotters 基础标记。
 - `shape=mark_shape.text(&quot;买入&quot;)`：文本标记。
 - `shape=&quot;买入&quot;`：普通字符串会被当成文本标记。
 - `color=&quot;red&quot;`：标记颜色。
 - `opacity=1.0`：透明度，范围由底层渲染层裁剪到 `[0, 1]`。
-- `width=0.5`：标记宽度比例，范围 `[0, 1]`，按相邻 x 像素间距计算。</code></pre>
+- `width=0.5`：标记宽度比例，范围 `[0, 1]`，按相邻 x 像素间距计算。</pre>
 </section>
 
 <section>
-  <h2>输入和输出</h2>
-  <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>输入表达式</td><td>x, y, flag?</td></tr><tr><td>返回类型</td><td><code>Expr</code></td></tr><tr><td>输出语义</td><td>返回新的表达式或 API 调用结果；列名通常由输入列名、alias 或底层算子决定。</td></tr></tbody></table>
-  
-  <h3>网页表格预览</h3>
-  <p>这里把算子的输入表达式、输出表达式、输入数据和输出结果直接渲染成网页表格，不需要看代码块或控制台。</p>
-  <h4>输入/输出表达式表格</h4>
-  <table><thead><tr><th>项目</th><th>表达式</th></tr></thead><tbody><tr><td>输入表达式</td><td><code>col(&#x27;x&#x27;, &#x27;y&#x27;)</code></td></tr><tr><td>输出表达式</td><td><code>col(&#x27;x&#x27;, &#x27;y&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, &#x27;red&#x27;, 1.0, 0.5)</code></td></tr></tbody></table>
-  <h4>输入数据表格</h4><div class="polars-frame"><div class="polars-shape">shape: (3, 2)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">x</span><span class="polars-dtype">f64</span></th><th><span class="polars-col">y</span><span class="polars-dtype">f64</span></th></tr></thead><tbody><tr><td>1.0</td><td>2.0</td></tr><tr><td>2.0</td><td>3.5</td></tr><tr><td>3.0</td><td>3.0</td></tr></tbody></table></div>
-  <h4>输出表达式表格</h4>
-  <table><thead><tr><th>项目</th><th>网页显示</th></tr></thead><tbody><tr><td>输出表达式</td><td><code>col(&#x27;x&#x27;, &#x27;y&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, &#x27;red&#x27;, 1.0, 0.5)</code></td></tr><tr><td>输出变量</td><td><code>out</code> 或 <code>result</code></td></tr><tr><td>返回类型</td><td><code>Expr</code></td></tr></tbody></table>
-  <h4>输出结果表格</h4>
-  <div class="polars-frame"><div class="polars-shape">shape: (2, 2)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">输出项</span><span class="polars-dtype">str</span></th><th><span class="polars-col">网页显示</span><span class="polars-dtype">str</span></th></tr></thead><tbody><tr><td>输出表达式</td><td>col(&#x27;x&#x27;, &#x27;y&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, &#x27;red&#x27;, 1.0, 0.5)</td></tr><tr><td>输出结果</td><td>该算子需要运行时上下文、Monitor、文件、分组/窗口状态或更多真实数据；完整例子会在运行时打印实际输出。</td></tr></tbody></table></div>
-
-  
-  <h3>最小输入数据模板</h3>
-  <div class="code-block"><div class="code-title">Python</div><pre><code>data = pl.DataFrame(
-    {
-        &quot;x&quot;: [1.0, 2.0, 3.0],
-        &quot;y&quot;: [2.0, 3.5, 3.0],
-    }
-)</code></pre></div>
-  <h3>完整例子：打印输入和输出</h3>
-  <p>每个算子页面都必须有这一段完整例子：先打印输入表达式和输出表达式，再构造输入数据、打印输入数据、执行算子、打印输出结果。</p>
-  <div class="code-block"><div class="code-title">完整例子 / Python</div><pre><code>import polars as pl
+  <h2>完整代码</h2>
+  <div class="note warn">这个算子页使用接口示例：不伪造计算结果。需要真实上下文、多输入源、Monitor session、UDF 回调、策略状态，或当前底层实现之后再执行。</div>
+  <details class="code-details">
+    <summary>展开可复制完整代码</summary>
+    <figure class="code"><figcaption>Python</figcaption><pre><code>import datetime as dt
+import polars as pl
 import qust as qs
-from qust import col, Monitor
-
-print(&quot;输入表达式:&quot;)
-print(&quot;col(&#x27;x&#x27;, &#x27;y&#x27;)&quot;)
-print(&quot;输出表达式:&quot;)
-print(&#x27;col(\&#x27;x\&#x27;, \&#x27;y\&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, \&#x27;red\&#x27;, 1.0, 0.5)&#x27;)
+from qust import col, pms
 
 data = pl.DataFrame(
     {
-        &quot;x&quot;: [1.0, 2.0, 3.0],
-        &quot;y&quot;: [2.0, 3.5, 3.0],
+        &quot;x&quot;: [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.0, 5.25, 5.5, 5.75],
+        &quot;y&quot;: [1.5, 2.1, 2.7, 2.7, 3.3, 3.9, 3.9, 4.5, 5.1, 5.1, 5.7, 6.3, 6.3, 6.9, 7.5, 7.5, 8.1, 8.7, 8.7, 9.3],
     }
 )
 
-print(&quot;输入 DataFrame:&quot;)
+pool = qs.DataPool(&quot;doc_pool&quot;)
+monitor = qs.Monitor()
+right = qs.DataSource(&quot;right&quot;)
+schema = [(&quot;x&quot;, qs.dt.Float64)]
+plot_expr = col(&quot;x&quot;)
+df = col(&quot;x&quot;).runtime()
+
+print(&quot;算子:&quot;)
+print(&#x27;monitor.mark&#x27;)
+print(&quot;场景:&quot;)
+print(&#x27;Monitor：构造前端图表表达式和交互回调。&#x27;)
+print(&quot;模式:&quot;)
+print(&#x27;接口示例：只构造表达式或对象，不伪造计算结果。&#x27;)
+print(&quot;输入列:&quot;)
+print(&#x27;x, y&#x27;)
+print(&quot;调用:&quot;)
+print(&#x27;col(\&#x27;x\&#x27;, \&#x27;y\&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, \&#x27;red\&#x27;, 1.0, 0.5)&#x27;)
+print(&quot;输入数据模板:&quot;)
 print(data)
-
-monitor = Monitor(background=&quot;white&quot;).make_grid([[&quot;main&quot;]])
-plot = col(&#x27;x&#x27;, &#x27;y&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, &#x27;red&#x27;, 1.0, 0.5)
-df = qs.select(plot)
-session = monitor.session(df, data).params().actions()
-page = session.show_local(auto_open=True)
-
-print(&quot;输出:&quot;)
-print(&quot;Monitor 页面 URL:&quot;, page)</code></pre></div>
-</section>
-
-<section>
-  <h2>使用场景</h2>
-  <p>用于把表达式包装成 Monitor 图层，进入浏览器 dashboard 渲染。</p>
-  <p>当你需要 <code>monitor.mark</code> 这种语义时，优先使用这个算子，而不是在 Python 里提前把数据取出来手写循环；这样才能保留流式状态、参数联动、Wasm 路径和 Monitor 重算能力。</p>
-</section>
-
-<section>
-  <h2>为什么这样设计</h2>
-  <p>Monitor 相关 API 只描述“画什么”和“交互入口是什么”，不在 Python 里直接画图。这样同一个表达式可以在本地 Python、Wasm 页面和参数面板重算里复用，真正的绘制细节交给 plot exec 和前端能力 trait。</p>
-  <p>实际收益是：图表能跟参数、callback、slot、hover/zoom/select 等交互能力统一工作，不需要每个图都写一套 Python 分支。</p>
+try:
+    result = col(&#x27;x&#x27;, &#x27;y&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, &#x27;red&#x27;, 1.0, 0.5)
+except BaseException as err:
+    out = pl.DataFrame({
+        &quot;项目&quot;: [&quot;调用&quot;, &quot;状态&quot;, &quot;错误类型&quot;, &quot;错误信息&quot;],
+        &quot;内容&quot;: [&#x27;col(\&#x27;x\&#x27;, \&#x27;y\&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, \&#x27;red\&#x27;, 1.0, 0.5)&#x27;, &quot;未执行成数据表&quot;, type(err).__name__, str(err)[:200]],
+    })
+    print(&quot;输出:&quot;)
+    print(out)
+else:
+    out = pl.DataFrame({
+        &quot;项目&quot;: [&quot;调用&quot;, &quot;返回类型&quot;, &quot;状态&quot;, &quot;怎么得到业务表&quot;],
+        &quot;内容&quot;: [&#x27;col(\&#x27;x\&#x27;, \&#x27;y\&#x27;).monitor(&quot;main&quot;).mark(mark_shape.triangle_up, \&#x27;red\&#x27;, 1.0, 0.5)&#x27;, type(result).__name__, &quot;表达式构造完成&quot;, &quot;放进 col(...).runtime().calc_data(data)、col.with_cols(...).runtime().calc_data(data)，或对应 Monitor/DataSet 运行上下文。&quot;],
+    })
+    print(&quot;输出:&quot;)
+    print(out)</code></pre></figure>
+  </details>
+  <h3>改成业务代码</h3>
+  <table><thead><tr><th>改哪里</th><th>怎么改</th></tr></thead><tbody><tr><td>列名</td><td>把示例 DataFrame 里的列名换成你的真实列名，列顺序保持和用法一致。</td></tr><tr><td>参数</td><td>只改函数括号里的参数；不要随意改变 <code>rolling/over/batch/select</code> 的链式层级。</td></tr><tr><td>输出名</td><td>需要稳定输出列名时，在表达式尾部加 <code>.alias("name")</code>。</td></tr><tr><td>调试</td><td>先打印输入数据和调用字符串，再执行 <code>calc_data</code>；报 schema 错时先检查列数和 dtype。</td></tr></tbody></table>
 </section>
 
 <section>
   <h2>注意事项</h2>
-  
-  <ul><li>确认输入列顺序和列类型符合页面说明。</li><li>需要分组时，把 <code>over(...)</code> 放在正确层级。</li><li>需要 monitor 参数联动时，不要提前把 <code>Params</code> 转成普通 Python 数字。</li></ul>
+  <ul><li>先确认输入列名、顺序、类型和本页一致。</li><li>输出列名不符合业务语义时，显式追加 <code>.alias(...)</code>。</li><li>窗口和分组类算子要确认 <code>rolling/expanding/over/batch</code> 的链式层级。</li></ul>
 </section>
 
 <section>
-  <h2>补充说明</h2>
-  <details class="doc-details">
-    <summary>展开查看更长说明</summary>
-    <pre><code>标记图层。
-
-输入列：
-- 2 列：x、flag；flag 为真/非零时在基线附近画标记。
-- 至少 3 列：x、y、...、flag；flag 使用最后一列，标记画在第 2 列 y 上。
-
-参数：
-- `shape=mark_shape.triangle_up`：向上三角标记。
-- `shape=mark_shape.triangle_down`：向下三角标记。
-- `shape=mark_shape.circle` / `cross` / `plus` / `square` / `diamond`：Plotters 基础标记。
-- `shape=mark_shape.text(&quot;买入&quot;)`：文本标记。
-- `shape=&quot;买入&quot;`：普通字符串会被当成文本标记。
-- `color=&quot;red&quot;`：标记颜色。
-- `opacity=1.0`：透明度，范围由底层渲染层裁剪到 `[0, 1]`。
-- `width=0.5`：标记宽度比例，范围 `[0, 1]`，按相邻 x 像素间距计算。
-
-默认参数：
-- `shape=mark_shape.triangle_up`。
-- `color=&quot;red&quot;`。
-- `opacity=1.0`。
-- `width=0.5`。
-- 当前只支持 `single` 模式。</code></pre>
-  </details>
+  <h2>来源</h2>
+  <table><thead><tr><th>项目</th><th>位置</th></tr></thead><tbody><tr><td>源码文件</td><td><code>monitor.py</code></td></tr><tr><td>类/对象</td><td><code>MonitorNamespace</code></td></tr></tbody></table>
 </section>
-
-      </main>
-      <aside class="toc" aria-label="页内目录">
-        <p class="toc-title">Table of contents</p>
-        <div id="page-toc"></div>
-      </aside>
-    </div>
-    <script src="../../assets/app.js"></script>
-  </body>
+</main>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
 </html>

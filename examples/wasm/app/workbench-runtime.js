@@ -7,14 +7,14 @@ import {
   saveCodeEntries,
   saveParquetSnapshot,
   touchCodeEntry,
-} from './workspace-storage.js?v=20260430_125300';
+} from './workspace-storage.js?v=20260510_134112';
 import {
   createFileItemRow,
   formatBytes,
   makeActionButton,
   promptName,
   renderItemPanel,
-} from './workbench-panels.js?v=20260430_125300';
+} from './workbench-panels.js?v=20260510_134112';
 
 const EXPR_FONT_SIZE_KEY = 'otters_wasm_expr_font_size_v1';
 const EDITOR_VIM_STORAGE_KEY = 'otters_wasm_editor_vim_v1';
@@ -586,7 +586,7 @@ export function createWorkbenchRuntime({
       if (popupState.cmReady && popupState.cmView && popupState.cmApi) return true;
       try {
         cmHost.innerHTML = '';
-        const { mountVimEditor } = await import('./codemirror-vim.bundle.js?v=20260430_125300');
+        const { mountVimEditor } = await import('./codemirror-vim.bundle.js?v=20260510_134112');
         const cmEditor = mountVimEditor(cmHost, textarea.value || '', {
           lineWrapping: false,
           tabSize: EDITOR_TAB_WIDTH,

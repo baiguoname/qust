@@ -1,4 +1,4 @@
-import { createPyodideRuntime } from "./pyodide-runtime.js?v=20260430_125300";
+import { createPyodideRuntime } from "./pyodide-runtime.js?v=20260510_134112";
 
 function serializeParamsPending(paramsPending) {
   try {
@@ -180,6 +180,14 @@ export function createEvalEngineCore(deps) {
     });
   }
 
+  function buildMonitorQueryResultFromCallbackSelectionRequest(params = {}) {
+    return pyRuntime.buildMonitorQueryResultFromCallbackSelectionRequest({
+      code: params.code,
+      callbackSelectionRequestBytes: params.callbackSelectionRequestBytes,
+      theme: params.theme,
+    });
+  }
+
   return {
     init,
     setScript,
@@ -204,5 +212,6 @@ export function createEvalEngineCore(deps) {
     drainLogs,
     buildMonitorQueryResultFromSelectionPayload,
     buildMonitorQueryResultFromScatterSelectRequest,
+    buildMonitorQueryResultFromCallbackSelectionRequest,
   };
 }

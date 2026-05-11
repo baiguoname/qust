@@ -1,85 +1,62 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>stra namespace - Otters / Qust 文档</title>
-    <meta name="description" content="stra namespace" />
-    <link rel="stylesheet" href="../../assets/styles.css" />
-  </head>
-  <body>
-    <a class="skip-link" href="#main">跳到正文</a>
-    <header class="topbar">
-      <a class="brand" href="../../index.html"><span class="brand-mark">Q</span><span>Otters / Qust 文档</span></a>
-      <nav aria-label="顶部导航">
-        <a href="../../operators/index.html">算子总览</a>
-        <a href="../../operators/expr/index.html">表达式</a>
-        <a href="../../operators/ta/index.html">TA</a>
-        <a href="../../operators/monitor/index.html">Monitor</a>
-        <a href="../../wasm.html">Wasm</a>
-      </nav>
-      <label class="search"><input id="site-search" type="search" placeholder="搜索左侧导航..." /></label>
-    </header>
-    <div class="layout">
-      <aside class="sidebar" aria-label="文档导航">
-        <p class="sidebar-title">Reference</p>
-<div class="nav-section">
-<a class="nav-link" href="../../index.html">首页</a>
-<a class="nav-link" href="../../operators/index.html">算子总览</a>
-<a class="nav-link" href="../../wasm.html">Wasm</a>
-<a class="nav-link" href="../../index.html#architecture">设计思想</a>
-</div>
-<div class="nav-section">
-<p class="nav-heading">命名空间</p>
-<a class="nav-link" href="../../operators/alpha/index.html">Alpha 命名空间 <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/batch_stock/index.html">批内股票命名空间 <span class="mini">(1)</span></a>
-<a class="nav-link" href="../../operators/batch_ta/index.html">批内技术分析命名空间 <span class="mini">(7)</span></a>
-<a class="nav-link" href="../../operators/bt/index.html">回测命名空间 <span class="mini">(4)</span></a>
-<a class="nav-link" href="../../operators/col/index.html">列选择入口 <span class="mini">(8)</span></a>
-<a class="nav-link" href="../../operators/dataframe/index.html">DataFrame 执行计划 <span class="mini">(10)</span></a>
-<a class="nav-link" href="../../operators/dt/index.html">日期时间命名空间 <span class="mini">(7)</span></a>
-<a class="nav-link" href="../../operators/dtype/index.html">DataType API <span class="mini">(22)</span></a>
-<a class="nav-link" href="../../operators/expr/index.html">表达式核心 <span class="mini">(92)</span></a>
-<a class="nav-link" href="../../operators/fp/index.html">Fast Path 命名空间 <span class="mini">(3)</span></a>
-<a class="nav-link" href="../../operators/kline/index.html">K 线命名空间 <span class="mini">(9)</span></a>
-<a class="nav-link" href="../../operators/math/index.html">数学命名空间 <span class="mini">(16)</span></a>
-<a class="nav-link" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span class="mini">(16)</span></a>
-<a class="nav-link" href="../../operators/operator/index.html">表达式运算符 <span class="mini">(29)</span></a>
-<a class="nav-link" href="../../operators/params/index.html">参数 API <span class="mini">(15)</span></a>
-<a class="nav-link" href="../../operators/plugin/index.html">插件 API <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/stock/index.html">股票统计命名空间 <span class="mini">(2)</span></a>
-<a class="nav-link active" href="../../operators/stra/index.html">策略命名空间 <span class="mini">(35)</span></a>
-<a class="nav-link" href="../../operators/ta/index.html">技术指标命名空间 <span class="mini">(144)</span></a>
-<a class="nav-link" href="../../operators/top-level/index.html">顶层 API <span class="mini">(9)</span></a>
-<a class="nav-link" href="../../operators/udf/index.html">UDF 命名空间 <span class="mini">(3)</span></a>
-</div>
-<div class="nav-section">
-<p class="nav-heading">当前：策略命名空间</p>
-<a class="nav-link" href="../../operators/stra/index.html">命名空间首页</a>
-<a class="nav-link" href="../../operators/stra/index.html">查看全部 35 个算子</a>
-</div>
-      </aside>
-      <main id="main" class="content">
-        
-<section class="page-header">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>stra namespace - Qust Docs</title>
+  <link rel="stylesheet" href="../../assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">Qust Docs</a>
+    <input id="search" type="search" placeholder="搜索算子或页面" />
+  </header>
+  <div class="shell">
+    <aside class="sidebar"><div class="nav-block">
+<a href="../../index.html">基础</a>
+<a href="../../install.html">安装</a>
+<a href="../../quickstart.html">简单例子</a>
+<a href="../../operators/index.html">算子</a>
+<a href="../../df.html">DF</a>
+<a href="../../polars.html">Polars</a>
+<a href="../../wasm.html">Wasm</a>
+<a href="../../qust_portfolio/index.html">Portfolio</a>
+</div><div class="nav-block"><p>命名空间</p>
+<a href="../../operators/alpha/index.html">Alpha 命名空间 <span>2</span></a>
+<a href="../../operators/batch/index.html">批内/截面命名空间 <span>32</span></a>
+<a href="../../operators/batch_stock/index.html">批内股票命名空间 <span>1</span></a>
+<a href="../../operators/bt/index.html">回测命名空间 <span>4</span></a>
+<a href="../../operators/col/index.html">列选择入口 <span>9</span></a>
+<a href="../../operators/dataframe/index.html">DataFrame 执行计划 <span>8</span></a>
+<a href="../../operators/dt/index.html">日期时间命名空间 <span>7</span></a>
+<a href="../../operators/dtype/index.html">DataType API <span>22</span></a>
+<a href="../../operators/expr/index.html">表达式核心 <span>100</span></a>
+<a href="../../operators/fp/index.html">Fast Path 命名空间 <span>3</span></a>
+<a href="../../operators/kline/index.html">K 线命名空间 <span>9</span></a>
+<a href="../../operators/math/index.html">数学命名空间 <span>16</span></a>
+<a href="../../operators/monitor/index.html">Monitor 图表命名空间 <span>16</span></a>
+<a href="../../operators/operator/index.html">表达式运算符 <span>29</span></a>
+<a href="../../operators/params/index.html">参数 API <span>15</span></a>
+<a href="../../operators/plugin/index.html">插件 API <span>3</span></a>
+<a href="../../operators/stock/index.html">股票统计命名空间 <span>1</span></a>
+<a class="active" href="../../operators/stra/index.html">策略命名空间 <span>35</span></a>
+<a href="../../operators/ta/index.html">技术指标命名空间 <span>144</span></a>
+<a href="../../operators/top-level/index.html">顶层 API <span>3</span></a>
+<a href="../../operators/udf/index.html">UDF 命名空间 <span>3</span></a>
+</div></aside>
+    <main>
+<section class="hero small">
   <p class="eyebrow">Namespace</p>
-  <h1>策略命名空间</h1>
-  <p class="lead">用于策略信号、持仓状态、出入场和交易行号生成。</p>
-  <div class="badge-row"><span class="badge">35 operators</span><span class="badge">namespace: stra</span></div>
+  <h1>stra</h1>
+  <p>策略信号和持仓状态。</p>
+  <div class="badges"><span>35 个算子</span></div>
 </section>
 <section>
-  <h2>算子列表</h2>
-  <div class="grid operator-grid">
-    <article class="card"><h3><a href="atr_break_expr.html">stra.atr_break_expr</a></h3><p>用于策略信号、持仓状态、出入场和交易行号生成。</p></article><article class="card"><h3><a href="boll_break_expr.html">stra.boll_break_expr</a></h3><p>用于策略信号、持仓状态、出入场和交易行号生成。</p></article><article class="card"><h3><a href="bollin_sig.html">stra.bollin_sig</a></h3><p>组合算子，基于布林上/下轨突破生成双边开仓信号 📌</p></article><article class="card"><h3><a href="c25.html">stra.c25</a></h3><p>行算子，一个策略</p></article><article class="card"><h3><a href="c66.html">stra.c66</a></h3><p>行算子，一个策略</p></article><article class="card"><h3><a href="cross_down.html">stra.cross_down</a></h3><p>用于策略信号、持仓状态、出入场和交易行号生成。</p></article><article class="card"><h3><a href="cross_up.html">stra.cross_up</a></h3><p>用于策略信号、持仓状态、出入场和交易行号生成。</p></article><article class="card"><h3><a href="exit_by_close_drawdown.html">stra.exit_by_close_drawdown</a></h3><p>行算子，按“开仓后收盘价最大/最小有利值回撤”生成平仓信号</p></article><article class="card"><h3><a href="exit_by_entry_move_once.html">stra.exit_by_entry_move_once</a></h3><p>行算子，按“入场后一次性阈值触发”离场（每笔最多触发一次）。</p></article><article class="card"><h3><a href="exit_by_pct.html">stra.exit_by_pct</a></h3><p>行算子，输入开仓信号，通过价格变动百分比生成平仓信号(就是百分比止盈止损)</p></article><article class="card"><h3><a href="exit_by_price_sby.html">stra.exit_by_price_sby</a></h3><p>行算子，按“开仓后有利价推进 + 反向阈值”触发离场信号 📌</p></article><article class="card"><h3><a href="exit_by_profit_drawdown.html">stra.exit_by_profit_drawdown</a></h3><p>行算子，按“盈利启动 + 回撤比例”触发离场信号 📌</p></article><article class="card"><h3><a href="exit_by_profit_drawdown_ref.html">stra.exit_by_profit_drawdown_ref</a></h3><p>行算子，按“外部 entry/best 源 + 回撤”触发离场。</p></article><article class="card"><h3><a href="exit_by_psar_af.html">stra.exit_by_psar_af</a></h3><p>行算子，按 PSAR 加速因子状态跟踪触发离场信号 📌</p></article><article class="card"><h3><a href="hold_to_four_signals.html">stra.hold_to_four_signals</a></h3><p>组合算子，把单列持仓轨迹转换成四路开平仓信号 📌</p></article><article class="card"><h3><a href="hold_to_one_side_signals.html">stra.hold_to_one_side_signals</a></h3><p>组合算子，把单列持仓轨迹转换成单边开平仓信号 📌</p></article><article class="card"><h3><a href="ma_break_expr.html">stra.ma_break_expr</a></h3><p>用于策略信号、持仓状态、出入场和交易行号生成。</p></article><article class="card"><h3><a href="macd_atr_expr.html">stra.macd_atr_expr</a></h3><p>用于策略信号、持仓状态、出入场和交易行号生成。</p></article><article class="card"><h3><a href="rsi_revert_expr.html">stra.rsi_revert_expr</a></h3><p>用于策略信号、持仓状态、出入场和交易行号生成。</p></article><article class="card"><h3><a href="sf14_supertrend_state.html">stra.sf14_supertrend_state</a></h3><p>行算子，维护 SF14 SuperTrend 状态并输出 kg/up_adj/dn_adj 三列 🚀</p></article><article class="card"><h3><a href="sig_c66.html">stra.sig_c66</a></h3><p>用于策略信号、持仓状态、出入场和交易行号生成。</p></article><article class="card"><h3><a href="t02_track_best_since_entry.html">stra.t02_track_best_since_entry</a></h3><p>行算子，跟踪“入场后有利方向的极值状态”📌</p></article><article class="card"><h3><a href="t02_track_entry_price.html">stra.t02_track_entry_price</a></h3><p>行算子，跟踪“当前有效持仓的入场价”状态（用于后续止盈止损/回撤跟踪）📌</p></article><article class="card"><h3><a href="t06_ama_band.html">stra.t06_ama_band</a></h3><p>行算子，按 T06 源逻辑计算 ama 与 ifilter 双状态列 🚀</p></article><article class="card"><h3><a href="t07_dyn_n.html">stra.t07_dyn_n</a></h3><p>行算子，根据 delta 递推动态窗口长度并做区间裁剪。</p></article><article class="card"><h3><a href="t07_range_orders.html">stra.t07_range_orders</a></h3><p>行算子，按 T07 源逻辑管理挂单区间与持仓出场信号 🚀</p></article><article class="card"><h3><a href="t16_state_counter.html">stra.t16_state_counter</a></h3><p>行算子，按 T16 源逻辑维护 g1/g2 计数状态并直接输出四列信号 🚀</p></article><article class="card"><h3><a href="t23_entry_core.html">stra.t23_entry_core</a></h3><p>行算子（Rust 端内部含中间列预处理），输出 T23 核心入场双信号 🚀</p></article><article class="card"><h3><a href="t26_adx.html">stra.t26_adx</a></h3><p>行算子，按 T26 源逻辑计算 Wilder ADX 状态列 🚀</p></article><article class="card"><h3><a href="t26_psar_dir.html">stra.t26_psar_dir</a></h3><p>行算子，按 T26 源逻辑维护 PSAR 方向状态列 🚀</p></article><article class="card"><h3><a href="to_hold_always.html">stra.to_hold_always</a></h3><p>行算子，通过开多和开空信号，生成持仓</p></article><article class="card"><h3><a href="to_hold_one_side.html">stra.to_hold_one_side</a></h3><p>行算子, 通过开仓信号和平仓信号，生成持仓</p></article><article class="card"><h3><a href="to_hold_two_sides.html">stra.to_hold_two_sides</a></h3><p>行算子，通过两组开平仓信号，生成持仓</p></article><article class="card"><h3><a href="trade_row.html">stra.trade_row</a></h3><p>交易轮次算子，把开平仓信号转换成完整成交 round 的行号表。</p></article><article class="card"><h3><a href="two_ma.html">stra.two_ma</a></h3><p>自定义行算子， 无retract，计算双均线、上穿和下穿信号</p></article>
-  </div>
+  <h2>算子输入 / 输出</h2>
+  <table><thead><tr><th>算子</th><th>输入</th><th>输出</th><th>例子</th></tr></thead><tbody><tr><td><a href="atr_break_expr.html"><code>stra.atr_break_expr</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="boll_break_expr.html"><code>stra.boll_break_expr</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="bollin_sig.html"><code>stra.bollin_sig</code></a></td><td><code>upband</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="c25.html"><code>stra.c25</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="c66.html"><code>stra.c66</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="cross_down.html"><code>stra.cross_down</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="cross_up.html"><code>stra.cross_up</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="exit_by_close_drawdown.html"><code>stra.exit_by_close_drawdown</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="exit_by_entry_move_once.html"><code>stra.exit_by_entry_move_once</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="exit_by_pct.html"><code>stra.exit_by_pct</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="exit_by_price_sby.html"><code>stra.exit_by_price_sby</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="exit_by_profit_drawdown.html"><code>stra.exit_by_profit_drawdown</code></a></td><td><code>price</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="exit_by_profit_drawdown_ref.html"><code>stra.exit_by_profit_drawdown_ref</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="exit_by_psar_af.html"><code>stra.exit_by_psar_af</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="hold_to_four_signals.html"><code>stra.hold_to_four_signals</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="hold_to_one_side_signals.html"><code>stra.hold_to_one_side_signals</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="ma_break_expr.html"><code>stra.ma_break_expr</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="macd_atr_expr.html"><code>stra.macd_atr_expr</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="rsi_revert_expr.html"><code>stra.rsi_revert_expr</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="sf14_supertrend_state.html"><code>stra.sf14_supertrend_state</code></a></td><td><code>up_raw</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="sig_c66.html"><code>stra.sig_c66</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="t02_track_best_since_entry.html"><code>stra.t02_track_best_since_entry</code></a></td><td><code>exit_sig</code>, <code>favorable_1</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="t02_track_entry_price.html"><code>stra.t02_track_entry_price</code></a></td><td><code>exit_sig</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="t06_ama_band.html"><code>stra.t06_ama_band</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="t07_dyn_n.html"><code>stra.t07_dyn_n</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="t07_range_orders.html"><code>stra.t07_range_orders</code></a></td><td><code>high</code>, <code>low</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="t16_state_counter.html"><code>stra.t16_state_counter</code></a></td><td><code>low</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="t23_entry_core.html"><code>stra.t23_entry_core</code></a></td><td><code>high</code>, <code>low</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="t26_adx.html"><code>stra.t26_adx</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="t26_psar_dir.html"><code>stra.t26_psar_dir</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="to_hold_always.html"><code>stra.to_hold_always</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="to_hold_one_side.html"><code>stra.to_hold_one_side</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="to_hold_two_sides.html"><code>stra.to_hold_two_sides</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="trade_row.html"><code>stra.trade_row</code></a></td><td><code>open</code>, <code>exit</code></td><td>返回 Expr</td><td>接口</td></tr><tr><td><a href="two_ma.html"><code>stra.two_ma</code></a></td><td><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code></td><td>返回 Expr</td><td>接口</td></tr></tbody></table>
 </section>
-
-      </main>
-      <aside class="toc" aria-label="页内目录">
-        <p class="toc-title">Table of contents</p>
-        <div id="page-toc"></div>
-      </aside>
-    </div>
-    <script src="../../assets/app.js"></script>
-  </body>
+</main>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
 </html>

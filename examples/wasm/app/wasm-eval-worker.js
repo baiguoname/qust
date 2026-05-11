@@ -1,4 +1,4 @@
-import { createEvalEngineCore } from "./wasm-eval-core.js?v=20260430_125300";
+import { createEvalEngineCore } from "./wasm-eval-core.js?v=20260510_134112";
 
 function progress(percent, label) {
   self.postMessage({
@@ -197,6 +197,20 @@ self.onmessage = async (ev) => {
         const payload = engine.buildMonitorQueryResultFromScatterSelectRequest({
           code: params.code,
           scatterSelectRequestBytes: params.scatterSelectRequestBytes == null ? null : asU8(params.scatterSelectRequestBytes),
+          theme: params.theme,
+        });
+        const packets = Array.from(payload?.packets || []).map(asU8);
+        const out = { result: payload?.result || {}, packets };
+        const transfer = packets
+          .filter((x) => x.byteOffset === 0 && x.byteLength === x.buffer.byteLength)
+          .map((x) => x.buffer);
+        ok(id, out, transfer);
+        return;
+      }
+      case "buildMonitorQueryResultFromCallbackSelectionRequest": {
+        const payload = engine.buildMonitorQueryResultFromCallbackSelectionRequest({
+          code: params.code,
+          callbackSelectionRequestBytes: params.callbackSelectionRequestBytes == null ? null : asU8(params.callbackSelectionRequestBytes),
           theme: params.theme,
         });
         const packets = Array.from(payload?.packets || []).map(asU8);

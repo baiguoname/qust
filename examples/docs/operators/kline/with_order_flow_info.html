@@ -1,213 +1,178 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>kline.with_order_flow_info - Otters / Qust 文档</title>
-    <meta name="description" content="kline.with_order_flow_info" />
-    <link rel="stylesheet" href="../../assets/styles.css" />
-  </head>
-  <body>
-    <a class="skip-link" href="#main">跳到正文</a>
-    <header class="topbar">
-      <a class="brand" href="../../index.html"><span class="brand-mark">Q</span><span>Otters / Qust 文档</span></a>
-      <nav aria-label="顶部导航">
-        <a href="../../operators/index.html">算子总览</a>
-        <a href="../../operators/expr/index.html">表达式</a>
-        <a href="../../operators/ta/index.html">TA</a>
-        <a href="../../operators/monitor/index.html">Monitor</a>
-        <a href="../../wasm.html">Wasm</a>
-      </nav>
-      <label class="search"><input id="site-search" type="search" placeholder="搜索左侧导航..." /></label>
-    </header>
-    <div class="layout">
-      <aside class="sidebar" aria-label="文档导航">
-        <p class="sidebar-title">Reference</p>
-<div class="nav-section">
-<a class="nav-link" href="../../index.html">首页</a>
-<a class="nav-link" href="../../operators/index.html">算子总览</a>
-<a class="nav-link" href="../../wasm.html">Wasm</a>
-<a class="nav-link" href="../../index.html#architecture">设计思想</a>
-</div>
-<div class="nav-section">
-<p class="nav-heading">命名空间</p>
-<a class="nav-link" href="../../operators/alpha/index.html">Alpha 命名空间 <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/batch_stock/index.html">批内股票命名空间 <span class="mini">(1)</span></a>
-<a class="nav-link" href="../../operators/batch_ta/index.html">批内技术分析命名空间 <span class="mini">(7)</span></a>
-<a class="nav-link" href="../../operators/bt/index.html">回测命名空间 <span class="mini">(4)</span></a>
-<a class="nav-link" href="../../operators/col/index.html">列选择入口 <span class="mini">(8)</span></a>
-<a class="nav-link" href="../../operators/dataframe/index.html">DataFrame 执行计划 <span class="mini">(10)</span></a>
-<a class="nav-link" href="../../operators/dt/index.html">日期时间命名空间 <span class="mini">(7)</span></a>
-<a class="nav-link" href="../../operators/dtype/index.html">DataType API <span class="mini">(22)</span></a>
-<a class="nav-link" href="../../operators/expr/index.html">表达式核心 <span class="mini">(92)</span></a>
-<a class="nav-link" href="../../operators/fp/index.html">Fast Path 命名空间 <span class="mini">(3)</span></a>
-<a class="nav-link active" href="../../operators/kline/index.html">K 线命名空间 <span class="mini">(9)</span></a>
-<a class="nav-link" href="../../operators/math/index.html">数学命名空间 <span class="mini">(16)</span></a>
-<a class="nav-link" href="../../operators/monitor/index.html">Monitor 图表命名空间 <span class="mini">(16)</span></a>
-<a class="nav-link" href="../../operators/operator/index.html">表达式运算符 <span class="mini">(29)</span></a>
-<a class="nav-link" href="../../operators/params/index.html">参数 API <span class="mini">(15)</span></a>
-<a class="nav-link" href="../../operators/plugin/index.html">插件 API <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/stock/index.html">股票统计命名空间 <span class="mini">(2)</span></a>
-<a class="nav-link" href="../../operators/stra/index.html">策略命名空间 <span class="mini">(35)</span></a>
-<a class="nav-link" href="../../operators/ta/index.html">技术指标命名空间 <span class="mini">(144)</span></a>
-<a class="nav-link" href="../../operators/top-level/index.html">顶层 API <span class="mini">(9)</span></a>
-<a class="nav-link" href="../../operators/udf/index.html">UDF 命名空间 <span class="mini">(3)</span></a>
-</div>
-<div class="nav-section">
-<p class="nav-heading">当前：K 线命名空间</p>
-<a class="nav-link" href="../../operators/kline/index.html">命名空间首页</a>
-<a class="nav-link active" href="../../operators/kline/with_order_flow_info.html">当前算子：kline.with_order_flow_info</a>
-<a class="nav-link" href="../../operators/kline/rl5m.html">上一个：kline.rl5m</a>
-<a class="nav-link" href="../../operators/kline/index.html">查看全部 9 个算子</a>
-</div>
-      </aside>
-      <main id="main" class="content">
-        
-<section class="page-header">
-  <p class="eyebrow">Reference / K 线命名空间</p>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kline.with_order_flow_info - Qust Docs</title>
+  <link rel="stylesheet" href="../../assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../index.html">Qust Docs</a>
+    <input id="search" type="search" placeholder="搜索算子或页面" />
+  </header>
+  <div class="shell">
+    <aside class="sidebar"><div class="nav-block">
+<a href="../../index.html">基础</a>
+<a href="../../install.html">安装</a>
+<a href="../../quickstart.html">简单例子</a>
+<a href="../../operators/index.html">算子</a>
+<a href="../../df.html">DF</a>
+<a href="../../polars.html">Polars</a>
+<a href="../../wasm.html">Wasm</a>
+<a href="../../qust_portfolio/index.html">Portfolio</a>
+</div><div class="nav-block"><p>命名空间</p>
+<a href="../../operators/alpha/index.html">Alpha 命名空间 <span>2</span></a>
+<a href="../../operators/batch/index.html">批内/截面命名空间 <span>32</span></a>
+<a href="../../operators/batch_stock/index.html">批内股票命名空间 <span>1</span></a>
+<a href="../../operators/bt/index.html">回测命名空间 <span>4</span></a>
+<a href="../../operators/col/index.html">列选择入口 <span>9</span></a>
+<a href="../../operators/dataframe/index.html">DataFrame 执行计划 <span>8</span></a>
+<a href="../../operators/dt/index.html">日期时间命名空间 <span>7</span></a>
+<a href="../../operators/dtype/index.html">DataType API <span>22</span></a>
+<a href="../../operators/expr/index.html">表达式核心 <span>100</span></a>
+<a href="../../operators/fp/index.html">Fast Path 命名空间 <span>3</span></a>
+<a class="active" href="../../operators/kline/index.html">K 线命名空间 <span>9</span></a>
+<a href="../../operators/math/index.html">数学命名空间 <span>16</span></a>
+<a href="../../operators/monitor/index.html">Monitor 图表命名空间 <span>16</span></a>
+<a href="../../operators/operator/index.html">表达式运算符 <span>29</span></a>
+<a href="../../operators/params/index.html">参数 API <span>15</span></a>
+<a href="../../operators/plugin/index.html">插件 API <span>3</span></a>
+<a href="../../operators/stock/index.html">股票统计命名空间 <span>1</span></a>
+<a href="../../operators/stra/index.html">策略命名空间 <span>35</span></a>
+<a href="../../operators/ta/index.html">技术指标命名空间 <span>144</span></a>
+<a href="../../operators/top-level/index.html">顶层 API <span>3</span></a>
+<a href="../../operators/udf/index.html">UDF 命名空间 <span>3</span></a>
+</div></aside>
+    <main>
+<section class="hero small">
+  <p class="eyebrow">K 线命名空间 / future.py</p>
   <h1>kline.with_order_flow_info</h1>
-  <p class="lead">在合成k线的时候，加入当前k线中的订单流信息</p>
-  <div class="badge-row">
-    <span class="badge">namespace: kline</span>
-    <span class="badge">returns: Expr</span>
+  <p>在合成k线的时候，加入当前k线中的订单流信息 输入 例子 作用 ✅ - 该方法用于执行 `with_order_flow_info` 对应能力；具体业务语义以上文原始说明为准。</p>
+  <div class="badges"><span>可执行示例</span><span>returns: Expr</span><span>kline</span></div>
+</section>
+
+<section>
+  <h2>输入 / 输出</h2>
+  
+  <div class="io-grid">
+    <div>
+      <h3>输入</h3>
+      <p class="muted">t, c, v, bid1, ask1, bid1_v, ask1_v</p>
+      <table><thead><tr><th>输入项</th><th>类型</th><th>示例</th></tr></thead><tbody><tr><td><code>t</code></td><td><code>Datetime</code></td><td>2026-01-01 09:30:00</td></tr><tr><td><code>c</code></td><td><code>Float64</code></td><td>10.0</td></tr><tr><td><code>v</code></td><td><code>Int64</code></td><td>1000</td></tr><tr><td><code>bid1</code></td><td><code>Float64</code></td><td>9.97</td></tr><tr><td><code>ask1</code></td><td><code>Float64</code></td><td>10.03</td></tr><tr><td><code>bid1_v</code></td><td><code>Int64</code></td><td>100</td></tr><tr><td><code>ask1_v</code></td><td><code>Int64</code></td><td>95</td></tr></tbody></table>
+    </div>
+    <div>
+      <h3>输出</h3>
+      <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>返回类型</td><td><code>Expr</code></td></tr><tr><td>输出对象</td><td>Expr；执行后得到 Polars DataFrame</td></tr><tr><td>输出语义</td><td>输出列由算子、alias 或底层实现决定；需要稳定列名时显式使用 alias。</td></tr><tr><td>执行方式</td><td>用 col(...).runtime() 或 col.with_cols(...).runtime() 创建执行计划后 calc_data。</td></tr><tr><td>核心调用</td><td><code>col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;).kline.rl1m.kline.with_order_flow_info</code></td></tr></tbody></table>
+    </div>
   </div>
+
 </section>
 
 <section>
-  <h2>用法</h2>
-  <div class="code-block"><div class="code-title">Python</div><pre><code>col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;).kline.rl1m.kline.with_order_flow_info</code></pre></div>
-  <p>如果这个算子返回 <code>Expr</code>，通常可以继续链式调用 <code>.alias(...)</code>、<code>.over(...)</code>、<code>.rolling(...)</code> 或放入 <code>qs.select(...)</code>。</p>
+  <h2>打印输入 / 打印输出</h2>
+  
+  <p class="muted">下面内容来自本页示例代码真实执行后的 stdout，不是手写占位。</p>
+  <div class="print-grid">
+    <div>
+      <h3>打印输入</h3>
+      <figure class="terminal"><figcaption>print(data)</figcaption><pre>shape: (20, 7)
+┌─────────────────────┬──────┬──────┬───────┬───────┬────────┬────────┐
+│ t                   ┆ c    ┆ v    ┆ bid1  ┆ ask1  ┆ bid1_v ┆ ask1_v │
+│ ---                 ┆ ---  ┆ ---  ┆ ---   ┆ ---   ┆ ---    ┆ ---    │
+│ datetime[μs]        ┆ f64  ┆ i64  ┆ f64   ┆ f64   ┆ i64    ┆ i64    │
+╞═════════════════════╪══════╪══════╪═══════╪═══════╪════════╪════════╡
+│ 2026-01-01 09:30:00 ┆ 10.0 ┆ 1000 ┆ 9.97  ┆ 10.03 ┆ 100    ┆ 95     │
+│ 2026-01-01 09:31:00 ┆ 10.2 ┆ 1147 ┆ 10.17 ┆ 10.23 ┆ 111    ┆ 108    │
+│ 2026-01-01 09:32:00 ┆ 10.1 ┆ 1294 ┆ 10.07 ┆ 10.13 ┆ 122    ┆ 121    │
+│ 2026-01-01 09:33:00 ┆ 10.5 ┆ 1441 ┆ 10.47 ┆ 10.53 ┆ 133    ┆ 134    │
+│ 2026-01-01 09:34:00 ┆ 10.7 ┆ 1588 ┆ 10.67 ┆ 10.73 ┆ 144    ┆ 95     │
+│ …                   ┆ …    ┆ …    ┆ …     ┆ …     ┆ …      ┆ …      │
+│ 2026-01-01 09:45:00 ┆ 12.4 ┆ 1645 ┆ 12.37 ┆ 12.43 ┆ 100    ┆ 134    │
+│ 2026-01-01 09:46:00 ┆ 12.2 ┆ 1792 ┆ 12.17 ┆ 12.23 ┆ 111    ┆ 95     │
+│ 2026-01-01 09:47:00 ┆ 12.7 ┆ 1939 ┆ 12.67 ┆ 12.73 ┆ 122    ┆ 108    │
+│ 2026-01-01 09:48:00 ┆ 12.9 ┆ 1306 ┆ 12.87 ┆ 12.93 ┆ 133    ┆ 121    │
+│ 2026-01-01 09:49:00 ┆ 13.1 ┆ 1453 ┆ 13.07 ┆ 13.13 ┆ 144    ┆ 134    │
+└─────────────────────┴──────┴──────┴───────┴───────┴────────┴────────┘</pre></figure>
+    </div>
+    <div>
+      <h3>打印输出</h3>
+      <figure class="terminal"><figcaption>print(out)</figcaption><pre>shape: (1, 10)
+┌──────────────┬──────┬──────┬──────┬───┬─────────────┬──────────────┬────────────┬───────────┐
+│ datetime     ┆ open ┆ high ┆ low  ┆ … ┆ is_finished ┆ price        ┆ bid        ┆ ask       │
+│ ---          ┆ ---  ┆ ---  ┆ ---  ┆   ┆ ---         ┆ ---          ┆ ---        ┆ ---       │
+│ datetime[ms] ┆ f64  ┆ f64  ┆ f64  ┆   ┆ bool        ┆ list[f64]    ┆ list[f64]  ┆ list[f64] │
+╞══════════════╪══════╪══════╪══════╪═══╪═════════════╪══════════════╪════════════╪═══════════╡
+│ 2026-01-01   ┆ 12.9 ┆ 13.1 ┆ 12.9 ┆ … ┆ true        ┆ [12.9, 13.1] ┆ [0.0, 0.0] ┆ [1306.0,  │
+│ 09:49:00     ┆      ┆      ┆      ┆   ┆             ┆              ┆            ┆ 1453.0]   │
+└──────────────┴──────┴──────┴──────┴───┴─────────────┴──────────────┴────────────┴───────────┘</pre></figure>
+    </div>
+  </div>
+
 </section>
 
 <section>
-  <h2>参数</h2>
-  <p>无显式参数；输入来自当前表达式、绑定对象或当前命名空间。</p>
+  <h2>调用</h2>
+  <figure class="code"><figcaption>Python</figcaption><pre><code>col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;).kline.rl1m.kline.with_order_flow_info</code></pre></figure>
+  <p>无显式参数；输入来自当前表达式、绑定对象或命名空间。</p>
   
 </section>
 
 <section>
-  <h2>输入和输出</h2>
-  <table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>输入表达式</td><td>当前表达式，例如 col(&quot;x&quot;)；具体列宽由底层算子校验。</td></tr><tr><td>返回类型</td><td><code>Expr</code></td></tr><tr><td>输出语义</td><td>- 返回类型：Expr - 返回值语义与上文主说明保持一致。</td></tr></tbody></table>
-  
-  <h3>网页表格预览</h3>
-  <p>这里把算子的输入表达式、输出表达式、输入数据和输出结果直接渲染成网页表格，不需要看代码块或控制台。</p>
-  <h4>输入/输出表达式表格</h4>
-  <table><thead><tr><th>项目</th><th>表达式</th></tr></thead><tbody><tr><td>输入表达式</td><td><code>col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;)</code></td></tr><tr><td>输出表达式</td><td><code>col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;).kline.rl1m.kline.with_order_flow_info</code></td></tr></tbody></table>
-  <h4>输入数据表格</h4><div class="polars-frame"><div class="polars-shape">shape: (3, 7)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">t</span><span class="polars-dtype">datetime[μs]</span></th><th><span class="polars-col">c</span><span class="polars-dtype">f64</span></th><th><span class="polars-col">v</span><span class="polars-dtype">i64</span></th><th><span class="polars-col">bid1</span><span class="polars-dtype">f64</span></th><th><span class="polars-col">ask1</span><span class="polars-dtype">f64</span></th><th><span class="polars-col">bid1_v</span><span class="polars-dtype">i64</span></th><th><span class="polars-col">ask1_v</span><span class="polars-dtype">i64</span></th></tr></thead><tbody><tr><td>2026-01-01 09:30:00</td><td>10.2</td><td>1000</td><td>9.9</td><td>10.1</td><td>100</td><td>90</td></tr><tr><td>2026-01-01 09:31:00</td><td>10.1</td><td>1200</td><td>10.0</td><td>10.2</td><td>120</td><td>130</td></tr><tr><td>2026-01-01 09:32:00</td><td>10.3</td><td>900</td><td>10.1</td><td>10.3</td><td>110</td><td>115</td></tr></tbody></table></div>
-  <h4>输出表达式表格</h4>
-  <table><thead><tr><th>项目</th><th>网页显示</th></tr></thead><tbody><tr><td>输出表达式</td><td><code>col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;).kline.rl1m.kline.with_order_flow_info</code></td></tr><tr><td>输出变量</td><td><code>out</code> 或 <code>result</code></td></tr><tr><td>返回类型</td><td><code>Expr</code></td></tr></tbody></table>
-  <h4>输出结果表格</h4>
-  <div class="polars-frame"><div class="polars-shape">shape: (2, 2)</div><table class="polars-df-table"><thead><tr><th><span class="polars-col">输出项</span><span class="polars-dtype">str</span></th><th><span class="polars-col">网页显示</span><span class="polars-dtype">str</span></th></tr></thead><tbody><tr><td>输出表达式</td><td>col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;).kline.rl1m.kline.with_order_flow_info</td></tr><tr><td>输出结果</td><td>该算子需要运行时上下文、Monitor、文件、分组/窗口状态或更多真实数据；完整例子会在运行时打印实际输出。</td></tr></tbody></table></div>
-
-  
-  <h3>最小输入数据模板</h3>
-  <div class="code-block"><div class="code-title">Python</div><pre><code>data = pl.DataFrame(
-    {
-        &quot;t&quot;: [&quot;2026-01-01 09:30:00&quot;, &quot;2026-01-01 09:31:00&quot;, &quot;2026-01-01 09:32:00&quot;],
-        &quot;c&quot;: [10.2, 10.1, 10.3],
-        &quot;v&quot;: [1000, 1200, 900],
-        &quot;bid1&quot;: [9.9, 10.0, 10.1],
-        &quot;ask1&quot;: [10.1, 10.2, 10.3],
-        &quot;bid1_v&quot;: [100, 120, 110],
-        &quot;ask1_v&quot;: [90, 130, 115],
-    }
-).with_columns(pl.col(&quot;t&quot;).str.to_datetime())</code></pre></div>
-  <h3>完整例子：打印输入和输出</h3>
-  <p>每个算子页面都必须有这一段完整例子：先打印输入表达式和输出表达式，再构造输入数据、打印输入数据、执行算子、打印输出结果。</p>
-  <div class="code-block"><div class="code-title">完整例子 / Python</div><pre><code>import polars as pl
+  <h2>完整代码</h2>
+  <div class="note ok">本页完整例子会执行真实的 <code>calc_data</code> 或对象调用。</div>
+  <details class="code-details">
+    <summary>展开可复制完整代码</summary>
+    <figure class="code"><figcaption>Python</figcaption><pre><code>import datetime as dt
+import polars as pl
 import qust as qs
-from qust import col
-
-print(&quot;输入表达式:&quot;)
-print(&#x27;col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;)&#x27;)
-print(&quot;输出表达式:&quot;)
-print(&#x27;col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;).kline.rl1m.kline.with_order_flow_info&#x27;)
+from qust import col, pms
 
 data = pl.DataFrame(
     {
-        &quot;t&quot;: [&quot;2026-01-01 09:30:00&quot;, &quot;2026-01-01 09:31:00&quot;, &quot;2026-01-01 09:32:00&quot;],
-        &quot;c&quot;: [10.2, 10.1, 10.3],
-        &quot;v&quot;: [1000, 1200, 900],
-        &quot;bid1&quot;: [9.9, 10.0, 10.1],
-        &quot;ask1&quot;: [10.1, 10.2, 10.3],
-        &quot;bid1_v&quot;: [100, 120, 110],
-        &quot;ask1_v&quot;: [90, 130, 115],
+        &quot;t&quot;: [&#x27;2026-01-01 09:30:00&#x27;, &#x27;2026-01-01 09:31:00&#x27;, &#x27;2026-01-01 09:32:00&#x27;, &#x27;2026-01-01 09:33:00&#x27;, &#x27;2026-01-01 09:34:00&#x27;, &#x27;2026-01-01 09:35:00&#x27;, &#x27;2026-01-01 09:36:00&#x27;, &#x27;2026-01-01 09:37:00&#x27;, &#x27;2026-01-01 09:38:00&#x27;, &#x27;2026-01-01 09:39:00&#x27;, &#x27;2026-01-01 09:40:00&#x27;, &#x27;2026-01-01 09:41:00&#x27;, &#x27;2026-01-01 09:42:00&#x27;, &#x27;2026-01-01 09:43:00&#x27;, &#x27;2026-01-01 09:44:00&#x27;, &#x27;2026-01-01 09:45:00&#x27;, &#x27;2026-01-01 09:46:00&#x27;, &#x27;2026-01-01 09:47:00&#x27;, &#x27;2026-01-01 09:48:00&#x27;, &#x27;2026-01-01 09:49:00&#x27;],
+        &quot;c&quot;: [10.0, 10.2, 10.1, 10.5, 10.7, 10.4, 10.9, 11.1, 10.8, 11.3, 11.6, 11.4, 11.9, 12.1, 11.8, 12.4, 12.2, 12.7, 12.9, 13.1],
+        &quot;v&quot;: [1000, 1147, 1294, 1441, 1588, 1735, 1102, 1249, 1396, 1543, 1690, 1837, 1204, 1351, 1498, 1645, 1792, 1939, 1306, 1453],
+        &quot;bid1&quot;: [9.97, 10.17, 10.07, 10.47, 10.67, 10.37, 10.87, 11.07, 10.77, 11.27, 11.57, 11.37, 11.87, 12.07, 11.77, 12.37, 12.17, 12.67, 12.87, 13.07],
+        &quot;ask1&quot;: [10.03, 10.23, 10.13, 10.53, 10.73, 10.43, 10.93, 11.13, 10.83, 11.33, 11.63, 11.43, 11.93, 12.13, 11.83, 12.43, 12.23, 12.73, 12.93, 13.13],
+        &quot;bid1_v&quot;: [100, 111, 122, 133, 144, 100, 111, 122, 133, 144, 100, 111, 122, 133, 144, 100, 111, 122, 133, 144],
+        &quot;ask1_v&quot;: [95, 108, 121, 134, 95, 108, 121, 134, 95, 108, 121, 134, 95, 108, 121, 134, 95, 108, 121, 134],
     }
 ).with_columns(pl.col(&quot;t&quot;).str.to_datetime())
 
-print(&quot;输入 DataFrame:&quot;)
+print(&quot;算子:&quot;)
+print(&#x27;kline.with_order_flow_info&#x27;)
+print(&quot;场景:&quot;)
+print(&#x27;K 线处理：把 tick/分钟行情整理成 K 线或周期切片。&#x27;)
+print(&quot;模式:&quot;)
+print(&#x27;可执行示例：构造表达式并运行 calc_data。&#x27;)
+print(&quot;输入列:&quot;)
+print(&#x27;t, c, v, bid1, ask1, bid1_v, ask1_v&#x27;)
+print(&quot;调用:&quot;)
+print(&#x27;col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;).kline.rl1m.kline.with_order_flow_info&#x27;)
+print(&quot;输入数据:&quot;)
 print(data)
-
 expr = col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;).kline.rl1m.kline.with_order_flow_info
-df = qs.select(expr)
+df = col(expr).runtime()
 out = df.calc_data(data)
-
-print(&quot;输出 DataFrame:&quot;)
-print(out)</code></pre></div>
-</section>
-
-<section>
-  <h2>使用场景</h2>
-  <p>用于 K 线、盘口和周期切片相关预处理。</p>
-  <p>当你需要 <code>kline.with_order_flow_info</code> 这种语义时，优先使用这个算子，而不是在 Python 里提前把数据取出来手写循环；这样才能保留流式状态、参数联动、Wasm 路径和 Monitor 重算能力。</p>
-</section>
-
-<section>
-  <h2>为什么这样设计</h2>
-  <p>Qust 把这一类能力做成表达式节点，是为了把“用户想算什么”保留下来。只要语义还在表达式树里，后续就可以统一处理分组上下文、窗口状态、参数联动、Wasm 执行和 Monitor 可视化。</p>
-  <p>实际收益是：代码更短，但语义更完整；后续计算、画图、调参、保存和回调都能复用同一棵表达式树。</p>
+print(&quot;输出:&quot;)
+print(out)</code></pre></figure>
+  </details>
+  <h3>改成业务代码</h3>
+  <table><thead><tr><th>改哪里</th><th>怎么改</th></tr></thead><tbody><tr><td>列名</td><td>把示例 DataFrame 里的列名换成你的真实列名，列顺序保持和用法一致。</td></tr><tr><td>参数</td><td>只改函数括号里的参数；不要随意改变 <code>rolling/over/batch/select</code> 的链式层级。</td></tr><tr><td>输出名</td><td>需要稳定输出列名时，在表达式尾部加 <code>.alias("name")</code>。</td></tr><tr><td>调试</td><td>先打印输入数据和调用字符串，再执行 <code>calc_data</code>；报 schema 错时先检查列数和 dtype。</td></tr></tbody></table>
 </section>
 
 <section>
   <h2>注意事项</h2>
-  
-  <pre><code>- 参数类型与预期不一致会导致运行时报错或返回空值。
-- 在上下文算子链中使用时，请确认调用顺序与分组/窗口语义一致。
-- 若上游列名、列顺序或数据类型变化，结果可能与示例不一致。</code></pre>
+  <pre>- 参数类型与预期不一致会导致运行时报错或返回空值。</pre>
 </section>
 
 <section>
-  <h2>补充说明</h2>
-  <details class="doc-details">
-    <summary>展开查看更长说明</summary>
-    <pre><code>在合成k线的时候，加入当前k线中的订单流信息
-
-输入
-----
-&gt;&gt;&gt; col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;) k线数据
-
-例子
----
-&gt;&gt;&gt; col(&quot;t&quot;, &quot;c&quot;, &quot;v&quot;, &quot;bid1&quot;, &quot;ask1&quot;, &quot;bid1_v&quot;, &quot;ask1_v&quot;).kline.rl1m.kline.with_order_flow_info
-
-
-作用 ✅
-----
-- 该方法用于执行 `with_order_flow_info` 对应能力；具体业务语义以上文原始说明为准。
-
-输入 📥
-----
-- 函数签名：`with_order_flow_info()`
-- 参数约束和边界条件以上文描述为准；如无上文说明，按类型注解/默认值执行。
-
-返回 📤
-----
-- 返回类型：`Expr`
-- 返回值语义与上文主说明保持一致。
-可能出错的地方 ⚠️
---------------
-- 参数类型与预期不一致会导致运行时报错或返回空值。
-- 在上下文算子链中使用时，请确认调用顺序与分组/窗口语义一致。
-- 若上游列名、列顺序或数据类型变化，结果可能与示例不一致。</code></pre>
-  </details>
+  <h2>来源</h2>
+  <table><thead><tr><th>项目</th><th>位置</th></tr></thead><tbody><tr><td>源码文件</td><td><code>future.py</code></td></tr><tr><td>类/对象</td><td><code>Kline</code></td></tr></tbody></table>
 </section>
-
-      </main>
-      <aside class="toc" aria-label="页内目录">
-        <p class="toc-title">Table of contents</p>
-        <div id="page-toc"></div>
-      </aside>
-    </div>
-    <script src="../../assets/app.js"></script>
-  </body>
+</main>
+  </div>
+  <script src="../../assets/app.js"></script>
+</body>
 </html>

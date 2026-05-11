@@ -154,17 +154,26 @@ export function createMonitorSlotQueryRuntime({
       emit(wsLike, queryState(requestId, queryId, "submitted"));
       emit(wsLike, queryState(requestId, queryId, "running"));
       const kind = String(queryPayload?.header?.kind ?? "selection_arrow_ipc");
-      const payload = kind === "scatter_select_request"
-        ? await evalEngine.buildMonitorQueryResultFromScatterSelectRequest({
+      let payload;
+      if (kind === "callback_selection_request") {
+        payload = await evalEngine.buildMonitorQueryResultFromCallbackSelectionRequest({
+          code: args.code,
+          callbackSelectionRequestBytes: payloadBytes,
+          theme: args.theme,
+        });
+      } else if (kind === "scatter_select_request") {
+        payload = await evalEngine.buildMonitorQueryResultFromScatterSelectRequest({
           code: args.code,
           scatterSelectRequestBytes: payloadBytes,
           theme: args.theme,
-        })
-        : await evalEngine.buildMonitorQueryResultFromSelectionPayload({
+        });
+      } else {
+        payload = await evalEngine.buildMonitorQueryResultFromSelectionPayload({
           code: args.code,
           selectionPayloadBytes: payloadBytes,
           theme: args.theme,
         });
+      }
       queryPayloads.delete(String(requestId ?? ""));
       const packets = Array.from(payload?.packets || []);
       for (const packet of packets) {

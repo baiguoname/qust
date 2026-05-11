@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Qust 是面向量化研究和私有化部署的 Python 工作台，覆盖丰富一致的算子、成千上万策略的高性能运行与管理、snapshot by、monitor、凸优化组合管理、远程计算、ClickHouse 数据源和流计算。"
+    >
+    <title>Qust | 私有化量化研究工作台</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="Qust 首页">
+        <span class="brand-mark">Q</span>
+        <span class="brand-text">Qust</span>
+      </a>
+      <nav class="nav" aria-label="主导航">
+        <a class="nav-external" href="https://baiguoname.github.io/qust/examples/docs/">Doc</a>
+        <a class="nav-external" href="https://baiguoname.github.io/qust/examples/wasm/">Wasm</a>
+        <a href="#advantages">能力</a>
+        <a href="#fabric">执行架构</a>
+        <a href="#monitor">Monitor</a>
+        <a href="#private">私有化</a>
+      </nav>
+      <a class="top-contact" href="#contact">私有化部署</a>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">PRIVATE QUANT RESEARCH WORKBENCH</p>
+          <h1>为量化研究构建的高性能策略执行层</h1>
+          <p class="hero-lede">
+            Qust 把高性能表达式、流计算、远程执行、ClickHouse 数据源、策略分析 monitor、实时策略监控、凸优化和组合管理装进同一套 Python 工作流，用来支撑成千上万策略的运行、监控和管理。
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#contact">联系私有化部署</a>
+            <a class="button secondary" href="#advantages">查看能力模块</a>
+          </div>
+          <div class="hero-metrics" aria-label="核心卖点">
+            <div>
+              <span>Operators</span>
+              <strong>consistent graph</strong>
+            </div>
+            <div>
+              <span>Scale</span>
+              <strong>10k+ strategy runs</strong>
+            </div>
+            <div>
+              <span>Performance</span>
+              <strong>Rust / Arrow runtime</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-cockpit" aria-label="Qust 产品界面预览">
+          <div class="cockpit-shell">
+            <div class="window-bar">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+              <span>research runtime / alpha monitor</span>
+            </div>
+            <div class="cockpit-grid">
+              <div class="terminal-panel">
+                <p class="terminal-label">Expression graph</p>
+                <pre><code>alpha = pms(alpha101).as_expr()
+df = col(
+    alpha.alpha.alphalen_analysis(monitor)
+).runtime()
+
+df.plot(data, monitor)</code></pre>
+              </div>
+              <div class="monitor-panel">
+                <img src="./assets/alpha-monitor.png" alt="Qust 因子分析 monitor 截图">
+              </div>
+              <div class="pulse-panel">
+                <span>IC Mean</span>
+                <strong>0.041</strong>
+                <i></i>
+              </div>
+              <div class="pulse-panel">
+                <span>Strategy runs</span>
+                <strong>10,000+</strong>
+                <i></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="ticker" aria-label="能力滚动条">
+        <div class="ticker-track">
+          <span>丰富一致的算子系统</span>
+          <span>snapshot by</span>
+          <span>策略分析 monitor</span>
+          <span>实时策略监控</span>
+          <span>成千上万策略运行</span>
+          <span>策略统一管理</span>
+          <span>凸优化与组合管理</span>
+          <span>远程计算</span>
+          <span>ClickHouse 数据源</span>
+          <span>流计算</span>
+          <span>Rust / Arrow 高性能</span>
+          <span>私有化部署</span>
+          <span>添加自定义算子</span>
+          <span>添加自定义数据源</span>
+        </div>
+      </div>
+
+      <section class="section command" id="advantages">
+        <div class="section-heading">
+          <p class="eyebrow">CAPABILITY COMMAND CENTER</p>
+          <h2>核心优势按研究流程组织</h2>
+          <p>不是散装功能列表，而是围绕“算、看、查、扩、部署”的研究系统。</p>
+        </div>
+
+        <div class="command-grid">
+          <article class="feature-tile large teal">
+            <div class="tile-head">
+              <span>01</span>
+              <p>Operator System</p>
+            </div>
+            <h3>算子丰富并且一致性强</h3>
+            <p>
+              时间序列、横截面、rolling、expanding、join、rank、TA、因子、策略和 UDF 都通过统一表达式组合。复杂研究逻辑可以复用、调试和迁移。
+            </p>
+            <div class="chips">
+              <span>rolling</span>
+              <span>rank</span>
+              <span>join</span>
+              <span>UDF</span>
+            </div>
+          </article>
+
+          <article class="feature-tile blue">
+            <div class="tile-head">
+              <span>02</span>
+              <p>Snapshot by</p>
+            </div>
+            <h3>按快照沉淀研究状态</h3>
+            <p>把中间结果和研究节点保存下来，便于调试多阶段因子、策略输入和组合约束。</p>
+          </article>
+
+          <article class="feature-tile amber">
+            <div class="tile-head">
+              <span>03</span>
+              <p>Monitor</p>
+            </div>
+            <h3>策略分析与实时监控</h3>
+            <p>Monitor 用来分析策略表现、定位交易样本、观察参数变化，也能用于实时监控策略运行状态。</p>
+          </article>
+
+          <article class="feature-tile rose">
+            <div class="tile-head">
+              <span>04</span>
+              <p>Portfolio</p>
+            </div>
+            <h3>凸优化与组合管理</h3>
+            <p>组合优化、约束、成本、持仓、调仓和回测可以接入表达式执行流。</p>
+          </article>
+
+          <article class="feature-tile cyan">
+            <div class="tile-head">
+              <span>05</span>
+              <p>Remote + Data</p>
+            </div>
+            <h3>远程计算与 ClickHouse 数据源</h3>
+            <p>表达式可发送到远端执行，靠近 ClickHouse、Parquet 和内部数据服务。</p>
+          </article>
+
+          <article class="feature-tile violet">
+            <div class="tile-head">
+              <span>06</span>
+              <p>Streaming</p>
+            </div>
+            <h3>支持流计算</h3>
+            <p>面向持续到达的数据批次执行 update/stream 计算，适合增量分析和实时监控。</p>
+          </article>
+
+          <article class="feature-tile indigo">
+            <div class="tile-head">
+              <span>07</span>
+              <p>Strategy Ops</p>
+            </div>
+            <h3>成千上万策略的运行与管理</h3>
+            <p>用统一表达式和运行时组织大量策略，支持批量计算、状态观察、结果归档和实时监控。</p>
+          </article>
+
+          <article class="feature-tile large dark">
+            <div class="tile-head">
+              <span>08</span>
+              <p>Performance</p>
+            </div>
+            <h3>面向大数据集的高性能路径</h3>
+            <p>
+              底层利用 Rust、Arrow、Polars/DataFusion 生态，减少 Python 对象循环和数据搬运，让大量策略批量运行、回测、监控和归档时仍然保持响应。
+            </p>
+            <div class="perf-visual" aria-hidden="true">
+              <span style="--h: 52%"></span>
+              <span style="--h: 68%"></span>
+              <span style="--h: 41%"></span>
+              <span style="--h: 86%"></span>
+              <span style="--h: 74%"></span>
+              <span style="--h: 93%"></span>
+              <span style="--h: 58%"></span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section fabric" id="fabric">
+        <div class="fabric-copy">
+          <p class="eyebrow">EXECUTION FABRIC</p>
+          <h2>同一套表达式贯穿数据源、计算、策略运行和可视化</h2>
+          <p>
+            Qust 的商业价值来自执行边界清晰：本地研究、远程服务、数据源、流式输入、批量策略运行、策略分析和实时监控都被统一在表达式模型中。
+          </p>
+        </div>
+        <div class="fabric-map" aria-label="Qust 执行架构">
+          <div class="node n1">Python Expr</div>
+          <div class="node n2">Operator Graph</div>
+          <div class="node n3">Remote Server</div>
+          <div class="node n4">ClickHouse</div>
+          <div class="node n5">Stream Runtime</div>
+          <div class="node n6">Monitor Packets</div>
+          <div class="node n7">Strategy Manager</div>
+          <div class="beam b1"></div>
+          <div class="beam b2"></div>
+          <div class="beam b3"></div>
+          <div class="beam b4"></div>
+          <div class="beam b5"></div>
+        </div>
+      </section>
+
+      <section class="section monitor" id="monitor">
+        <div class="section-heading">
+          <p class="eyebrow">MONITOR WORKSPACE</p>
+          <h2>用于分析策略，也用于实时监控策略</h2>
+          <p>Monitor 的重点不是普通图表展示，而是把策略收益、风险、交易样本、信号变化、实时状态和大量策略的运行结果放在同一套可交互界面里。</p>
+        </div>
+        <div class="monitor-showcase">
+          <div class="screen-stack">
+            <img class="screen front" src="./assets/strategy-monitor.png" alt="Qust 策略回测 monitor 截图">
+            <img class="screen back" src="./assets/bollinger-monitor.png" alt="Qust 布林带策略 monitor 截图">
+          </div>
+          <div class="monitor-notes">
+            <article>
+              <span>Parameter</span>
+              <h3>策略参数分析</h3>
+              <p>参数变化后事务式刷新，适合比较窗口、阈值、分位数、组合约束和策略稳定性。</p>
+            </article>
+            <article>
+              <span>Callback</span>
+              <h3>交易样本回查</h3>
+              <p>在散点、K 线、热力图和表格上选择区域，回源查询并定位具体交易、信号和行情片段。</p>
+            </article>
+            <article>
+              <span>Realtime</span>
+              <h3>实时策略监控</h3>
+              <p>用于观察策略运行状态、实时指标、异常信号和执行结果，帮助在大量策略中尽早发现策略偏离。</p>
+            </article>
+            <article>
+              <span>Strategy Ops</span>
+              <h3>大量策略统一管理</h3>
+              <p>把策略运行、参数版本、回测结果和监控状态集中管理，适合成千上万策略的持续迭代。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section private" id="private">
+        <div class="private-copy">
+          <p class="eyebrow">PRIVATE DEPLOYMENT</p>
+          <h2>私有化部署让 Qust 进入你的数据环境</h2>
+          <p>
+            对量化研究来说，策略逻辑、样本数据、实时监控状态和研究结果都不适合上传到外部平台。Qust 可以部署在私有网络或本地服务器，接入现有数据系统，并按已有研究方式扩展。
+          </p>
+          <div class="private-benefits" aria-label="私有化部署优势">
+            <span>内网可控</span>
+            <span>算子可扩展</span>
+            <span>数据源可接入</span>
+            <span>监控页面可定制</span>
+            <span>大量策略可管理</span>
+          </div>
+        </div>
+        <div class="private-console">
+          <div class="private-item">
+            <span>01</span>
+            <h3>数据不出内网</h3>
+            <p>行情、因子、持仓、成交、策略代码、中间结果和 monitor 输出留在私有环境控制范围内。</p>
+          </div>
+          <div class="private-item">
+            <span>02</span>
+            <h3>可以添加算子</h3>
+            <p>把已有因子、风控规则、交易成本、组合约束、信号规则封装成统一表达式算子。</p>
+          </div>
+          <div class="private-item">
+            <span>03</span>
+            <h3>可以添加数据源</h3>
+            <p>接入 ClickHouse、Parquet、行情服务、内部数据库、回测样本库、实时数据流或自研 API。</p>
+          </div>
+          <div class="private-item">
+            <span>04</span>
+            <h3>私有可控和可扩展</h3>
+            <p>部署、算子、数据源、策略管理和监控页面都可以按实际流程扩展，避免被外部平台功能边界限制。</p>
+          </div>
+          <div class="private-item">
+            <span>05</span>
+            <h3>适合管理大量策略</h3>
+            <p>在私有环境里组织成千上万策略的运行、回测、实时监控、结果归档和版本管理。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="contact" id="contact">
+        <div>
+          <p class="eyebrow">CONTACT</p>
+          <h2>联系私有化部署</h2>
+          <p>
+            适合沟通：算子扩展、数据源接入、远程计算、ClickHouse、流式监控、策略分析、实时策略监控、大量策略运行管理和组合优化。
+          </p>
+        </div>
+        <div class="wechat-card">
+          <span>微信联系</span>
+          <strong>baiding110</strong>
+          <p>添加时备注：Qust 私有化部署。</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Qust</span>
+      <span>Private quant research workbench for Python.</span>
+    </footer>
+
+    <script src="./site.js"></script>
+  </body>
+</html>
