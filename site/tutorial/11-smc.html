@@ -16,10 +16,12 @@
           <span class="brand-text">qust</span>
         </a>
         <nav class="nav" aria-label="主导航">
-          <a href="../tutorial.html">学习路径</a>
+          <a href="../tutorial.html">使用教程</a>
           <a href="../blog.html">Blog</a>
           <a href="../../examples/docs/index.html">Doc</a>
           <a href="../service.html">服务</a>
+          <a href="https://baiguoname.github.io/qust/site">项目地址</a>
+          <a href="https://github.com/baiguoname/qust">git地址</a>
         </nav>
       </header>
     
@@ -28,22 +30,23 @@
       <aside class="article-sidebar">
         <a class="back-link" href="../tutorial.html">返回目录</a>
         <div class="article-list">
-          <a class="article-link" href="1-overview.html">项目概览</a><a class="article-link" href="2-qust-basics.html">基础用法</a><a class="article-link" href="3-performance.html">性能对比</a><a class="article-link" href="4-qust-advanced.html">高阶用法</a><a class="article-link" href="5-monitor-usage.html">Monitor</a><a class="article-link" href="6-alpha-strategy-analysis.html">Alpha 与策略分析</a><a class="article-link" href="7-analysis.html">分析示例</a><a class="article-link" href="8-indicators.html">指标示例</a><a class="article-link" href="9-optimization.html">参数优化</a><a class="article-link" href="10-strategy-writing.html">策略编写</a><a class="article-link active" href="11-smc.html">SMC</a><a class="article-link" href="12-portfolio.html">组合策略</a>
+          <a class="article-link" href="1-项目概览.html">项目概览</a><a class="article-link" href="2-基础用法.html">基础用法</a><a class="article-link" href="3-性能对比.html">性能对比</a><a class="article-link" href="4-高阶用法.html">高阶用法</a><a class="article-link" href="5-monitor.html">Monitor</a><a class="article-link" href="6-alpha-与策略分析.html">Alpha 与策略分析</a><a class="article-link" href="7-分析示例.html">分析示例</a><a class="article-link" href="8-指标示例.html">指标示例</a><a class="article-link" href="9-参数优化.html">参数优化</a><a class="article-link" href="10-策略编写.html">策略编写</a><a class="article-link active" href="11-smc.html">SMC</a><a class="article-link" href="12-组合策略.html">组合策略</a>
         </div>
       </aside>
       <article class="notebook-article">
         <div class="cell border-box-sizing text_cell rendered" id="cell-id=b7c09a85"><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Smart-Money-Concepts-with-qust">Smart Money Concepts with qust</h1><p>这个 notebook 展示如何在 qust 里使用 <code>smc</code> 命名空间计算 Smart Money Concepts 指标，并用 qust monitor 画图。这里的 <code>smc</code> 思路参考了开源项目 <a href="https://github.com/joshyattridge/smart-money-concepts">joshyattridge/smart-money-concepts</a>，指标列表和字段含义参考它的 <a href="https://github.com/joshyattridge/smart-money-concepts#indicators">README indicators 章节</a>。</p>
+<h1 id="Smart-Money-Concepts-with-qust">Smart Money Concepts with qust</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>本节 展示如何在 qust 里使用 <code>smc</code> 命名空间计算 Smart Money Concepts 指标，并用 qust monitor 画图。这里的 <code>smc</code> 思路参考了开源项目 <a href="https://github.com/joshyattridge/smart-money-concepts">joshyattridge/smart-money-concepts</a>，指标列表和字段含义参考它的 <a href="https://github.com/joshyattridge/smart-money-concepts#indicators">README indicators 章节</a>。</p>
 <p><code>smart-money-concepts</code> 原项目把 SMC 描述为一组用于观察市场情绪、趋势结构和潜在反转的指标工具。它的概念来源包括 ICT / Inner Circle Trader 常用的 Order Block、Liquidity、Fair Value Gap、Swing High/Low、Break of Structure、Change of Character 等。换成更工程化的说法：这些指标不是单个“买卖点公式”，而是一组把 K 线结构转成可计算事件的工具。</p>
 <p>在 qust 里，SMC 指标不是独立函数，而是表达式链的一部分：</p>
 <div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">smc</span><span class="o">.</span><span class="n">fvg</span><span class="p">()</span>
 </pre></div>
 <p>这带来几个好处：</p>
 <ol>
-<li>可以和其它 qust 算子组合，例如 <code>.filter(...)</code>、<code>.with_cols(...)</code>、<code>.over("ticker")</code>、<code>.monitor...plot(...)</code>；</li>
+<li>可以和其它 qust 算子组合，例如 <code>.filter(...)</code>、<code>.with_cols(...)</code>、<code>.over("ticker", "ct")</code>、<code>.monitor...plot(...)</code>；</li>
 <li>可以把 SMC 输出直接接入策略信号、因子分析、回测或监控；</li>
-<li>多品种数据里可以通过 <code>.over("ticker")</code> 独立维护结构；</li>
+<li>多品种数据里可以通过 <code>.over("ticker", "ct")</code> 独立维护结构；</li>
 <li>输入和输出都是 DataFrame 列，方便检查、排序、筛选和画图。</li>
 </ol>
 <p>重要提醒：SMC 指标适合做结构观察、信号过滤和研究特征，不应该单独作为交易决策。原项目 README 也明确强调它是教育用途，交易需要风险管理和独立验证。</p>
@@ -55,14 +58,7 @@
 
 <div class="inner_cell">
 <div class="input_area">
-<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">sys</span>
-<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">"/root/otters/otters-py/python"</span><span class="p">)</span>
-
-<span class="kn">import</span> <span class="nn">importlib</span>
-
-<span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
-<span class="n">qs</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">reload</span><span class="p">(</span><span class="n">qs</span><span class="p">)</span>
-
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
 
 <span class="kn">import</span> <span class="nn">qust.future.future</span>  <span class="c1"># 注册 kline / monitor / strategy 等领域 namespace</span>
 <span class="kn">import</span> <span class="nn">qust.smc</span>            <span class="c1"># 注册 smc namespace</span>
@@ -75,6 +71,16 @@
 </div>
 </div>
 </div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">polars.config.Config</pre>
+</div>
+</div>
+</div>
+</div>
 </div>
 <div class="cell border-box-sizing text_cell rendered" id="cell-id=6e31178c"><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
@@ -82,7 +88,7 @@
 <div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span>
 </pre></div>
 <p>算子就按这四列顺序读取，不强制列名必须小写。但是顺序必须正确，否则指标语义会错。</p>
-<p>本 notebook 使用本地样例 K 线数据，并取 <code>au</code> 的前 1200 行。这样可以离线重复运行，不依赖 GitHub 下载速度。样例数据字段：</p>
+<p>示例从 GitHub 读取 K 线数据，并取 <code>au</code> 的前 1200 行。样例数据字段：</p>
 <ul>
 <li><code>ticker</code>: 品种；</li>
 <li><code>datetime</code>: K 线时间；</li>
@@ -98,7 +104,7 @@
 
 <div class="inner_cell">
 <div class="input_area">
-<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">DATA_PATH</span> <span class="o">=</span> <span class="s2">"/root/qust-py/examples/data/data_kline2.parquet"</span>
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">DATA_PATH</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_kline3.parquet?raw=true"</span>
 
 <span class="n">raw_kline</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span>
 <span class="n">smc_data</span> <span class="o">=</span> <span class="p">(</span>
@@ -119,8 +125,8 @@
 <div class="output_area">
 
 <div class="output_subarea output_stream output_stdout output_text">
-<pre class="code-block">raw shape: (610463, 8)
-smc sample shape: (1200, 8)
+<pre class="code-block">raw shape: (408782, 8)
+smc sample shape: (0, 8)
 </pre>
 </div>
 </div>
@@ -133,7 +139,7 @@ smc sample shape: (1200, 8)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (5, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th><th>is_finished</th></tr><tr><td>str</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>bool</td></tr></thead><tbody><tr><td>"au"</td><td>2022-07-02 00:01:00</td><td>390.160004</td><td>390.160004</td><td>390.059998</td><td>390.119995</td><td>81.0</td><td>true</td></tr><tr><td>"au"</td><td>2022-07-02 00:02:00.500</td><td>390.119995</td><td>390.140015</td><td>390.079987</td><td>390.140015</td><td>52.0</td><td>true</td></tr><tr><td>"au"</td><td>2022-07-02 00:03:00</td><td>390.140015</td><td>390.200012</td><td>390.119995</td><td>390.200012</td><td>50.0</td><td>true</td></tr><tr><td>"au"</td><td>2022-07-02 00:04:01</td><td>390.200012</td><td>390.220001</td><td>390.140015</td><td>390.160004</td><td>61.0</td><td>true</td></tr><tr><td>"au"</td><td>2022-07-02 00:05:00.500</td><td>390.140015</td><td>390.140015</td><td>390.079987</td><td>390.100006</td><td>41.0</td><td>true</td></tr></tbody></table></div></div>
+<small>shape: (0, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody></tbody></table></div></div>
 </div>
 </div>
 </div>
@@ -302,12 +308,12 @@ smc sample shape: (1200, 8)
 <li><code>CurrentRetracement%</code>: 当前回撤百分比；</li>
 <li><code>DeepestRetracement%</code>: 当前结构段里出现过的最深回撤百分比。</li>
 </ul>
-<h3 id="2.9-qust-%E7%89%88%E6%9C%AC%E5%92%8C%E5%8E%9F%E5%BA%93%E7%89%88%E6%9C%AC%E7%9A%84%E5%B7%AE%E5%BC%82">2.9 qust 版本和原库版本的差异</h3><p>本 notebook 重点展示 qust 表达式调用。它和原库不是逐行完全相同的实现包装，主要差异：</p>
+<h3 id="2.9-qust-%E7%89%88%E6%9C%AC%E5%92%8C%E5%8E%9F%E5%BA%93%E7%89%88%E6%9C%AC%E7%9A%84%E5%B7%AE%E5%BC%82">2.9 qust 版本和原库版本的差异</h3><p>本节重点展示 qust 表达式调用。它和原库不是逐行完全相同的实现包装，主要差异：</p>
 <ul>
 <li>原库按函数接收 <code>ohlc</code> DataFrame；qust 按表达式列顺序读取输入；</li>
 <li>原库的部分函数显式接收 <code>swing_highs_lows</code> 结果；qust 当前接口内部按 <code>swing_length</code> 重新计算；</li>
 <li>qust 输出可以直接进入 <code>monitor</code>、<code>group_by</code>、<code>over</code>、策略或回测链；</li>
-<li>多品种时建议在外层接 <code>.over("ticker")</code>，保证每个品种独立识别结构。</li>
+<li>多品种时建议在外层接 <code>.over("ticker", "ct")</code>，保证每个品种独立识别结构。</li>
 </ul>
 </div>
 </div>
@@ -359,7 +365,7 @@ smc sample shape: (1200, 8)
 <div class="output_area">
 
 <div class="output_subarea output_stream output_stdout output_text">
-<pre class="code-block">features shape: (1200, 36)
+<pre class="code-block">features shape: (0, 36)
 </pre>
 </div>
 </div>
@@ -372,7 +378,7 @@ smc sample shape: (1200, 8)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (12, 11)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>close</th><th>FVG__fvg</th><th>HighLow__swing</th><th>BOS__structure</th><th>CHOCH__structure</th><th>OB__ob</th><th>Liquidity__liq</th><th>PreviousHigh__prev</th><th>PreviousLow__prev</th><th>Active__session</th></tr><tr><td>datetime[ms]</td><td>f64</td><td>i32</td><td>i32</td><td>i32</td><td>i32</td><td>i32</td><td>i32</td><td>f64</td><td>f64</td><td>i32</td></tr></thead><tbody><tr><td>2022-07-02 00:01:00</td><td>390.119995</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:02:00.500</td><td>390.140015</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:03:00</td><td>390.200012</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:04:01</td><td>390.160004</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:05:00.500</td><td>390.100006</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:06:00.500</td><td>390.140015</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:07:00</td><td>389.880005</td><td>-1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:08:03</td><td>389.880005</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:09:00.500</td><td>389.880005</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:10:02.500</td><td>389.899994</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:11:01.500</td><td>389.839996</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr><tr><td>2022-07-02 00:12:00.500</td><td>389.859985</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>null</td><td>null</td><td>0</td></tr></tbody></table></div></div>
+<small>shape: (0, 11)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>close</th><th>FVG__fvg</th><th>HighLow__swing</th><th>BOS__structure</th><th>CHOCH__structure</th><th>OB__ob</th><th>Liquidity__liq</th><th>PreviousHigh__prev</th><th>PreviousLow__prev</th><th>Active__session</th></tr><tr><td>datetime[ms]</td><td>f64</td><td>i32</td><td>i32</td><td>i32</td><td>i32</td><td>i32</td><td>i32</td><td>f64</td><td>f64</td><td>i32</td></tr></thead><tbody></tbody></table></div></div>
 </div>
 </div>
 </div>
@@ -436,7 +442,7 @@ smc sample shape: (1200, 8)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (8, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>event</th><th>count</th></tr><tr><td>str</td><td>i64</td></tr></thead><tbody><tr><td>"FVG"</td><td>207</td></tr><tr><td>"Swing"</td><td>61</td></tr><tr><td>"BOS"</td><td>12</td></tr><tr><td>"CHOCH"</td><td>12</td></tr><tr><td>"Order Block"</td><td>12</td></tr><tr><td>"Liquidity"</td><td>15</td></tr><tr><td>"Previous Break"</td><td>599</td></tr><tr><td>"Session Active"</td><td>450</td></tr></tbody></table></div></div>
+<small>shape: (8, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>event</th><th>count</th></tr><tr><td>str</td><td>i64</td></tr></thead><tbody><tr><td>"FVG"</td><td>0</td></tr><tr><td>"Swing"</td><td>0</td></tr><tr><td>"BOS"</td><td>0</td></tr><tr><td>"CHOCH"</td><td>0</td></tr><tr><td>"Order Block"</td><td>0</td></tr><tr><td>"Liquidity"</td><td>0</td></tr><tr><td>"Previous Break"</td><td>0</td></tr><tr><td>"Session Active"</td><td>0</td></tr></tbody></table></div></div>
 </div>
 </div>
 </div>
@@ -478,7 +484,7 @@ smc sample shape: (1200, 8)
 <li>再回到 K 线图观察这些行附近的价格结构；</li>
 <li>如果后续要写策略，再把这些事件变成过滤条件，而不是直接裸信号交易。</li>
 </ol>
-<p>这个 notebook 里为了保持示例简单，只画原始 K 线。如果要进一步增强，可以把事件筛出来后用 monitor 的 scatter/line 叠加到 K 线图上。</p>
+<p>本节里为了保持示例简单，只画原始 K 线。如果要进一步增强，可以把事件筛出来后用 monitor 的 scatter/line 叠加到 K 线图上。</p>
 </div>
 </div>
 </div>
@@ -529,10 +535,10 @@ smc sample shape: (1200, 8)
 <p>qust 写法上，这些都只是列，可以继续：</p>
 <div class="highlight"><pre class="code-block"><span></span><span class="n">smc_expr</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"BOS__structure"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
 <span class="n">smc_expr</span><span class="o">.</span><span class="n">with_cols</span><span class="p">((</span><span class="n">col</span><span class="p">(</span><span class="s2">"FVG__fvg"</span><span class="p">)</span> <span class="o">!=</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"has_fvg"</span><span class="p">))</span>
-<span class="n">smc_expr</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span>
+<span class="n">smc_expr</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
 </pre></div>
-<p>如果你要做多品种研究，不要把所有品种混在一个结构里识别；应该让 SMC 表达式在 <code>ticker</code> 维度独立执行：</p>
-<div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">smc</span><span class="o">.</span><span class="n">bos_choch</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span>
+<p>如果你要做多合约研究，不要把所有合约混在一个结构里识别；应该让 SMC 表达式在 <code>ticker + ct</code> 维度独立执行：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">smc</span><span class="o">.</span><span class="n">bos_choch</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
 </pre></div>
 <p>最后再强调一次：SMC 指标更适合作为结构描述和过滤条件。是否能形成交易策略，还需要回测、样本外验证、手续费/滑点、风险控制和仓位管理。</p>
 </div>
@@ -576,7 +582,7 @@ smc sample shape: (1200, 8)
 <div class="output_area">
 
 <div class="output_subarea output_stream output_stdout output_text">
-<pre class="code-block">signal rows: 237
+<pre class="code-block">signal rows: 0
 </pre>
 </div>
 </div>
@@ -589,7 +595,7 @@ smc sample shape: (1200, 8)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (20, 10)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>close</th><th>FVG__fvg</th><th>Top__fvg</th><th>Bottom__fvg</th><th>BOS__structure</th><th>CHOCH__structure</th><th>Level__structure</th><th>Liquidity__liq</th><th>Level__liq</th></tr><tr><td>datetime[ms]</td><td>f64</td><td>i32</td><td>f64</td><td>f64</td><td>i32</td><td>i32</td><td>f64</td><td>i32</td><td>f64</td></tr></thead><tbody><tr><td>2022-07-02 00:07:00</td><td>389.880005</td><td>-1</td><td>390.079987</td><td>389.940002</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 00:13:00</td><td>389.600006</td><td>-1</td><td>389.799988</td><td>389.76001</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 00:17:01.500</td><td>389.519989</td><td>-1</td><td>389.619995</td><td>389.600006</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 00:20:01</td><td>389.299988</td><td>-1</td><td>389.5</td><td>389.320007</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 00:25:00.500</td><td>389.480011</td><td>1</td><td>389.480011</td><td>389.339996</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 00:27:00</td><td>389.619995</td><td>1</td><td>389.619995</td><td>389.540009</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 00:29:00</td><td>389.579987</td><td>-1</td><td>389.619995</td><td>389.559998</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 00:32:00</td><td>389.619995</td><td>1</td><td>389.640015</td><td>389.600006</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr><tr><td>2022-07-02 00:54:00</td><td>389.279999</td><td>-1</td><td>389.380005</td><td>389.339996</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 00:57:00</td><td>389.220001</td><td>-1</td><td>389.299988</td><td>389.26001</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 00:59:00</td><td>389.100006</td><td>-1</td><td>389.200012</td><td>389.160004</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 01:00:00</td><td>389.0</td><td>0</td><td>null</td><td>null</td><td>-1</td><td>0</td><td>389.100006</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 01:08:04.500</td><td>388.980011</td><td>-1</td><td>389.059998</td><td>389.019989</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 01:10:00.500</td><td>388.76001</td><td>-1</td><td>388.940002</td><td>388.920013</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 01:13:00</td><td>388.640015</td><td>-1</td><td>388.799988</td><td>388.779999</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr><tr><td>2022-07-02 01:15:00.500</td><td>388.880005</td><td>1</td><td>388.820007</td><td>388.779999</td><td>0</td><td>0</td><td>null</td><td>0</td><td>null</td></tr></tbody></table></div></div>
+<small>shape: (0, 10)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>close</th><th>FVG__fvg</th><th>Top__fvg</th><th>Bottom__fvg</th><th>BOS__structure</th><th>CHOCH__structure</th><th>Level__structure</th><th>Liquidity__liq</th><th>Level__liq</th></tr><tr><td>datetime[ms]</td><td>f64</td><td>i32</td><td>f64</td><td>f64</td><td>i32</td><td>i32</td><td>f64</td><td>i32</td><td>f64</td></tr></thead><tbody></tbody></table></div></div>
 </div>
 </div>
 </div>

@@ -1,24 +1,31 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import html
 import json
+import mimetypes
 import re
+import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import unquote
 
 import nbformat
 from bs4 import BeautifulSoup
-from nbconvert import HTMLExporter
+from nbconvert import HTMLExporter, MarkdownExporter
 
 
 ROOT = Path(__file__).resolve().parent
 PROJECT = ROOT.parent
 TUTORIAL_DIR = PROJECT / "examples" / "notebooks" / "tutorial"
 BLOG_DIR = PROJECT / "examples" / "notebooks" / "blog"
+NOTEBOOK_MD_DIR = PROJECT / "examples" / "notebooks_md"
 STATIC_RENDER_DIR = ROOT / "assets" / "notebook-renders"
+PROJECT_URL = "https://baiguoname.github.io/qust/site"
+GIT_URL = "https://github.com/baiguoname/qust"
 
 
 @dataclass(frozen=True)
@@ -36,7 +43,9 @@ class NotebookPage:
 
 def slugify(path: Path) -> str:
     slug = path.stem.lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", slug).strip("-")
+    slug = re.sub(r"[^\w]+", "-", slug, flags=re.UNICODE).strip("-")
+    if not slug:
+        slug = "notebook"
     return f"{slug}.html"
 
 
@@ -44,40 +53,13 @@ def natural_key(path: Path) -> list[object]:
     return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", path.stem)]
 
 
-SHORT_TITLES = {
-    "1.overview": "项目概览",
-    "2.qust_basics": "基础用法",
-    "3.performance": "性能对比",
-    "4.qust_advanced": "高阶用法",
-    "5.monitor_usage": "Monitor",
-    "6.alpha_strategy_analysis": "Alpha 与策略分析",
-    "7.analysis": "分析示例",
-    "8.indicators": "指标示例",
-    "9.optimization": "参数优化",
-    "10.strategy_writing": "策略编写",
-    "11.smc": "SMC",
-    "12.portfolio": "组合策略",
-    "bearish_engulfing": "Bearish Engulfing",
-    "breadth_thrust_indicator": "Breadth Thrust",
-    "bullish_harami": "Bullish Harami",
-    "descending_triangle": "Descending Triangle",
-    "donchian_channels": "Donchian Channels",
-    "double_top": "Double Top",
-    "gap": "Gap",
-    "ichimoku_cloud": "Ichimoku Cloud",
-    "morning_star": "Morning Star",
-    "triple_bottom": "Triple Bottom",
-    "wedge": "Wedge",
-    "zig_zag_indicator": "Zig Zag",
-}
-
-
 def compact_title(title: str, source: Path) -> str:
-    if source.stem in SHORT_TITLES:
-        return SHORT_TITLES[source.stem]
-    title = re.split(r"[：:]", title, maxsplit=1)[0].strip()
-    title = re.sub(r"\s+with\s+qust$", "", title, flags=re.IGNORECASE)
-    return title if len(title) <= 28 else f"{title[:26]}..."
+    short_title = re.sub(r"^\d+[\._\-\s]*", "", source.stem).strip()
+    short_title = re.sub(r"[_\-]+", " ", short_title).strip()
+    if not short_title:
+        short_title = re.split(r"[：:]", title, maxsplit=1)[0].strip()
+        short_title = re.sub(r"\s+with\s+qust$", "", short_title, flags=re.IGNORECASE)
+    return short_title if len(short_title) <= 28 else f"{short_title[:26]}..."
 
 
 def notebook_title(nb: nbformat.NotebookNode, fallback: str) -> str:
@@ -150,10 +132,12 @@ def nav(depth: int = 0) -> str:
           <span class="brand-text">qust</span>
         </a>
         <nav class="nav" aria-label="主导航">
-          <a href="{prefix}tutorial.html">学习路径</a>
+          <a href="{prefix}tutorial.html">使用教程</a>
           <a href="{prefix}blog.html">Blog</a>
           <a href="{docs}">Doc</a>
           <a href="{prefix}service.html">服务</a>
+          <a href="{PROJECT_URL}">项目地址</a>
+          <a href="{GIT_URL}">git地址</a>
         </nav>
       </header>
     """
@@ -215,6 +199,25 @@ def static_render_name(collection: str, slug: str, index: int) -> str:
     return f"{collection}-{Path(slug).stem}-{index + 1:02d}.png"
 
 
+def resolve_static_render_path(collection: str, slug: str, index: int) -> Path:
+    expected = STATIC_RENDER_DIR / static_render_name(collection, slug, index)
+    if expected.exists():
+        return expected
+
+    slug_stem = Path(slug).stem
+    suffix = f"-{index + 1:02d}.png"
+    number_match = re.match(r"^(\d+)(?:-|$)", slug_stem)
+    patterns: list[str] = []
+    if number_match:
+        patterns.append(f"{collection}-{number_match.group(1)}-*{suffix}")
+    patterns.append(f"{collection}-{slug_stem}*{suffix}")
+    for pattern in patterns:
+        matches = sorted(STATIC_RENDER_DIR.glob(pattern))
+        if matches:
+            return matches[0]
+    return expected
+
+
 def iframe_height(iframe) -> int:
     value = iframe.get("height") or iframe.get("style", "")
     match = re.search(r"(\d+)", str(value))
@@ -234,8 +237,8 @@ def clean_notebook_html(body: str, collection: str, slug: str) -> str:
         classes.add("code-block")
         pre["class"] = sorted(classes)
     for idx, iframe in enumerate(soup.find_all("iframe")):
-        filename = static_render_name(collection, slug, idx)
-        image_path = STATIC_RENDER_DIR / filename
+        image_path = resolve_static_render_path(collection, slug, idx)
+        filename = image_path.name
         src = iframe.get("src", "")
         figure = soup.new_tag("figure")
         figure["class"] = "monitor-static"
@@ -292,6 +295,72 @@ def write_notebook_page(page: NotebookPage, collection: str, all_pages: list[Not
         html_shell(f"{page.title} | qust", body, depth=1, page_class="article-page"),
         encoding="utf-8",
     )
+
+
+def bytes_to_data_uri(data: bytes, filename: str) -> str:
+    mime_type, _ = mimetypes.guess_type(filename)
+    if mime_type is None:
+        mime_type = "application/octet-stream"
+    encoded = base64.b64encode(data).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def image_path_to_data_uri(path: Path) -> str:
+    return bytes_to_data_uri(path.read_bytes(), path.name)
+
+
+def clean_markdown_monitor_outputs(body: str, collection: str, slug: str) -> str:
+    iframe_index = 0
+
+    def replace_iframe(match: re.Match[str]) -> str:
+        nonlocal iframe_index
+        image_path = resolve_static_render_path(collection, slug, iframe_index)
+        iframe_index += 1
+        if image_path.exists():
+            return f"\n\n![monitor 输出]({image_path_to_data_uri(image_path)})\n\n"
+        return "\n\n> 此 monitor 输出没有静态截图。重新执行 notebook 后，再运行站点构建脚本生成静态图。\n\n"
+
+    return re.sub(r"<iframe\b.*?</iframe>", replace_iframe, body, flags=re.I | re.S)
+
+
+def inline_markdown_output_images(body: str, outputs: dict[str, object]) -> str:
+    output_data: dict[str, str] = {}
+    for filename, data in outputs.items():
+        raw = data if isinstance(data, bytes) else str(data).encode("utf-8")
+        data_uri = bytes_to_data_uri(raw, filename)
+        output_data[filename] = data_uri
+        output_data[unquote(filename)] = data_uri
+
+    def replace_image(match: re.Match[str]) -> str:
+        alt = match.group(1)
+        target = match.group(2).strip()
+        quote = ""
+        if (target.startswith('"') and target.endswith('"')) or (target.startswith("'") and target.endswith("'")):
+            quote = target[0]
+            target = target[1:-1].strip()
+        data_uri = output_data.get(target) or output_data.get(unquote(target))
+        if data_uri is None:
+            return match.group(0)
+        wrapped = f"{quote}{data_uri}{quote}" if quote else data_uri
+        return f"![{alt}]({wrapped})"
+
+    return re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", replace_image, body)
+
+
+def write_notebook_markdown(page: NotebookPage, collection: str) -> None:
+    nb = nbformat.read(page.source, as_version=4)
+    output_files_dir = f"{page.source.stem}_files"
+    exporter = MarkdownExporter()
+    body, resources = exporter.from_notebook_node(
+        nb,
+        resources={"output_files_dir": output_files_dir},
+    )
+    body = clean_markdown_monitor_outputs(body, collection, page.slug)
+    body = inline_markdown_output_images(body, resources.get("outputs", {}))
+
+    out_dir = NOTEBOOK_MD_DIR / collection
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{page.source.stem}.md").write_text(body, encoding="utf-8")
 
 
 def collect_monitor_jobs(pages: list[NotebookPage], collection: str) -> list[dict[str, object]]:
@@ -1217,6 +1286,12 @@ window.addEventListener("resize", resizeCanvas);
     )
 
 
+def clean_generated_dirs() -> None:
+    for path in (ROOT / "tutorial", ROOT / "blog", NOTEBOOK_MD_DIR):
+        if path.exists():
+            shutil.rmtree(path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build the qust static site from notebooks.")
     parser.add_argument(
@@ -1230,6 +1305,7 @@ def main() -> None:
         help="Re-render monitor PNG files even when cached images already exist.",
     )
     args = parser.parse_args()
+    clean_generated_dirs()
     tutorial = load_pages("tutorial", TUTORIAL_DIR)
     blog = load_pages("blog", BLOG_DIR)
     if args.capture_monitor:
@@ -1240,11 +1316,11 @@ def main() -> None:
     write_js()
     (ROOT / "tutorial.html").write_text(
         html_shell(
-            "学习路径 | qust",
+            "使用教程 | qust",
             card_grid(
                 tutorial,
-                "学习路径",
-                "从安装、基础表达式、上下文、性能、monitor、策略分析、指标、参数优化到组合策略，把 tutorial notebook 转成可阅读网页，并保留当前保存的输出。",
+                "使用教程",
+                "从安装、基础表达式、上下文、性能、monitor、策略分析、指标、参数优化到组合策略，系统展示 qust 的主要用法，并保留当前保存的输出。",
                 "tutorial",
             ),
             page_class="listing",
@@ -1266,9 +1342,14 @@ def main() -> None:
     )
     for page in tutorial:
         write_notebook_page(page, "tutorial", tutorial)
+        write_notebook_markdown(page, "tutorial")
     for page in blog:
         write_notebook_page(page, "blog", blog)
-    print(f"generated {len(tutorial)} tutorial pages and {len(blog)} blog pages")
+        write_notebook_markdown(page, "blog")
+    print(
+        f"generated {len(tutorial)} tutorial pages, "
+        f"{len(blog)} blog pages, and markdown copies in {NOTEBOOK_MD_DIR}"
+    )
 
 
 if __name__ == "__main__":

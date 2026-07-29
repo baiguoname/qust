@@ -1,13 +1,14 @@
 # Qust
 
 支持流式计算的查询引擎，底层基于rust, 应用层用的python
-------
+------------------------------------------------------
+
 * 流式计算，算子有状态保留，支持流式计算
 * 性能高，大多数情况下速度比polars高，内存消耗更少
 * 算子丰富，内置丰富的金融算子，比如k线合成、回测、组合优化等等
 * 可拓展性强，底层基于rust的`datafusion`, 拓展到分布式很方便.
 
-[文档地址](https://raw.githack.com/baiguoname/qust/main/examples/docs/qust.html)
+[项目地址](https://baiguoname.github.io/qust/site)
 
 [git地址](https://github.com/baiguoname/qust)
 
@@ -18,6 +19,7 @@
 ```python
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple qust
 ```
+
 (只支持windows和linux)
 
 # 目的
@@ -25,9 +27,7 @@ pip install -i https://pypi.tuna.tsinghua.edu.cn/simple qust
 量化框架的不可能三角：
 
 1. 高性能
-
 2. 易用
-
 3. 实盘回测一致
 
 比如一些事件驱动的框架，优点是实盘回测一致，缺点是速度很慢， 而且不易用，毕竟操作 `DataFrame` 更加直观
@@ -42,9 +42,7 @@ pip install -i https://pypi.tuna.tsinghua.edu.cn/simple qust
 
 底层用rust写就能实现高性能，api 封装成python的 `DataFrame` api 就能实现易用性，流式计算本身就是事件驱动，实盘回测就一致。qust的目的就是实现这个
 
-
 # 使用
-
 
 ```python
 import qust as qs
@@ -52,7 +50,6 @@ from qust import (col, pms)
 import polars as pl
 import numpy as np
 ```
-
 
 ```python
 n = 10
@@ -72,56 +69,48 @@ df = qs.with_cols(
 )
 ```
 
-
 ```python
 print(df.calc_data(data))
 ```
 
-    shape: (10, 5)
-    ┌───────────┬──────┬───────────┬──────────────┬───────────────┐
-    │ factor    ┆ code ┆ cum_mean  ┆ rolling_mean ┆ cum_mean_over │
-    │ ---       ┆ ---  ┆ ---       ┆ ---          ┆ ---           │
-    │ f64       ┆ str  ┆ f64       ┆ f64          ┆ f64           │
-    ╞═══════════╪══════╪═══════════╪══════════════╪═══════════════╡
-    │ -1.664883 ┆ b    ┆ -1.664883 ┆ null         ┆ -1.664883     │
-    │ -0.187855 ┆ a    ┆ -0.926369 ┆ null         ┆ -0.187855     │
-    │ -1.11352  ┆ b    ┆ -0.988753 ┆ -0.988753    ┆ -1.389201     │
-    │ -1.212976 ┆ a    ┆ -1.044808 ┆ -0.838117    ┆ -0.700416     │
-    │ 1.305776  ┆ b    ┆ -0.574692 ┆ -0.34024     ┆ -0.490876     │
-    │ -0.418283 ┆ a    ┆ -0.548624 ┆ -0.108494    ┆ -0.606371     │
-    │ -0.521383 ┆ b    ┆ -0.544732 ┆ 0.122036     ┆ -0.498503     │
-    │ -2.068707 ┆ c    ┆ -0.735229 ┆ -1.002791    ┆ -2.068707     │
-    │ -0.46641  ┆ a    ┆ -0.70536  ┆ -1.018833    ┆ -0.571381     │
-    │ 1.223008  ┆ b    ┆ -0.512523 ┆ -0.437369    ┆ -0.1542       │
-    └───────────┴──────┴───────────┴──────────────┴───────────────┘
-
-
-
+shape: (10, 5)
+┌───────────┬──────┬───────────┬──────────────┬───────────────┐
+│ factor    ┆ code ┆ cum_mean  ┆ rolling_mean ┆ cum_mean_over │
+│ ---       ┆ ---  ┆ ---       ┆ ---          ┆ ---           │
+│ f64       ┆ str  ┆ f64       ┆ f64          ┆ f64           │
+╞═══════════╪══════╪═══════════╪══════════════╪═══════════════╡
+│ -1.664883 ┆ b    ┆ -1.664883 ┆ null         ┆ -1.664883     │
+│ -0.187855 ┆ a    ┆ -0.926369 ┆ null         ┆ -0.187855     │
+│ -1.11352  ┆ b    ┆ -0.988753 ┆ -0.988753    ┆ -1.389201     │
+│ -1.212976 ┆ a    ┆ -1.044808 ┆ -0.838117    ┆ -0.700416     │
+│ 1.305776  ┆ b    ┆ -0.574692 ┆ -0.34024     ┆ -0.490876     │
+│ -0.418283 ┆ a    ┆ -0.548624 ┆ -0.108494    ┆ -0.606371     │
+│ -0.521383 ┆ b    ┆ -0.544732 ┆ 0.122036     ┆ -0.498503     │
+│ -2.068707 ┆ c    ┆ -0.735229 ┆ -1.002791    ┆ -2.068707     │
+│ -0.46641  ┆ a    ┆ -0.70536  ┆ -1.018833    ┆ -0.571381     │
+│ 1.223008  ┆ b    ┆ -0.512523 ┆ -0.437369    ┆ -0.1542       │
+└───────────┴──────┴───────────┴──────────────┴───────────────┘
 ```python
 print(df.calc_data(data_next)) # df 里面的算子都状态保留
 ```
-
-    shape: (10, 5)
-    ┌───────────┬──────┬───────────┬──────────────┬───────────────┐
-    │ factor    ┆ code ┆ cum_mean  ┆ rolling_mean ┆ cum_mean_over │
-    │ ---       ┆ ---  ┆ ---       ┆ ---          ┆ ---           │
-    │ f64       ┆ str  ┆ f64       ┆ f64          ┆ f64           │
-    ╞═══════════╪══════╪═══════════╪══════════════╪═══════════════╡
-    │ 1.040219  ┆ c    ┆ -0.371365 ┆ 0.598939     ┆ -0.514244     │
-    │ -2.149415 ┆ c    ┆ -0.519536 ┆ 0.037937     ┆ -1.059301     │
-    │ -1.031419 ┆ b    ┆ -0.558911 ┆ -0.713538    ┆ -0.300403     │
-    │ 2.890776  ┆ c    ┆ -0.312505 ┆ -0.096686    ┆ -0.071782     │
-    │ -0.710796 ┆ c    ┆ -0.339058 ┆ 0.382854     ┆ -0.199585     │
-    │ -1.043864 ┆ a    ┆ -0.383108 ┆ 0.378705     ┆ -0.665878     │
-    │ -0.784278 ┆ c    ┆ -0.406706 ┆ -0.846313    ┆ -0.297034     │
-    │ -0.492146 ┆ c    ┆ -0.411453 ┆ -0.773429    ┆ -0.324907     │
-    │ 1.290463  ┆ a    ┆ -0.321879 ┆ 0.00468      ┆ -0.339821     │
-    │ -0.01888  ┆ c    ┆ -0.306729 ┆ 0.259812     ┆ -0.286653     │
-    └───────────┴──────┴───────────┴──────────────┴───────────────┘
-
-
+shape: (10, 5)
+┌───────────┬──────┬───────────┬──────────────┬───────────────┐
+│ factor    ┆ code ┆ cum_mean  ┆ rolling_mean ┆ cum_mean_over │
+│ ---       ┆ ---  ┆ ---       ┆ ---          ┆ ---           │
+│ f64       ┆ str  ┆ f64       ┆ f64          ┆ f64           │
+╞═══════════╪══════╪═══════════╪══════════════╪═══════════════╡
+│ 1.040219  ┆ c    ┆ -0.371365 ┆ 0.598939     ┆ -0.514244     │
+│ -2.149415 ┆ c    ┆ -0.519536 ┆ 0.037937     ┆ -1.059301     │
+│ -1.031419 ┆ b    ┆ -0.558911 ┆ -0.713538    ┆ -0.300403     │
+│ 2.890776  ┆ c    ┆ -0.312505 ┆ -0.096686    ┆ -0.071782     │
+│ -0.710796 ┆ c    ┆ -0.339058 ┆ 0.382854     ┆ -0.199585     │
+│ -1.043864 ┆ a    ┆ -0.383108 ┆ 0.378705     ┆ -0.665878     │
+│ -0.784278 ┆ c    ┆ -0.406706 ┆ -0.846313    ┆ -0.297034     │
+│ -0.492146 ┆ c    ┆ -0.411453 ┆ -0.773429    ┆ -0.324907     │
+│ 1.290463  ┆ a    ┆ -0.321879 ┆ 0.00468      ┆ -0.339821     │
+│ -0.01888  ┆ c    ┆ -0.306729 ┆ 0.259812     ┆ -0.286653     │
+└───────────┴──────┴───────────┴──────────────┴───────────────┘
 # 与polars语法比较
-
 
 ```python
 data = pl.DataFrame({
@@ -136,10 +125,6 @@ df = qs.with_cols(
 )
 df.calc_data(data)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -147,10 +132,7 @@ df.calc_data(data)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (5, 6)</small><table border="1" class="dataframe"><thead><tr><th>price</th><th>code</th><th>cum_sum_otters</th><th>cum_sum_polars</th><th>cum_sum_otters_over</th><th>cum_sum_polars_over</th></tr><tr><td>i64</td><td>str</td><td>i64</td><td>i64</td><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>0</td><td>&quot;a&quot;</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr><td>1</td><td>&quot;a&quot;</td><td>1</td><td>1</td><td>1</td><td>1</td></tr><tr><td>2</td><td>&quot;a&quot;</td><td>3</td><td>3</td><td>3</td><td>3</td></tr><tr><td>3</td><td>&quot;b&quot;</td><td>6</td><td>6</td><td>3</td><td>3</td></tr><tr><td>4</td><td>&quot;b&quot;</td><td>10</td><td>10</td><td>7</td><td>7</td></tr></tbody></table></div>
-
-
-
+<small>shape: (5, 6)</small><table border="1" class="dataframe"><thead><tr><th>price</th><th>code</th><th>cum_sum_otters</th><th>cum_sum_polars</th><th>cum_sum_otters_over</th><th>cum_sum_polars_over</th></tr><tr><td>i64</td><td>str</td><td>i64</td><td>i64</td><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>0</td><td>"a"</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr><td>1</td><td>"a"</td><td>1</td><td>1</td><td>1</td><td>1</td></tr><tr><td>2</td><td>"a"</td><td>3</td><td>3</td><td>3</td><td>3</td></tr><tr><td>3</td><td>"b"</td><td>6</td><td>6</td><td>3</td><td>3</td></tr><tr><td>4</td><td>"b"</td><td>10</td><td>10</td><td>7</td><td>7</td></tr></tbody></table></div>
 
 ```python
 # 广播
@@ -160,9 +142,7 @@ col("a", "b") + col("c", "d")
 col("a", "b") + col("c")
 col("a", "b") & col("c")
 ```
-
 # 与polars性能比较
-
 
 ```python
 import time
@@ -172,9 +152,7 @@ data = pl.DataFrame({
     "code": np.random.choice(["a", "b"], size=n, replace=True),
 })
 ```
-
 ### 1. qust单线程 vs polars多线程
-
 
 ```python
 s = time.time()
@@ -189,14 +167,9 @@ _ = data.select(
 )
 print(f"polars: {(time.time() - s) * 1000.0}.ms")
 ```
-
-    qust: 104.89392280578613.ms
-    polars: 194.35358047485352.ms
-
-
+qust: 104.89392280578613.ms
+polars: 194.35358047485352.ms
 ### 2. qust多线程 vs polars多线程
-
-
 
 ```python
 s = time.time()
@@ -211,13 +184,9 @@ _ = data.select(
 )
 print(f"polars: {(time.time() - s) * 1000.0}.ms")
 ```
-
-    qust: 137.73751258850098.ms
-    polars: 382.92813301086426.ms
-
-
+qust: 137.73751258850098.ms
+polars: 382.92813301086426.ms
 ### 3. qust自定义算子 vs polars自定义算子
-
 
 ```python
 class MeanUdf(qs.UdfRow):
@@ -228,7 +197,7 @@ class MeanUdf(qs.UdfRow):
 
     def output_schema(self, input_schema):
         return [("mean_res", pl.Float64)]
-    
+  
     def update(self, value):
         self.sum += value
         self.count += 1.0
@@ -252,20 +221,16 @@ _ = data.select(
 )
 print(f"polars: {(time.time() - s)}.s")
 ```
+qust: 1.3382771015167236.s
+polars: 51.07790398597717.s
 
-    qust: 1.3382771015167236.s
-    polars: 51.07790398597717.s
-
-
->--------
-| 算子 | qust | polars | 提速 |
-|----|------|-------------|---|
-| 单个算子 | 100ms | 157ms | 1.5倍 |
-| 多个算子 | 110ms | 290ms | 2.5倍 |
-| 自定义rolling算子 | 1.5s | 53s | 40倍 | 
+| 算子              | qust  | polars | 提速  |
+| ----------------- | ----- | ------ | ----- |
+| 单个算子          | 100ms | 157ms  | 1.5倍 |
+| 多个算子          | 110ms | 290ms  | 2.5倍 |
+| 自定义rolling算子 | 1.5s  | 53s    | 40倍  |
 
 # 和polars相互使用
-
 
 ```python
 data = pl.DataFrame({
@@ -275,9 +240,7 @@ data_next = pl.DataFrame({
     "value": [3, 1, 10]
 })
 ```
-
 ### 1. 在qust里面使用polars
-
 
 ```python
 qs.with_cols(
@@ -287,10 +250,6 @@ qs.with_cols(
 
 ).calc_data(data)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -300,10 +259,7 @@ qs.with_cols(
 </style>
 <small>shape: (5, 4)</small><table border="1" class="dataframe"><thead><tr><th>value</th><th>value+1</th><th>value+2</th><th>value-1</th></tr><tr><td>i64</td><td>i64</td><td>i64</td><td>f64</td></tr></thead><tbody><tr><td>1</td><td>2</td><td>3</td><td>0.0</td></tr><tr><td>2</td><td>3</td><td>4</td><td>0.5</td></tr><tr><td>3</td><td>4</td><td>5</td><td>1.0</td></tr><tr><td>4</td><td>5</td><td>6</td><td>1.5</td></tr><tr><td>5</td><td>6</td><td>7</td><td>2.0</td></tr></tbody></table></div>
 
-
-
 ### 2. 在polars里面使用qust
-
 
 ```python
 data.select(
@@ -311,10 +267,6 @@ data.select(
     col("value").pl.rolling_mean(3).alias("value_mean2"),
 )
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -323,9 +275,6 @@ data.select(
 }
 </style>
 <small>shape: (5, 2)</small><table border="1" class="dataframe"><thead><tr><th>value</th><th>value_mean2</th></tr><tr><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>null</td><td>null</td></tr><tr><td>null</td><td>null</td></tr><tr><td>2.0</td><td>2.0</td></tr><tr><td>3.0</td><td>3.0</td></tr><tr><td>4.0</td><td>4.0</td></tr></tbody></table></div>
-
-
-
 
 ```python
 # 上面的写法没有状态保留, 如果需要状态保留，需要把算子的状态保存到全局变量，使用 `expr.cache(id)`
@@ -338,10 +287,6 @@ e_pl = e.cache("unique_id").pl
 # 可以写成 e.over("code").cache("unique_id").pl, 或者用 data.qs.df
 data.select(e_pl)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -351,16 +296,9 @@ data.select(e_pl)
 </style>
 <small>shape: (5, 1)</small><table border="1" class="dataframe"><thead><tr><th>value</th></tr><tr><td>struct[2]</td></tr></thead><tbody><tr><td>{null,null}</td></tr><tr><td>{null,null}</td></tr><tr><td>{2.0,6}</td></tr><tr><td>{3.0,9}</td></tr><tr><td>{4.0,12}</td></tr></tbody></table></div>
 
-
-
-
 ```python
 data_next.select(e_pl)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -370,28 +308,19 @@ data_next.select(e_pl)
 </style>
 <small>shape: (3, 1)</small><table border="1" class="dataframe"><thead><tr><th>value</th></tr><tr><td>struct[2]</td></tr></thead><tbody><tr><td>{4.0,12}</td></tr><tr><td>{3.0,9}</td></tr><tr><td>{4.666667,14}</td></tr></tbody></table></div>
 
-
-
 保存到全局的算子状态一直在内存里面，需要清除用:
-
 
 ```python
 qs.clear_cache("unique_id") # 单个清除
 qs.clear_cache() # 全部清除
 ```
-
 由于polars的限制，上面的算子无法多列返回, 所以如果有多列返回，返回的是多列组成的struct
 
 如果需要多列返回，只能这样写:
 
-
 ```python
 data.qs.select(e)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -400,18 +329,11 @@ data.qs.select(e)
 }
 </style>
 <small>shape: (5, 2)</small><table border="1" class="dataframe"><thead><tr><th>mean</th><th>sum</th></tr><tr><td>f64</td><td>i64</td></tr></thead><tbody><tr><td>null</td><td>null</td></tr><tr><td>null</td><td>null</td></tr><tr><td>2.0</td><td>6</td></tr><tr><td>3.0</td><td>9</td></tr><tr><td>4.0</td><td>12</td></tr></tbody></table></div>
-
-
-
 
 ```python
 df = qs.select(e)
 data.qs.df(df)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -421,16 +343,9 @@ data.qs.df(df)
 </style>
 <small>shape: (5, 2)</small><table border="1" class="dataframe"><thead><tr><th>mean</th><th>sum</th></tr><tr><td>f64</td><td>i64</td></tr></thead><tbody><tr><td>null</td><td>null</td></tr><tr><td>null</td><td>null</td></tr><tr><td>2.0</td><td>6</td></tr><tr><td>3.0</td><td>9</td></tr><tr><td>4.0</td><td>12</td></tr></tbody></table></div>
 
-
-
-
 ```python
 data_next.qs.df(df)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -440,8 +355,6 @@ data_next.qs.df(df)
 </style>
 <small>shape: (3, 2)</small><table border="1" class="dataframe"><thead><tr><th>mean</th><th>sum</th></tr><tr><td>f64</td><td>i64</td></tr></thead><tbody><tr><td>4.0</td><td>12</td></tr><tr><td>3.0</td><td>9</td></tr><tr><td>4.666667</td><td>14</td></tr></tbody></table></div>
 
-
-
 # 为什么有polars，还要写qust？
 
 ### 1. 流式计算
@@ -449,7 +362,6 @@ data_next.qs.df(df)
 写量化策略的时候，一般有下面两种方法
 
 1. 向量化计算
-
 2. 事件驱动
 
 如果策略用向量化计算，在实盘的时候就很慢，因为要重复计算历史数据, 而且很多策略没法向量化
@@ -505,12 +417,11 @@ shape: (3, 3)
 在第一个调用`df.calc_data(data)`的时候，df内部的算子都有状态保留，所以在第二个调用`df.calc_data(data_next)`时候，没有重新计算
 
 实际情况是，绝大多数算子都有对应的事件驱动形式，少量的算子比如`pl.col("a").rank()`, 看起来不是事件驱动的形式（当前行的值受到未来行的值的影响），但是其实也可以变换成事件驱动形式，
-* 转换成行算子，比如 a 列有a1，a2，a3三个元素，就是`col(a1, a2, a3).rank(axis=1)` 
 
+* 转换成行算子，比如 a 列有a1，a2，a3三个元素，就是`col(a1, a2, a3).rank(axis=1)`
 * 事件驱动形式的批算子，每次计算的时候保证传入的数据完整，比如计算`pl.col("a").rank().over("date")`, 保证每次计算传入的数据包含整天的所有数据
 
 `polars`不是也支持streaming吗？我看了polars的底层，觉得polars的streaming不是真正意义上的流式计算，只是为了避免out of memory，而且局限性大(比如`over`是用的 切割 -> 计算 -> 拼接)。如果polars要实现真正的流式计算，我估计底层得推倒重来改成`datafusion`的那种框架
-
 
 ### 2. 表达式解耦
 
@@ -519,29 +430,25 @@ shape: (3, 3)
 `datafusion`聚合算子用的`Box<dyn trait>`, 然后根据上下文选择不同路径的`ExecutionPlan`, 这样添加算子很方便，而且优化路径也很清晰，性能还不受影响。
 
 `polars`这种写法还有个缺点，就是导致同样的逻辑写法割裂，比如求和逻辑有下面写法:
+
 * `pl.col("a").sum()`
-
 * `pl.col("a").cum_sum()`
-
 * `pl.col("a").rolling_sum(10)`
-
 * `df.group_by("b").agg([pl.col("a").sum()])`
 
-如果说 `sum()` 和 `rolling_sum(10)`, 都是求和逻辑, 前一个是针对整列，后一个是针对滚动，但是 `rank()`和`rolling_rank(10)`, 又是两个不想关的算子, 而且并不存在`cum_rank()`这个算子，这样逻辑就很割裂，为什么能存在`cum_sum`, 但是不能存在`cum_rank`, `cum_skew`, `cum_cov`? 
+如果说 `sum()` 和 `rolling_sum(10)`, 都是求和逻辑, 前一个是针对整列，后一个是针对滚动，但是 `rank()`和`rolling_rank(10)`, 又是两个不想关的算子, 而且并不存在`cum_rank()`这个算子，这样逻辑就很割裂，为什么能存在`cum_sum`, 但是不能存在`cum_rank`, `cum_skew`, `cum_cov`?
 
 相反用`datafusion`的上下文逻辑，写法就比较一致:
+
 * `col("a").sum()`
-
 * `col("a").sum().expanding()`
-
 * `col("a").sum().rolling(10)`
-
 * `col("a").sum().group_by("b")`
-
 
 ### 3. 多列返回
 
 `polars` 和 `datafusion` 对单个算子都不支持多列返回，但是`datafusion`提供了插件接口，能改成多列返回:
+
 ```python
 n = 7
 data = pl.DataFrame({
@@ -569,24 +476,19 @@ shape: (7, 5)
 └───────────┴───────────┴───────────┴─────────────────┴─────────────────┘
 ```
 多列返回我能想到以下好处
-* 多列返回在用一些比如k线合成算子，策略信号算子之类的比较方便
 
+* 多列返回在用一些比如k线合成算子，策略信号算子之类的比较方便
 * 另一个是避免用`struct`, 如果底层依赖从`arror-rs`改成[`MinArrow`](https://github.com/pbower/minarrow), 估计内存占用能到原来的一半，并且耗时减少
 
 ### 4. `datafusion` 功能更齐全，比如:
+
 * 支持`DataFrame` Api 和 sql相互转换，`polars`不行
-
 * 原生支持`arrow`, `datafusion`是`arrow`的一部分，未来生态会更丰富, `polars`自己写了一个`polars-arrow`, 生态割裂
-
 * `datafusion` 有成熟的分布式应用，而且全部开源，`polars` 前期是基于`datafusion`的二次开发，目前分布式刚起步，而且闭源，貌似已经**把主要精力放在商业闭源上面去了**
-
-
 
 当然，上面说的只是我个人的理解，对这方面有兴趣的朋友可以加我微信交流，微信号: aruster
 
-
 # 写策略
-
 
 ```python
 # 从github读取tick数据
@@ -599,9 +501,7 @@ data_live = [data_kline[600000:601000], data_kline[601000:602000]]
 # 从github读取kine数据
 data_tick = pl.read_parquet("https://github.com/baiguoname/qust/blob/main/examples/data/data_tick.parquet?raw=true")
 ```
-
 ### 1. 有k线数据，实现一个双均线策略
-
 
 ```python
 # 策略逻辑
@@ -625,21 +525,13 @@ df_bt = qs.select(
 # 实盘
 df_live = qs.select(stra.expanding().select("hold").last_value())
 ```
-
-
 ```python
 %%time
 # 回测
 df_bt.calc_data(data_his)
 ```
-
-    CPU times: user 37.2 ms, sys: 37 ms, total: 74.2 ms
-    Wall time: 49.3 ms
-
-
-
-
-
+CPU times: user 37.2 ms, sys: 37 ms, total: 74.2 ms
+Wall time: 49.3 ms
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -647,10 +539,7 @@ df_bt.calc_data(data_his)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (2_500, 3)</small><table border="1" class="dataframe"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2009-01-05</td><td>22.14</td><td>22.14</td></tr><tr><td>2009-01-06</td><td>-2.74</td><td>19.4</td></tr><tr><td>2009-01-07</td><td>20.98</td><td>40.38</td></tr><tr><td>2009-01-08</td><td>39.31</td><td>79.69</td></tr><tr><td>2009-01-09</td><td>-2.92</td><td>76.77</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>2019-04-11</td><td>28.23</td><td>-2400.2</td></tr><tr><td>2019-04-12</td><td>-32.8</td><td>-2433.0</td></tr><tr><td>2019-04-15</td><td>26.66</td><td>-2406.34</td></tr><tr><td>2019-04-16</td><td>16.95</td><td>-2389.39</td></tr><tr><td>2019-04-17</td><td>-90.43</td><td>-2479.82</td></tr></tbody></table></div>
-
-
-
+<small>shape: (2_500, 3)</small><table border="1" class="dataframe"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2009-01-05</td><td>22.14</td><td>22.14</td></tr><tr><td>2009-01-06</td><td>-2.74</td><td>19.4</td></tr><tr><td>2009-01-07</td><td>20.98</td><td>40.38</td></tr><tr><td>2009-01-08</td><td>39.31</td><td>79.69</td></tr><tr><td>2009-01-09</td><td>-2.92</td><td>76.77</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>2019-04-11</td><td>28.23</td><td>-2400.2</td></tr><tr><td>2019-04-12</td><td>-32.8</td><td>-2433.0</td></tr><tr><td>2019-04-15</td><td>26.66</td><td>-2406.34</td></tr><tr><td>2019-04-16</td><td>16.95</td><td>-2389.39</td></tr><tr><td>2019-04-17</td><td>-90.43</td><td>-2479.82</td></tr></tbody></table></div>
 
 ```python
 # 实盘
@@ -664,33 +553,29 @@ for data_live_ in data_live: # 模拟实盘数据流, 实际中应该用异步
     print("------------------")
 # 可以看到虽然历史数据需要几十万，但是每次实盘计算的时间很短，因为是流式计算
 ```
-
-    ----接收到实盘数据, 实时数据长度: 1000，开始一轮计算---
-    shape: (1, 1)
-    ┌──────┐
-    │ hold │
-    │ ---  │
-    │ f64  │
-    ╞══════╡
-    │ 1.0  │
-    └──────┘
-    计算完成, 耗时: 0.002280712127685547
-    ------------------
-    ----接收到实盘数据, 实时数据长度: 1000，开始一轮计算---
-    shape: (1, 1)
-    ┌──────┐
-    │ hold │
-    │ ---  │
-    │ f64  │
-    ╞══════╡
-    │ 1.0  │
-    └──────┘
-    计算完成, 耗时: 0.001985788345336914
-    ------------------
-
-
+----接收到实盘数据, 实时数据长度: 1000，开始一轮计算---
+shape: (1, 1)
+┌──────┐
+│ hold │
+│ ---  │
+│ f64  │
+╞══════╡
+│ 1.0  │
+└──────┘
+计算完成, 耗时: 0.002280712127685547
+------------------
+----接收到实盘数据, 实时数据长度: 1000，开始一轮计算---
+shape: (1, 1)
+┌──────┐
+│ hold │
+│ ---  │
+│ f64  │
+╞══════╡
+│ 1.0  │
+└──────┘
+计算完成, 耗时: 0.001985788345336914
+------------------
 ### 2. 有数据源，这个数据源不断获取多个品种的tick数据，策略需要分品种将数据不断合成1min k线，并且生成双均线的开仓逻辑，然后用0.01止损作为出场
-
 
 ```python
 # 策略逻辑
@@ -755,15 +640,9 @@ df_bt_tick = (qs.select(
     )
 )
 ```
-
-
 ```python
 df_bt_price.calc_data(data_tick)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -771,18 +650,11 @@ df_bt_price.calc_data(data_tick)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (23, 3)</small><table border="1" class="dataframe"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-06</td><td>11.0</td><td>11.0</td></tr><tr><td>2024-01-08</td><td>34.0</td><td>45.0</td></tr><tr><td>2024-01-09</td><td>68.0</td><td>113.0</td></tr><tr><td>2024-01-10</td><td>-8.0</td><td>105.0</td></tr><tr><td>2024-01-11</td><td>169.0</td><td>274.0</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>2024-01-27</td><td>4.0</td><td>515.0</td></tr><tr><td>2024-01-29</td><td>-69.0</td><td>446.0</td></tr><tr><td>2024-01-30</td><td>-21.0</td><td>425.0</td></tr><tr><td>2024-01-31</td><td>7.0</td><td>432.0</td></tr><tr><td>2024-02-01</td><td>-63.0</td><td>369.0</td></tr></tbody></table></div>
-
-
-
+<small>shape: (23, 3)</small><table border="1" class="dataframe"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-06</td><td>11.0</td><td>11.0</td></tr><tr><td>2024-01-08</td><td>34.0</td><td>45.0</td></tr><tr><td>2024-01-09</td><td>68.0</td><td>113.0</td></tr><tr><td>2024-01-10</td><td>-8.0</td><td>105.0</td></tr><tr><td>2024-01-11</td><td>169.0</td><td>274.0</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>2024-01-27</td><td>4.0</td><td>515.0</td></tr><tr><td>2024-01-29</td><td>-69.0</td><td>446.0</td></tr><tr><td>2024-01-30</td><td>-21.0</td><td>425.0</td></tr><tr><td>2024-01-31</td><td>7.0</td><td>432.0</td></tr><tr><td>2024-02-01</td><td>-63.0</td><td>369.0</td></tr></tbody></table></div>
 
 ```python
 df_bt_tick.calc_data(data_tick)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -790,12 +662,9 @@ df_bt_tick.calc_data(data_tick)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (23, 3)</small><table border="1" class="dataframe"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-06</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-08</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-09</td><td>116.0</td><td>116.0</td></tr><tr><td>2024-01-10</td><td>0.0</td><td>116.0</td></tr><tr><td>2024-01-11</td><td>0.0</td><td>116.0</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>2024-01-27</td><td>0.0</td><td>468.0</td></tr><tr><td>2024-01-29</td><td>-122.0</td><td>346.0</td></tr><tr><td>2024-01-30</td><td>0.0</td><td>346.0</td></tr><tr><td>2024-01-31</td><td>0.0</td><td>346.0</td></tr><tr><td>2024-02-01</td><td>-105.0</td><td>241.0</td></tr></tbody></table></div>
-
-
+<small>shape: (23, 3)</small><table border="1" class="dataframe"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-06</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-08</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-09</td><td>116.0</td><td>116.0</td></tr><tr><td>2024-01-10</td><td>0.0</td><td>116.0</td></tr><tr><td>2024-01-11</td><td>0.0</td><td>116.0</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>2024-01-27</td><td>0.0</td><td>468.0</td></tr><tr><td>2024-01-29</td><td>-122.0</td><td>346.0</td></tr><tr><td>2024-01-30</td><td>0.0</td><td>346.0</td></tr><tr><td>2024-01-31</td><td>0.0</td><td>346.0</td></tr><tr><td>2024-02-01</td><td>-105.0</td><td>241.0</td></tr></tbody></table></div>
 
 ### 3. 一个更复杂的策略，接受tick数据，同时合成5min和30min的k线，双周期共振的均线策略
-
 
 ```python
 # 策略逻辑
@@ -868,15 +737,9 @@ df_bt_tick = (
     )
 )
 ```
-
-
 ```python
 df_bt_tick.calc_data(data_tick)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -884,12 +747,9 @@ df_bt_tick.calc_data(data_tick)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (23, 3)</small><table border="1" class="dataframe"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-06</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-08</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-09</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-10</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-11</td><td>0.0</td><td>0.0</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>2024-01-27</td><td>0.0</td><td>-119.0</td></tr><tr><td>2024-01-29</td><td>0.0</td><td>-119.0</td></tr><tr><td>2024-01-30</td><td>0.0</td><td>-119.0</td></tr><tr><td>2024-01-31</td><td>0.0</td><td>-119.0</td></tr><tr><td>2024-02-01</td><td>0.0</td><td>-119.0</td></tr></tbody></table></div>
-
-
+<small>shape: (23, 3)</small><table border="1" class="dataframe"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-06</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-08</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-09</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-10</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-11</td><td>0.0</td><td>0.0</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>2024-01-27</td><td>0.0</td><td>-119.0</td></tr><tr><td>2024-01-29</td><td>0.0</td><td>-119.0</td></tr><tr><td>2024-01-30</td><td>0.0</td><td>-119.0</td></tr><tr><td>2024-01-31</td><td>0.0</td><td>-119.0</td></tr><tr><td>2024-02-01</td><td>0.0</td><td>-119.0</td></tr></tbody></table></div>
 
 ### 4. 使用内置的策略
-
 
 ```python
 (qs
@@ -902,9 +762,7 @@ df_bt_tick.calc_data(data_tick)
     ._line()
 )
 ```
-
 ### 5. 内置的tick因子与内置的k线策略结合
-
 
 ```python
 (qs
@@ -938,10 +796,6 @@ df_bt_tick.calc_data(data_tick)
     .calc_data(data_tick)
 )
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -949,9 +803,7 @@ df_bt_tick.calc_data(data_tick)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (23, 3)</small><table border="1" class="dataframe"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-06</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-08</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-09</td><td>18.0</td><td>18.0</td></tr><tr><td>2024-01-10</td><td>8801.0</td><td>8819.0</td></tr><tr><td>2024-01-11</td><td>2285.0</td><td>11104.0</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>2024-01-27</td><td>0.0</td><td>39071.0</td></tr><tr><td>2024-01-29</td><td>0.0</td><td>39071.0</td></tr><tr><td>2024-01-30</td><td>-15.0</td><td>39056.0</td></tr><tr><td>2024-01-31</td><td>0.0</td><td>39056.0</td></tr><tr><td>2024-02-01</td><td>-19.0</td><td>39037.0</td></tr></tbody></table></div>
-
-
+<small>shape: (23, 3)</small><table border="1" class="dataframe"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-06</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-08</td><td>0.0</td><td>0.0</td></tr><tr><td>2024-01-09</td><td>18.0</td><td>18.0</td></tr><tr><td>2024-01-10</td><td>8801.0</td><td>8819.0</td></tr><tr><td>2024-01-11</td><td>2285.0</td><td>11104.0</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>2024-01-27</td><td>0.0</td><td>39071.0</td></tr><tr><td>2024-01-29</td><td>0.0</td><td>39071.0</td></tr><tr><td>2024-01-30</td><td>-15.0</td><td>39056.0</td></tr><tr><td>2024-01-31</td><td>0.0</td><td>39056.0</td></tr><tr><td>2024-02-01</td><td>-19.0</td><td>39037.0</td></tr></tbody></table></div>
 
 ### 6. 自定义行计算
 
@@ -960,7 +812,6 @@ df_bt_tick.calc_data(data_tick)
 实现一个自定义的算子之后，这个算子就能像内置算子那样在各种上下文计算，比如`rolling`, `group_by`, `over`之类
 
 虽然目前自定义的行算子比polars要高出很多倍（见上面的测试），但是毕竟比rust慢，所以最好是在策略的最后阶段比如仓位管理之类的时候去自定义行算子
-
 
 ```python
 # 例子1，自定义一个均线计算
@@ -973,7 +824,7 @@ class MeanUdf(qs.UdfRow):
 
     def output_schema(self, input_schema):
         return [("mean_res", pl.Float64)]
-    
+  
     # 更新数据
     # value来自于输入的每一行
     # col("a") => update(self, a_value)
@@ -1014,10 +865,6 @@ qs.with_cols(
     e.rolling_intra_day("intra_day", 3).alias("rolling_intraday").add_suffix("over"),
 ).calc_data(data_test)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -1025,10 +872,7 @@ qs.with_cols(
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (1_000, 12)</small><table border="1" class="dataframe"><thead><tr><th>value</th><th>code</th><th>window</th><th>intra_day</th><th>expanding</th><th>rolling</th><th>rolling_dynamic</th><th>rolling_intraday</th><th>expanding_over</th><th>rolling_over</th><th>rolling_dynamic_over</th><th>rolling_intraday_over</th></tr><tr><td>f64</td><td>str</td><td>i64</td><td>bool</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>0.696872</td><td>&quot;b&quot;</td><td>10</td><td>true</td><td>0.696872</td><td>null</td><td>0.696872</td><td>null</td><td>0.696872</td><td>null</td><td>0.696872</td><td>null</td></tr><tr><td>-1.939854</td><td>&quot;a&quot;</td><td>5</td><td>false</td><td>-0.621491</td><td>null</td><td>-0.621491</td><td>null</td><td>-1.939854</td><td>null</td><td>-0.621491</td><td>null</td></tr><tr><td>0.138143</td><td>&quot;a&quot;</td><td>10</td><td>false</td><td>-0.36828</td><td>null</td><td>-0.36828</td><td>null</td><td>-0.900855</td><td>null</td><td>-0.36828</td><td>null</td></tr><tr><td>-0.767553</td><td>&quot;b&quot;</td><td>10</td><td>false</td><td>-0.468098</td><td>null</td><td>-0.468098</td><td>null</td><td>-0.035341</td><td>null</td><td>-0.468098</td><td>null</td></tr><tr><td>1.416855</td><td>&quot;b&quot;</td><td>10</td><td>false</td><td>-0.091107</td><td>null</td><td>-0.091107</td><td>null</td><td>0.448725</td><td>null</td><td>-0.091107</td><td>null</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>2.182275</td><td>&quot;b&quot;</td><td>10</td><td>false</td><td>-0.01541</td><td>-0.146151</td><td>-0.146151</td><td>0.385357</td><td>-0.015211</td><td>0.188536</td><td>-0.146151</td><td>0.385357</td></tr><tr><td>-0.608805</td><td>&quot;a&quot;</td><td>5</td><td>true</td><td>-0.016005</td><td>-0.018531</td><td>0.072781</td><td>-0.545003</td><td>-0.071509</td><td>0.153087</td><td>0.072781</td><td>-0.545003</td></tr><tr><td>-0.48438</td><td>&quot;c&quot;</td><td>5</td><td>true</td><td>-0.016474</td><td>-0.068051</td><td>0.185705</td><td>-0.537445</td><td>0.038567</td><td>-0.488541</td><td>0.185705</td><td>-0.537445</td></tr><tr><td>0.226195</td><td>&quot;c&quot;</td><td>2</td><td>false</td><td>-0.016232</td><td>-0.034897</td><td>-0.129093</td><td>-0.288997</td><td>0.039111</td><td>-0.539205</td><td>-0.129093</td><td>-0.288997</td></tr><tr><td>3.578359</td><td>&quot;a&quot;</td><td>5</td><td>true</td><td>-0.012637</td><td>0.373645</td><td>0.978729</td><td>0.828391</td><td>-0.06114</td><td>0.471257</td><td>0.978729</td><td>0.828391</td></tr></tbody></table></div>
-
-
-
+<small>shape: (1_000, 12)</small><table border="1" class="dataframe"><thead><tr><th>value</th><th>code</th><th>window</th><th>intra_day</th><th>expanding</th><th>rolling</th><th>rolling_dynamic</th><th>rolling_intraday</th><th>expanding_over</th><th>rolling_over</th><th>rolling_dynamic_over</th><th>rolling_intraday_over</th></tr><tr><td>f64</td><td>str</td><td>i64</td><td>bool</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>0.696872</td><td>"b"</td><td>10</td><td>true</td><td>0.696872</td><td>null</td><td>0.696872</td><td>null</td><td>0.696872</td><td>null</td><td>0.696872</td><td>null</td></tr><tr><td>-1.939854</td><td>"a"</td><td>5</td><td>false</td><td>-0.621491</td><td>null</td><td>-0.621491</td><td>null</td><td>-1.939854</td><td>null</td><td>-0.621491</td><td>null</td></tr><tr><td>0.138143</td><td>"a"</td><td>10</td><td>false</td><td>-0.36828</td><td>null</td><td>-0.36828</td><td>null</td><td>-0.900855</td><td>null</td><td>-0.36828</td><td>null</td></tr><tr><td>-0.767553</td><td>"b"</td><td>10</td><td>false</td><td>-0.468098</td><td>null</td><td>-0.468098</td><td>null</td><td>-0.035341</td><td>null</td><td>-0.468098</td><td>null</td></tr><tr><td>1.416855</td><td>"b"</td><td>10</td><td>false</td><td>-0.091107</td><td>null</td><td>-0.091107</td><td>null</td><td>0.448725</td><td>null</td><td>-0.091107</td><td>null</td></tr><tr><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr><tr><td>2.182275</td><td>"b"</td><td>10</td><td>false</td><td>-0.01541</td><td>-0.146151</td><td>-0.146151</td><td>0.385357</td><td>-0.015211</td><td>0.188536</td><td>-0.146151</td><td>0.385357</td></tr><tr><td>-0.608805</td><td>"a"</td><td>5</td><td>true</td><td>-0.016005</td><td>-0.018531</td><td>0.072781</td><td>-0.545003</td><td>-0.071509</td><td>0.153087</td><td>0.072781</td><td>-0.545003</td></tr><tr><td>-0.48438</td><td>"c"</td><td>5</td><td>true</td><td>-0.016474</td><td>-0.068051</td><td>0.185705</td><td>-0.537445</td><td>0.038567</td><td>-0.488541</td><td>0.185705</td><td>-0.537445</td></tr><tr><td>0.226195</td><td>"c"</td><td>2</td><td>false</td><td>-0.016232</td><td>-0.034897</td><td>-0.129093</td><td>-0.288997</td><td>0.039111</td><td>-0.539205</td><td>-0.129093</td><td>-0.288997</td></tr><tr><td>3.578359</td><td>"a"</td><td>5</td><td>true</td><td>-0.012637</td><td>0.373645</td><td>0.978729</td><td>0.828391</td><td>-0.06114</td><td>0.471257</td><td>0.978729</td><td>0.828391</td></tr></tbody></table></div>
 
 ```python
 # 例子2，利用自定义行算子实现一个马丁策略
@@ -1126,12 +970,11 @@ class MartinGillStra(qs.UdfRow):
     # ._line(width = 800, height = 500)
 )
 ```
-
 # 参数调优
 
 `qust`中可以做可视化+交互式参数调优，只需要把原来的表达式中的固定参数换成范围参数，比如
 
-`col("a").mean().rolling(10)` 
+`col("a").mean().rolling(10)`
 
 替换成
 
@@ -1139,13 +982,10 @@ class MartinGillStra(qs.UdfRow):
 
 底层会自动找到所有的范围参数
 
-
 ```python
 data_kline = pl.read_parquet("https://github.com/baiguoname/qust/blob/main/examples/data/data_kline2.parquet?raw=true") 
 # 从github读取数据，速度较慢, 建议用自己的数据
 ```
-
-
 ```python
 stra = (
     col(
@@ -1198,22 +1038,14 @@ df_bt = (qs
     )
 )
 ```
-
-
 ```python
 df_bt.opt_params(data_kline, True)
 ```
-
 ![交互式参数寻优](examples/data/view_params.gif)
-
 
 ```python
 pl.read_parquet("all_res.parquet")
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -1221,19 +1053,12 @@ pl.read_parquet("all_res.parquet")
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (99, 3)</small><table border="1" class="dataframe"><thead><tr><th>short</th><th>long</th><th>pnl</th></tr><tr><td>u32</td><td>u32</td><td>f64</td></tr></thead><tbody><tr><td>10</td><td>20</td><td>461.836823</td></tr><tr><td>10</td><td>25</td><td>1686.979279</td></tr><tr><td>10</td><td>30</td><td>1157.076965</td></tr><tr><td>10</td><td>35</td><td>1963.798737</td></tr><tr><td>10</td><td>40</td><td>2663.83963</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>60</td><td>40</td><td>717.780487</td></tr><tr><td>60</td><td>45</td><td>640.620697</td></tr><tr><td>60</td><td>50</td><td>-43.558167</td></tr><tr><td>60</td><td>55</td><td>620.259247</td></tr><tr><td>60</td><td>60</td><td>0.0</td></tr></tbody></table></div>
-
-
-
+<small>shape: (99, 3)</small><table border="1" class="dataframe"><thead><tr><th>short</th><th>long</th><th>pnl</th></tr><tr><td>u32</td><td>u32</td><td>f64</td></tr></thead><tbody><tr><td>10</td><td>20</td><td>461.836823</td></tr><tr><td>10</td><td>25</td><td>1686.979279</td></tr><tr><td>10</td><td>30</td><td>1157.076965</td></tr><tr><td>10</td><td>35</td><td>1963.798737</td></tr><tr><td>10</td><td>40</td><td>2663.83963</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>60</td><td>40</td><td>717.780487</td></tr><tr><td>60</td><td>45</td><td>640.620697</td></tr><tr><td>60</td><td>50</td><td>-43.558167</td></tr><tr><td>60</td><td>55</td><td>620.259247</td></tr><tr><td>60</td><td>60</td><td>0.0</td></tr></tbody></table></div>
 
 ```python
 # 也可以直接循环所有参数
 df_bt.loop_all_params(data_kline)
 ```
-
-
-
-
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -1241,10 +1066,7 @@ df_bt.loop_all_params(data_kline)
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (99, 3)</small><table border="1" class="dataframe"><thead><tr><th>short</th><th>long</th><th>pnl</th></tr><tr><td>u32</td><td>u32</td><td>f64</td></tr></thead><tbody><tr><td>10</td><td>20</td><td>461.836823</td></tr><tr><td>10</td><td>25</td><td>1686.979279</td></tr><tr><td>10</td><td>30</td><td>1157.076965</td></tr><tr><td>10</td><td>35</td><td>1963.798737</td></tr><tr><td>10</td><td>40</td><td>2663.83963</td></tr><tr><td>&hellip;</td><td>&hellip;</td><td>&hellip;</td></tr><tr><td>60</td><td>40</td><td>717.780487</td></tr><tr><td>60</td><td>45</td><td>640.620697</td></tr><tr><td>60</td><td>50</td><td>-43.558167</td></tr><tr><td>60</td><td>55</td><td>620.259247</td></tr><tr><td>60</td><td>60</td><td>0.0</td></tr></tbody></table></div>
-
-
-
+<small>shape: (99, 3)</small><table border="1" class="dataframe"><thead><tr><th>short</th><th>long</th><th>pnl</th></tr><tr><td>u32</td><td>u32</td><td>f64</td></tr></thead><tbody><tr><td>10</td><td>20</td><td>461.836823</td></tr><tr><td>10</td><td>25</td><td>1686.979279</td></tr><tr><td>10</td><td>30</td><td>1157.076965</td></tr><tr><td>10</td><td>35</td><td>1963.798737</td></tr><tr><td>10</td><td>40</td><td>2663.83963</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>60</td><td>40</td><td>717.780487</td></tr><tr><td>60</td><td>45</td><td>640.620697</td></tr><tr><td>60</td><td>50</td><td>-43.558167</td></tr><tr><td>60</td><td>55</td><td>620.259247</td></tr><tr><td>60</td><td>60</td><td>0.0</td></tr></tbody></table></div>
 
 ```python
 # 自定义算子 也可以做参数调优
@@ -1258,7 +1080,7 @@ class PowUdf(qs.UdfRow):
 
     def output_schema(self, input_schema):
         return [("mean_res", pl.Float64)]
-    
+  
     def update(self, value):
         self.value = value
 
@@ -1279,11 +1101,9 @@ qs.select(
     ).monitor.line()
 ).opt_params(data, True)
 ```
-
 ![交互式参数寻优](./examples/data/udf_params.gif)
 
 # 监控可视化
-
 
 ```python
 monitor1 = qs.Monitor(url = "127.0.0.1:8800", background="whight").make_grid([["a", "a"], ["b", "c"]])
@@ -1299,19 +1119,16 @@ df = (qs
             .add_to_monitor(monitor1, "a"),
         col("datetime", "close").monitor.line().over("ticker").add_to_monitor(monitor1, "b"),
         col("close").mean().group_by("ticker").monitor.table().add_to_monitor(monitor1, "c"),
-    )     
+    )   
 )
 df.run_monitor_server(True)
 ```
-
-
 ```python
 import time
 for i in range(0, 1000, 10):
     df.calc_data(data_kline[i:i+10])
     time.sleep(0.05)
 ```
-
 ![监控](./examples/data/monitor.gif)
 
 # 内置策略
@@ -1326,12 +1143,9 @@ for i in range(0, 1000, 10):
 
 一个策略其实就是一个算子，可以方便验证不同策略在不同数据源上的应用，比如
 
-
 ```python
 data_kline = pl.read_parquet("https://github.com/baiguoname/qust/blob/main/examples/data/data_kline2.parquet?raw=true") 
 ```
-
-
 ```python
 monitor1 = qs.Monitor(url = "127.0.0.1:8800", background="black").make_grid([["a", "a"], ["b", "c"]])
 e0 = (
@@ -1382,11 +1196,9 @@ df = qs.with_cols(
 ).with_cols(e0).select(e1).select(e2, e3)
 df.opt_params(data_kline, True)
 ```
-
 ![监控](./examples/data/straselect.gif)
 
 也可以对两个策略测试信号融合
-
 
 ```python
 monitor1 = qs.Monitor(url = "127.0.0.1:8800", background="black").make_grid([["a", "a"], ["b", "c"]])
@@ -1403,7 +1215,6 @@ df = qs.with_cols(
 ).with_cols(e0).select(e1).select(e2, e3)
 df.opt_params(data_kline, True)
 ```
-
 就像要codex直接写代码，codex会给你整坨大的, 但是给codex定很多约束，codex写的代码质量出奇的好
 
 同样，直接叫ai去写策略，有点困难；但是如果给ai很多算子，并且告诉ai这些算子的作用，然后要ai整夜给你跑，组合出一个好的策略，说不定ai有奇效

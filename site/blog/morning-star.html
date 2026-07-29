@@ -16,10 +16,12 @@
           <span class="brand-text">qust</span>
         </a>
         <nav class="nav" aria-label="主导航">
-          <a href="../tutorial.html">学习路径</a>
+          <a href="../tutorial.html">使用教程</a>
           <a href="../blog.html">Blog</a>
           <a href="../../examples/docs/index.html">Doc</a>
           <a href="../service.html">服务</a>
+          <a href="https://baiguoname.github.io/qust/site">项目地址</a>
+          <a href="https://github.com/baiguoname/qust">git地址</a>
         </nav>
       </header>
     
@@ -28,14 +30,15 @@
       <aside class="article-sidebar">
         <a class="back-link" href="../blog.html">返回目录</a>
         <div class="article-list">
-          <a class="article-link" href="bearish-engulfing.html">Bearish Engulfing</a><a class="article-link" href="breadth-thrust-indicator.html">Breadth Thrust</a><a class="article-link" href="bullish-harami.html">Bullish Harami</a><a class="article-link" href="descending-triangle.html">Descending Triangle</a><a class="article-link" href="donchian-channels.html">Donchian Channels</a><a class="article-link" href="double-top.html">Double Top</a><a class="article-link" href="gap.html">Gap</a><a class="article-link" href="ichimoku-cloud.html">Ichimoku Cloud</a><a class="article-link active" href="morning-star.html">Morning Star</a><a class="article-link" href="triple-bottom.html">Triple Bottom</a><a class="article-link" href="wedge.html">Wedge</a><a class="article-link" href="zig-zag-indicator.html">Zig Zag</a>
+          <a class="article-link" href="bearish-engulfing.html">Bearish Engulfing</a><a class="article-link" href="breadth-thrust.html">Breadth Thrust</a><a class="article-link" href="bullish-harami.html">Bullish Harami</a><a class="article-link" href="descending-triangle.html">Descending Triangle</a><a class="article-link" href="donchian-channels.html">Donchian Channels</a><a class="article-link" href="double-top.html">Double Top</a><a class="article-link" href="gap.html">Gap</a><a class="article-link" href="ichimoku-cloud.html">Ichimoku Cloud</a><a class="article-link active" href="morning-star.html">Morning Star</a><a class="article-link" href="triple-bottom.html">Triple Bottom</a><a class="article-link" href="wedge.html">Wedge</a><a class="article-link" href="zig-zag.html">Zig Zag</a>
         </div>
       </aside>
       <article class="notebook-article">
         <div class="cell border-box-sizing text_cell rendered" id="cell-id=64af874d"><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Morning-Star%EF%BC%9A%E7%94%A8-qust-%E8%AF%86%E5%88%AB%E6%97%A9%E6%99%A8%E4%B9%8B%E6%98%9F">Morning Star：用 qust 识别早晨之星</h1><p>来源参考：<a href="https://www.investopedia.com/terms/m/morningstar.asp">Investopedia</a></p>
-<p>这篇 notebook 按 Investopedia 原页面的信息结构做完整中文改写，并把指标定义落成 <code>col(...).investopedia.xxx(...)</code> 的一行调用。能用 qust 现有 rolling、shift、select、with_cols、over 组合的就直接组合；需要 pivot/形态扫描的部分由 Rust helper 完成，Python 端不写 UDF。</p>
+<h1 id="Morning-Star%EF%BC%9A%E7%94%A8-qust-%E8%AF%86%E5%88%AB%E6%97%A9%E6%99%A8%E4%B9%8B%E6%98%9F">Morning Star：用 qust 识别早晨之星</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>来源参考：<a href="https://www.investopedia.com/terms/m/morningstar.asp">Investopedia</a></p>
+<p>本文按 Investopedia 原文结构讲解指标含义、常见用法和局限性，并展示如何用 qust 一行计算指标、选择单个 <code>ticker + ct</code> 合约画图，以及在完整多合约数据上按 <code>over("ticker", "ct")</code> 做回测。</p>
 </div>
 </div>
 </div>
@@ -71,14 +74,7 @@
 
 <div class="inner_cell">
 <div class="input_area">
-<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-
-<span class="n">LOCAL_QUST_SOURCE</span> <span class="o">=</span> <span class="s2">"/root/otters/otters-py/python"</span>
-<span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">LOCAL_QUST_SOURCE</span><span class="p">)</span> <span class="ow">and</span> <span class="n">LOCAL_QUST_SOURCE</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
-    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">LOCAL_QUST_SOURCE</span><span class="p">)</span>
-
-<span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
 <span class="kn">import</span> <span class="nn">qust.future.future</span>  <span class="c1"># 注册 bt/stra/kline/fp 等金融命名空间</span>
 <span class="kn">import</span> <span class="nn">qust.investopedia</span>  <span class="c1"># 注册 investopedia 命名空间</span>
 <span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span><span class="p">,</span> <span class="n">mark_shape</span>
@@ -87,7 +83,7 @@
 <span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
 <span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">28</span><span class="p">)</span>
 
-<span class="n">DATA_PATH</span> <span class="o">=</span> <span class="s2">"/root/qust-py/examples/data/data_kline3.parquet"</span>
+<span class="n">DATA_PATH</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_kline3.parquet?raw=true"</span>
 <span class="n">PLOT_TICKER</span> <span class="o">=</span> <span class="s2">"AP"</span>
 </pre></div>
 </div>
@@ -147,7 +143,7 @@ default plot ticker/ct: AP 205
 </div>
 <div class="cell border-box-sizing text_cell rendered" id="cell-id=dedfe5ea"><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h2 id="4.-%E8%AE%A1%E7%AE%97%E6%8C%87%E6%A0%87">4. 计算指标</h2><p>下面用真实本地 K 线数据计算。对合约相关指标，示例都使用 <code>.over("ticker", "ct")</code>，表示每个品种、每个合约独立维护上下文，避免不同合约的数据串在一起。</p>
+<h2 id="4.-%E8%AE%A1%E7%AE%97%E6%8C%87%E6%A0%87">4. 计算指标</h2><p>下面用真实GitHub K 线数据计算。对合约相关指标，示例都使用 <code>.over("ticker", "ct")</code>，表示每个品种、每个合约独立维护上下文，避免不同合约的数据串在一起。</p>
 </div>
 </div>
 </div>
@@ -200,7 +196,7 @@ default plot ticker/ct: AP 205
 </div>
 <div class="cell border-box-sizing text_cell rendered" id="cell-id=227119aa"><div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h2 id="5.-%E7%94%A8-monitor-%E7%94%BB%E5%87%BA%E6%9D%A5">5. 用 monitor 画出来</h2><p>图不是静态 PNG，而是 qust monitor 输出。你可以在 notebook 里放大、拖动、查看指标与 K 线的对应关系。</p>
+<h2 id="5.-%E7%94%A8-monitor-%E7%94%BB%E5%87%BA%E6%9D%A5">5. 用 monitor 画出来</h2><p>图不是静态 PNG，而是 qust monitor 输出。你可以在 Jupyter 里放大、拖动、查看指标与 K 线的对应关系。</p>
 </div>
 </div>
 </div>
@@ -256,82 +252,57 @@ default plot ticker/ct: AP 205
 <div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">TAKE_PROFIT</span> <span class="o">=</span> <span class="mf">0.05</span>
 <span class="n">STOP_LOSS</span> <span class="o">=</span> <span class="mf">0.02</span>
 
-
-<span class="k">def</span> <span class="nf">make_two_sided_strategy</span><span class="p">(</span><span class="n">indicator_cols</span><span class="p">,</span> <span class="n">open_long_raw</span><span class="p">,</span> <span class="n">open_short_raw</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""用当前指标生成完整多空策略；持仓用 fp.vol_pms 做品种/波动率尺度归一化。"""</span>
-    <span class="k">return</span> <span class="p">(</span>
-        <span class="n">col</span>
-        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">indicator_cols</span><span class="p">)</span>
-        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
-            <span class="n">open_long_raw</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_raw"</span><span class="p">),</span>
-            <span class="n">open_short_raw</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_raw"</span><span class="p">),</span>
-        <span class="p">)</span>
-        <span class="c1"># 指标在当前 K 线收盘后才确认，所以入场信号后移一根 K 线，避免同根 K 线偷看。</span>
-        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
-            <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_raw"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">),</span>
-            <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_raw"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">),</span>
-        <span class="p">)</span>
-        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
-            <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">),</span>
-            <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">),</span>
-            <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">),</span>
-            <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">),</span>
-        <span class="p">)</span>
-        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
-            <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">))</span>
-                <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
-                <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_long_sig"</span><span class="p">),</span>
-            <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">))</span>
-                <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
-                <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_short_sig"</span><span class="p">),</span>
-        <span class="p">)</span>
-        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
-            <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"exit_long_sig"</span><span class="p">,</span> <span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"exit_short_sig"</span><span class="p">)</span>
-                <span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">to_hold_two_sides</span><span class="p">()</span>
-                <span class="o">.</span><span class="n">expanding</span><span class="p">()</span>
-                <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
-        <span class="p">)</span>
-        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
-            <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">fp</span><span class="o">.</span><span class="n">vol_pms</span><span class="p">())</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
-        <span class="p">)</span>
-        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="s2">"hold"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">price</span><span class="p">(</span><span class="n">fee_rate</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">())</span>
-        <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
-        <span class="o">.</span><span class="n">select</span><span class="p">(</span>
-            <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span>
-                <span class="o">.</span><span class="n">sum</span><span class="p">()</span>
-                <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">))</span>
-                <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
-                <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"pnl_cum"</span><span class="p">))</span>
-                <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">,</span> <span class="s2">"pnl_cum"</span><span class="p">)</span>
-        <span class="p">)</span>
-    <span class="p">)</span>
-
-
-<span class="k">def</span> <span class="nf">calc_strategy_stats</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
-    <span class="k">return</span> <span class="n">col</span><span class="p">(</span>
-        <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span><span class="o">.</span><span class="n">first_value</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"start_date"</span><span class="p">),</span>
-        <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span><span class="o">.</span><span class="n">last_value</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"end_date"</span><span class="p">),</span>
-        <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"days"</span><span class="p">),</span>
-        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"total_pnl"</span><span class="p">),</span>
-        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"mean_daily_pnl"</span><span class="p">),</span>
-        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"std_daily_pnl"</span><span class="p">),</span>
-        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()</span> <span class="o">*</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mi">252</span> <span class="o">**</span> <span class="mf">0.5</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"sharpe_like"</span><span class="p">),</span>
-        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"worst_day_pnl"</span><span class="p">),</span>
-        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"best_day_pnl"</span><span class="p">),</span>
-    <span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">)</span>
-
 <span class="n">indicator_cols</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">morning_star</span><span class="p">(</span>
     <span class="n">trend_period</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
     <span class="n">small_body_ratio</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
     <span class="n">close_into_body</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="n">strategy_daily_expr</span> <span class="o">=</span> <span class="n">make_two_sided_strategy</span><span class="p">(</span>
-    <span class="n">indicator_cols</span><span class="p">,</span>
-    <span class="n">col</span><span class="p">(</span><span class="s2">"morning_star"</span><span class="p">),</span>
-    <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">),</span>
+<span class="n">strategy_daily_expr</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">indicator_cols</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"morning_star"</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_raw"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_raw"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="c1"># 指标在当前 K 线收盘后才确认，所以入场信号后移一根 K 线，避免同根 K 线偷看。</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_raw"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_raw"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_long_sig"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_short_sig"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"exit_long_sig"</span><span class="p">,</span> <span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"exit_short_sig"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">to_hold_two_sides</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">expanding</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">((</span><span class="n">col</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">fp</span><span class="o">.</span><span class="n">vol_pms</span><span class="p">())</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="s2">"hold"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">price</span><span class="p">(</span><span class="n">fee_rate</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">())</span>
+    <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"pnl_cum"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">,</span> <span class="s2">"pnl_cum"</span><span class="p">)</span>
+    <span class="p">)</span>
 <span class="p">)</span>
 <span class="n">strategy_daily</span> <span class="o">=</span> <span class="n">strategy_daily_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
-<span class="n">strategy_stats</span> <span class="o">=</span> <span class="n">calc_strategy_stats</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">)</span>
+<span class="n">strategy_stats</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">returns_stats</span><span class="p">(</span><span class="n">periods_per_year</span><span class="o">=</span><span class="mi">252</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">)</span>
 
 <span class="nb">print</span><span class="p">(</span><span class="s2">"strategy_daily shape:"</span><span class="p">,</span> <span class="n">strategy_daily</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 <span class="n">strategy_stats</span>
@@ -357,7 +328,7 @@ default plot ticker/ct: AP 205
   white-space: pre-wrap;
 }
 </style>
-<small>shape: (1, 9)</small><table border="1" class="dataframe-table"><thead><tr><th>start_date</th><th>end_date</th><th>days</th><th>total_pnl</th><th>mean_daily_pnl</th><th>std_daily_pnl</th><th>sharpe_like</th><th>worst_day_pnl</th><th>best_day_pnl</th></tr><tr><td>date</td><td>date</td><td>i32</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2022-01-04</td><td>2024-12-31</td><td>859</td><td>52.567097</td><td>0.061626</td><td>1.850736</td><td>0.528592</td><td>-5.5088</td><td>8.134259</td></tr></tbody></table></div></div>
+<small>shape: (20, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>metric</th><th>value</th><th>value_float</th></tr><tr><td>str</td><td>str</td><td>f64</td></tr></thead><tbody><tr><td>"Start Index"</td><td>"2022-01-04"</td><td>null</td></tr><tr><td>"End Index"</td><td>"2024-12-31"</td><td>null</td></tr><tr><td>"Total Duration"</td><td>"1092 days, 0:00:00"</td><td>null</td></tr><tr><td>"Total Return [%]"</td><td>"3.815329248753348e+48"</td><td>3.8153e48</td></tr><tr><td>"Benchmark Return [%]"</td><td>null</td><td>null</td></tr><tr><td>"Annualized Return [%]"</td><td>"5774099388076225.0"</td><td>5.7741e15</td></tr><tr><td>"Annualized Volatility [%]"</td><td>"2937.952224554212"</td><td>2937.952225</td></tr><tr><td>"Max Drawdown [%]"</td><td>"221978.1898581617"</td><td>221978.189858</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>"Sortino Ratio"</td><td>"0.9298775163949298"</td><td>0.929878</td></tr><tr><td>"Skew"</td><td>"0.27712107429740845"</td><td>0.277121</td></tr><tr><td>"Kurtosis"</td><td>"3.881082440253485"</td><td>3.881082</td></tr><tr><td>"Tail Ratio"</td><td>"1.0720862131382258"</td><td>1.072086</td></tr><tr><td>"Common Sense Ratio"</td><td>"1.1742153523329393"</td><td>1.174215</td></tr><tr><td>"Value at Risk"</td><td>"-3.023071946391541"</td><td>-3.023072</td></tr><tr><td>"Alpha"</td><td>null</td><td>null</td></tr><tr><td>"Beta"</td><td>null</td><td>null</td></tr></tbody></table></div></div>
 </div>
 </div>
 </div>
