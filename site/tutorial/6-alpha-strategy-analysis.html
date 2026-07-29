@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust 高性能计算引擎：DataFrame、流计算、量化研究、ClickHouse 与高性能算子。">
+    <title>alpha len 与策略信号分析：从输入表到分析面板 | qust</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust 首页">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <a href="../tutorial.html">学习路径</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../examples/docs/index.html">Doc</a>
+          <a href="../service.html">服务</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../tutorial.html">返回目录</a>
+        <div class="article-list">
+          <a class="article-link" href="1-overview.html">项目概览</a><a class="article-link" href="2-qust-basics.html">基础用法</a><a class="article-link" href="3-performance.html">性能对比</a><a class="article-link" href="4-qust-advanced.html">高阶用法</a><a class="article-link" href="5-monitor-usage.html">Monitor</a><a class="article-link active" href="6-alpha-strategy-analysis.html">Alpha 与策略分析</a><a class="article-link" href="7-analysis.html">分析示例</a><a class="article-link" href="8-indicators.html">指标示例</a><a class="article-link" href="9-optimization.html">参数优化</a><a class="article-link" href="10-strategy-writing.html">策略编写</a><a class="article-link" href="11-smc.html">SMC</a><a class="article-link" href="12-portfolio.html">组合策略</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=0396269c"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="alpha-len-%E4%B8%8E%E7%AD%96%E7%95%A5%E4%BF%A1%E5%8F%B7%E5%88%86%E6%9E%90%EF%BC%9A%E4%BB%8E%E8%BE%93%E5%85%A5%E8%A1%A8%E5%88%B0%E5%88%86%E6%9E%90%E9%9D%A2%E6%9D%BF">alpha len 与策略信号分析：从输入表到分析面板</h1><p>这本 notebook 讲两个完整研究工作流：</p>
+<ol>
+<li>因子分析：把原始行情表变成 <code>date/code/factor/price</code>，再调用 <code>alphalen_analysis()</code>；</li>
+<li>策略分析：把原始行情表变成开平仓信号，再调用 <code>sig_stra_analysis()</code>。</li>
+</ol>
+<p>这里会反复强调“输入列是什么、表达式做了什么、输出怎么看”。因为这两个分析算子本身很强，但如果输入列不对，面板就没有意义。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=e4aef221">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">sys</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">"/root/otters/otters-py/python"</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">importlib</span>
+
+<span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+<span class="n">qs</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">reload</span><span class="p">(</span><span class="n">qs</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span><span class="p">,</span> <span class="n">pms</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+<span class="kn">import</span> <span class="nn">qust.datasource</span> <span class="k">as</span> <span class="nn">qds</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">14</span><span class="p">)</span>
+
+<span class="n">DATA_KLINE</span> <span class="o">=</span> <span class="s2">"/root/qust-py/examples/data/data_kline2.parquet"</span>
+<span class="n">DATA_FUTURE</span> <span class="o">=</span> <span class="s2">"/root/qust-py/examples/data/kline_data_all.parquet"</span>
+<span class="n">DATA_STOCK</span> <span class="o">=</span> <span class="s2">"/root/qust-py/examples/data/stock_data_kline.parquet"</span>
+
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">alpha101_assets</span><span class="p">,</span> <span class="n">stra_assets</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=8bd20665"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-Alpha-%E8%BE%93%E5%85%A5%E8%A7%84%E8%8C%83%EF%BC%9A%E5%85%88%E6%8A%8A%E6%95%B0%E6%8D%AE%E6%95%B4%E7%90%86%E6%88%90%E6%A0%87%E5%87%86%E5%9B%9B%E5%88%97">1. Alpha 输入规范：先把数据整理成标准四列</h2><p><code>alphalen_analysis</code> 不直接认识你的原始行情列，它只认标准分析输入：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>列名</th>
+<th>含义</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>date</code></td>
+<td>横截面日期</td>
+<td>2025-01-02</td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>股票/资产代码</td>
+<td>SHSE.600000</td>
+</tr>
+<tr>
+<td><code>factor</code></td>
+<td>因子值</td>
+<td>alpha101 算出来的数值</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td>用来算未来收益的价格</td>
+<td>close</td>
+</tr>
+</tbody>
+</table>
+<p>流程是：</p>
+<div class="highlight"><pre class="code-block"><span></span>原始 K 线 -&gt; alpha101 表达式生成 factor -&gt; datetime 转 date -&gt; close 复制为 price -&gt; alphalen_analysis
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=5a8a7d34">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">stock_raw</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_STOCK</span><span class="p">)</span>
+<span class="n">stock_dates</span> <span class="o">=</span> <span class="n">stock_raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">))</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">20</span><span class="p">)[</span><span class="s2">"date"</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+<span class="n">stock_codes</span> <span class="o">=</span> <span class="n">stock_raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"code"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">100</span><span class="p">)[</span><span class="s2">"code"</span><span class="p">]</span><span class="o">.</span><span class="n">to_list</span><span class="p">()</span>
+<span class="n">stock_data</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">stock_raw</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"_date"</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"_date"</span><span class="p">)</span><span class="o">.</span><span class="n">is_in</span><span class="p">(</span><span class="n">stock_dates</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"code"</span><span class="p">)</span><span class="o">.</span><span class="n">is_in</span><span class="p">(</span><span class="n">stock_codes</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">"_date"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">alpha_exprs</span> <span class="o">=</span> <span class="n">alpha101_assets</span><span class="o">.</span><span class="n">get_all_alpha101_exprs</span><span class="p">()</span>
+<span class="n">alpha_factor_input</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="p">,</span>
+    <span class="n">alpha_exprs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"factor"</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"price"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">factor_data</span> <span class="o">=</span> <span class="n">alpha_factor_input</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">stock_data</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">stock_data</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">factor_data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">factor_data</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"code"</span><span class="p">,</span> <span class="s2">"factor"</span><span class="p">,</span> <span class="s2">"price"</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">(1986, 7) (1986, 10)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 4)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>code</th><th>factor</th><th>price</th></tr><tr><td>date</td><td>str</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2025-01-02</td><td>"SHSE.600023"</td><td>null</td><td>5.48</td></tr><tr><td>2025-01-02</td><td>"SHSE.600155"</td><td>null</td><td>7.06</td></tr><tr><td>2025-01-02</td><td>"SHSE.600169"</td><td>null</td><td>2.43</td></tr><tr><td>2025-01-02</td><td>"SHSE.600190"</td><td>null</td><td>1.59</td></tr><tr><td>2025-01-02</td><td>"SHSE.600333"</td><td>null</td><td>5.83</td></tr><tr><td>2025-01-02</td><td>"SHSE.600408"</td><td>null</td><td>2.02</td></tr><tr><td>2025-01-02</td><td>"SHSE.600489"</td><td>null</td><td>12.3</td></tr><tr><td>2025-01-02</td><td>"SHSE.600529"</td><td>null</td><td>26.63</td></tr><tr><td>2025-01-02</td><td>"SHSE.600540"</td><td>null</td><td>3.91</td></tr><tr><td>2025-01-02</td><td>"SHSE.600561"</td><td>null</td><td>5.37</td></tr><tr><td>2025-01-02</td><td>"SHSE.600577"</td><td>null</td><td>7.15</td></tr><tr><td>2025-01-02</td><td>"SHSE.600598"</td><td>null</td><td>14.25</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=26ec03f0"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-alphalen_analysis-%E5%8F%82%E6%95%B0%EF%BC%9A%E6%AF%8F%E4%B8%AA%E5%8F%82%E6%95%B0%E5%BD%B1%E5%93%8D%E5%93%AA%E4%B8%AA%E9%9D%A2%E6%9D%BF">2. alphalen_analysis 参数：每个参数影响哪个面板</h2><p>常用参数：</p>
+<ul>
+<li><code>quantiles</code>：把因子分成几组，例如 5 组就是 Q1 到 Q5；</li>
+<li><code>h1/h2/h3</code>：未来收益窗口，比如 1 日、5 日、10 日；</li>
+<li><code>event_start/event_end</code>：事件分析窗口，观察事件前后收益形态。</li>
+</ul>
+<p>这里用 <code>pms(...)</code> 而不是裸 int，是因为内部不仅要取当前值，还要生成参数表达式和列表表达式。对于分析面板这种组合算子，<code>Params</code> 能保留更多语义。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=41e15922">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">alphalen_expr</span> <span class="o">=</span> <span class="n">alpha_factor_input</span><span class="o">.</span><span class="n">alpha</span><span class="p">(</span>
+    <span class="n">quantiles</span><span class="o">=</span><span class="n">pms</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"quantiles"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">h1</span><span class="o">=</span><span class="n">pms</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"h1"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">h2</span><span class="o">=</span><span class="n">pms</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">60</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"h2"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">h3</span><span class="o">=</span><span class="n">pms</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">120</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"h3"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">event_start</span><span class="o">=</span><span class="n">pms</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"event_start"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">event_end</span><span class="o">=</span><span class="n">pms</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"event_end"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">alphalen_analysis</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">alphalen_expr</span><span class="o">.</span><span class="n">display</span><span class="p">()[:</span><span class="mi">600</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">ExprAddGrid { inner: Expr { inner: ExprMakeMonitor { inner: Expr { inner: ExprPip { child: Expr { inner: ExprPip { child: Expr { inner: ExprPip { child: Expr { inner: ExprPip { child: Expr { inner: ExprPip { child: Expr { inner: ExprPip { child: Expr { inner: ExprPip { child: Expr { inner: ExprSelect { exprs: [Expr { inner: ExprPlExpr { inner: cs.all() }, metadata: RwLock { data: {}, poisoned: false, .. }, plugins: PluginRegistry { plugins: [] } }, Expr { inner: ExprPip { child: Expr { inner: ExprPip { child: Expr { inner: ExprPip { child: Expr { inner: ExprPip { child: Expr { inner: ExprPip {...
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=b240229d"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-alphalen_analysis-%E5%87%BA%E5%9B%BE">3. alphalen_analysis 出图</h2><p>下面会打开 qust monitor。这个分析会包含 summary、quantile returns、IC、event study 等面板。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=d397a948">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">contextlib</span>
+<span class="kn">import</span> <span class="nn">io</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="n">alphalen_runtime</span> <span class="o">=</span> <span class="n">alphalen_expr</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="c1"># 小样本下某些 monitor 子面板可能没有足够数据；plot 本身仍会返回 dashboard。</span>
+<span class="k">with</span> <span class="n">contextlib</span><span class="o">.</span><span class="n">redirect_stderr</span><span class="p">(</span><span class="n">io</span><span class="o">.</span><span class="n">StringIO</span><span class="p">()):</span>
+    <span class="n">alphalen_runtime</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">stock_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">900</span><span class="p">)</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="6-alpha-strategy-analysis monitor output 1" loading="lazy" src="../assets/notebook-renders/tutorial-6-alpha-strategy-analysis-01.png"/><figcaption>notebook 输出：monitor 静态图</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block">monitor session async start failed: Violin/Single needs at least 10, got 2 columns
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=7d02ab07"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-returns_stats%EF%BC%9A%E6%94%B6%E7%9B%8A%E7%BB%9F%E8%AE%A1%E8%A1%A8">4. returns_stats：收益统计表</h2><p><code>col("date", "pnl").bt.returns_stats()</code> 输入两列；如果有第三列 benchmark，会额外计算 Alpha/Beta/Benchmark Return。</p>
+<p>这里先构造一个简单的日收益序列，展示输出格式。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=846cfd3c">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">stats_source</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">"date"</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">date_range</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">pl</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2025</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">30</span><span class="p">),</span> <span class="n">interval</span><span class="o">=</span><span class="s2">"1d"</span><span class="p">,</span> <span class="n">eager</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="s2">"pnl"</span><span class="p">:</span> <span class="p">[((</span><span class="n">i</span> <span class="o">*</span> <span class="mi">13</span><span class="p">)</span> <span class="o">%</span> <span class="mi">17</span> <span class="o">-</span> <span class="mi">8</span><span class="p">)</span> <span class="o">/</span> <span class="mi">1000</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">30</span><span class="p">)],</span>
+    <span class="s2">"benchmark"</span><span class="p">:</span> <span class="p">[((</span><span class="n">i</span> <span class="o">*</span> <span class="mi">7</span><span class="p">)</span> <span class="o">%</span> <span class="mi">13</span> <span class="o">-</span> <span class="mi">6</span><span class="p">)</span> <span class="o">/</span> <span class="mi">1200</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">30</span><span class="p">)],</span>
+<span class="p">})</span>
+
+<span class="n">stats</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">,</span> <span class="s2">"benchmark"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">returns_stats</span><span class="p">(</span><span class="n">periods_per_year</span><span class="o">=</span><span class="mi">252</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">stats_source</span><span class="p">)</span>
+<span class="n">stats</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (20, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>metric</th><th>value</th><th>value_float</th></tr><tr><td>str</td><td>str</td><td>f64</td></tr></thead><tbody><tr><td>"Start Index"</td><td>"2025-01-01"</td><td>null</td></tr><tr><td>"End Index"</td><td>"2025-01-30"</td><td>null</td></tr><tr><td>"Total Duration"</td><td>"29 days, 0:00:00"</td><td>null</td></tr><tr><td>"Total Return [%]"</td><td>"-0.8325329185464581"</td><td>-0.832533</td></tr><tr><td>"Benchmark Return [%]"</td><td>"-0.679286110002697"</td><td>-0.679286</td></tr><tr><td>"Annualized Return [%]"</td><td>"-6.7816409019519135"</td><td>-6.781641</td></tr><tr><td>"Annualized Volatility [%]"</td><td>"7.898109769497667"</td><td>7.89811</td></tr><tr><td>"Max Drawdown [%]"</td><td>"1.5993007606286525"</td><td>1.599301</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>"Sortino Ratio"</td><td>"-1.4780911214227288"</td><td>-1.478091</td></tr><tr><td>"Skew"</td><td>"0.017901304303560052"</td><td>0.017901</td></tr><tr><td>"Kurtosis"</td><td>"1.7604522452746463"</td><td>1.760452</td></tr><tr><td>"Tail Ratio"</td><td>"0.9271523178807948"</td><td>0.927152</td></tr><tr><td>"Common Sense Ratio"</td><td>"0.8180755746007015"</td><td>0.818076</td></tr><tr><td>"Value at Risk"</td><td>"-0.007549999999999999"</td><td>-0.00755</td></tr><tr><td>"Alpha"</td><td>"-0.05597613719738541"</td><td>-0.055976</td></tr><tr><td>"Beta"</td><td>"0.21277656590838276"</td><td>0.212777</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=22ef8744"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-%E7%AD%96%E7%95%A5%E4%BF%A1%E5%8F%B7%E8%BE%93%E5%85%A5%E8%A7%84%E8%8C%83%EF%BC%9A%E5%85%88%E7%94%9F%E6%88%90%E5%BC%80%E5%B9%B3%E4%BB%93%E4%BF%A1%E5%8F%B7">5. 策略信号输入规范：先生成开平仓信号</h2><p><code>sig_stra_analysis</code> 不是直接拿价格就能分析，它需要策略信号列：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>列名</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open_long_sig</code></td>
+<td>开多信号</td>
+</tr>
+<tr>
+<td><code>exit_long_sig</code></td>
+<td>平多信号</td>
+</tr>
+<tr>
+<td><code>open_short_sig</code></td>
+<td>开空信号</td>
+</tr>
+<tr>
+<td><code>exit_short_sig</code></td>
+<td>平空信号</td>
+</tr>
+</tbody>
+</table>
+<p>再加上基础行情列：<code>datetime/ticker/close/open/high/low/volume</code>。</p>
+<p>流程是：</p>
+<div class="highlight"><pre class="code-block"><span></span>原始 K 线 -&gt; stra_assets 内置策略生成信号 -&gt; sig_stra_analysis 生成交易分析 dashboard
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=91f1f213">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">future_raw</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_FUTURE</span><span class="p">)</span>
+<span class="n">future_data</span> <span class="o">=</span> <span class="n">future_raw</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"au"</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1_000</span><span class="p">)</span>
+
+<span class="n">stras</span> <span class="o">=</span> <span class="n">stra_assets</span><span class="o">.</span><span class="n">get_all_strategy_exprs</span><span class="p">()</span>
+<span class="n">stra</span> <span class="o">=</span> <span class="n">stras</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+<span class="n">signals</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">stra</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">future_data</span><span class="p">)</span>
+<span class="n">signals</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span>
+    <span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"exit_long_sig"</span><span class="p">,</span> <span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"exit_short_sig"</span><span class="p">,</span>
+<span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 7)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>ticker</th><th>close</th><th>open_long_sig</th><th>exit_long_sig</th><th>open_short_sig</th><th>exit_short_sig</th></tr><tr><td>datetime[ms]</td><td>str</td><td>f64</td><td>bool</td><td>bool</td><td>bool</td><td>bool</td></tr></thead><tbody><tr><td>2022-07-02 00:01:00</td><td>"au"</td><td>390.119995</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:02:00.500</td><td>"au"</td><td>390.140015</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:03:00</td><td>"au"</td><td>390.200012</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:04:01</td><td>"au"</td><td>390.160004</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:05:00.500</td><td>"au"</td><td>390.100006</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:06:00.500</td><td>"au"</td><td>390.140015</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:07:00</td><td>"au"</td><td>389.880005</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:08:03</td><td>"au"</td><td>389.880005</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:09:00.500</td><td>"au"</td><td>389.880005</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:10:02.500</td><td>"au"</td><td>389.899994</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:11:01.500</td><td>"au"</td><td>389.839996</td><td>false</td><td>false</td><td>false</td><td>false</td></tr><tr><td>2022-07-02 00:12:00.500</td><td>"au"</td><td>389.859985</td><td>false</td><td>false</td><td>false</td><td>false</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=ed7cc965"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-sig_stra_analysis-%E5%87%BA%E5%9B%BE">6. sig_stra_analysis 出图</h2><p><code>bt.sig_stra_analysis()</code> 会根据开平仓信号生成交易散点、持仓收益、分组 pnl 和总 pnl monitor。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=5ed9a3eb">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">sig_analysis</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">stra</span><span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">sig_stra_analysis</span><span class="p">()</span>
+<span class="p">)</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">sig_analysis</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">future_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">900</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="6-alpha-strategy-analysis monitor output 2" loading="lazy" src="../assets/notebook-renders/tutorial-6-alpha-strategy-analysis-02.png"/><figcaption>notebook 输出：monitor 静态图</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f0d261fffd0&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=3a50d208"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-trade_row-/-bin_trade-/-violin-profile%EF%BC%9A%E6%8B%86%E5%BC%80-dashboard-%E8%87%AA%E5%B7%B1%E5%81%9A%E5%88%86%E6%9E%90">7. trade_row / bin_trade / violin profile：拆开 dashboard 自己做分析</h2><p>完整 dashboard 很方便，但研究时经常要拆开某个问题。</p>
+<p>下面这段表达式做的是：</p>
+<ol>
+<li>用策略生成信号；</li>
+<li><code>bin_trade()</code> 给每一笔交易编号；</li>
+<li>在每笔交易内部计算已经持有多少 bar：<code>open_elapsed</code>；</li>
+<li>在每笔交易内部累计收益：<code>ret_cum</code>；</li>
+<li>对每个 <code>open_elapsed</code> 的 <code>ret_cum</code> 分布做 violin profile。</li>
+</ol>
+<p>这就是“完整分析面板 -&gt; 拆成可复用小分析”的思路。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=952bffec">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">trade_profile</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">stra</span><span class="p">,</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">pct</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">())</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"exit_long_sig"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">bin_trade</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"bin_trade"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"bin_trade"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">())</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_elapsed"</span><span class="p">),</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ret_cum"</span><span class="p">),</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"bin_trade"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"ret_cum"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">())</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"ret_cum"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">violin_profile</span><span class="p">(</span><span class="n">lower_bound</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">up_bound</span><span class="o">=</span><span class="mf">0.95</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"open_elapsed"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"open_elapsed"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">future_data</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">trade_profile</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 10)</small><table border="1" class="dataframe-table"><thead><tr><th>open_elapsed</th><th>count</th><th>min</th><th>q1</th><th>median</th><th>q3</th><th>max</th><th>y</th><th>half_width</th><th>is_point</th></tr><tr><td>u32</td><td>u64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>list[f64]</td><td>list[f64]</td><td>bool</td></tr></thead><tbody><tr><td>1</td><td>1</td><td>0.000307</td><td>0.000307</td><td>0.000307</td><td>0.000307</td><td>0.000307</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>2</td><td>1</td><td>0.000563</td><td>0.000563</td><td>0.000563</td><td>0.000563</td><td>0.000563</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>3</td><td>1</td><td>0.000563</td><td>0.000563</td><td>0.000563</td><td>0.000563</td><td>0.000563</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>4</td><td>1</td><td>0.000563</td><td>0.000563</td><td>0.000563</td><td>0.000563</td><td>0.000563</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>5</td><td>1</td><td>0.000307</td><td>0.000307</td><td>0.000307</td><td>0.000307</td><td>0.000307</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>6</td><td>1</td><td>0.00046</td><td>0.00046</td><td>0.00046</td><td>0.00046</td><td>0.00046</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>7</td><td>1</td><td>0.00046</td><td>0.00046</td><td>0.00046</td><td>0.00046</td><td>0.00046</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>8</td><td>1</td><td>0.00046</td><td>0.00046</td><td>0.00046</td><td>0.00046</td><td>0.00046</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>9</td><td>1</td><td>0.000409</td><td>0.000409</td><td>0.000409</td><td>0.000409</td><td>0.000409</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>10</td><td>1</td><td>0.000409</td><td>0.000409</td><td>0.000409</td><td>0.000409</td><td>0.000409</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>11</td><td>1</td><td>0.000409</td><td>0.000409</td><td>0.000409</td><td>0.000409</td><td>0.000409</td><td>[]</td><td>[]</td><td>true</td></tr><tr><td>12</td><td>1</td><td>0.000256</td><td>0.000256</td><td>0.000256</td><td>0.000256</td><td>0.000256</td><td>[]</td><td>[]</td><td>true</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=a3198373"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-%E7%BB%84%E5%90%88%E5%BB%BA%E8%AE%AE">8. 组合建议</h2><p>常见研究流程：</p>
+<ol>
+<li>用 qust 表达式生成 factor 或 strategy signals；</li>
+<li>用 <code>alphalen_analysis</code> 或 <code>sig_stra_analysis</code> 快速看整体面板；</li>
+<li>对发现的问题拆成更小的表达式，例如 returns_stats、trade_row、violin_profile；</li>
+<li>用 <code>pms/opt_params/optuna_params</code> 做参数扫描；</li>
+<li>最后把稳定表达式保存并用于更大样本或流式数据源。</li>
+</ol>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../site.js"></script>
+  </body>
+</html>

@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust 高性能计算引擎：DataFrame、流计算、量化研究、ClickHouse 与高性能算子。">
+    <title>Ichimoku Cloud：用 qust 复现 Investopedia 的一目均衡表 | qust</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust 首页">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <a href="../tutorial.html">学习路径</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../examples/docs/index.html">Doc</a>
+          <a href="../service.html">服务</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../blog.html">返回目录</a>
+        <div class="article-list">
+          <a class="article-link" href="bearish-engulfing.html">Bearish Engulfing</a><a class="article-link" href="breadth-thrust-indicator.html">Breadth Thrust</a><a class="article-link" href="bullish-harami.html">Bullish Harami</a><a class="article-link" href="descending-triangle.html">Descending Triangle</a><a class="article-link" href="donchian-channels.html">Donchian Channels</a><a class="article-link" href="double-top.html">Double Top</a><a class="article-link" href="gap.html">Gap</a><a class="article-link active" href="ichimoku-cloud.html">Ichimoku Cloud</a><a class="article-link" href="morning-star.html">Morning Star</a><a class="article-link" href="triple-bottom.html">Triple Bottom</a><a class="article-link" href="wedge.html">Wedge</a><a class="article-link" href="zig-zag-indicator.html">Zig Zag</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=b010f9c5"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Ichimoku-Cloud%EF%BC%9A%E7%94%A8-qust-%E5%A4%8D%E7%8E%B0-Investopedia-%E7%9A%84%E4%B8%80%E7%9B%AE%E5%9D%87%E8%A1%A1%E8%A1%A8">Ichimoku Cloud：用 qust 复现 Investopedia 的一目均衡表</h1><p>来源参考：<a href="https://www.investopedia.com/terms/i/ichimoku-cloud.asp">Investopedia - Ichimoku Cloud</a></p>
+<p>这篇 notebook 按 Investopedia 的 Ichimoku Cloud 文章结构，把核心解释翻译并改写成中文教程，同时把指标落成 qust 的一行表达式算子：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">ichimoku_cloud</span><span class="p">()</span>
+</pre></div>
+<p>这不是投资建议。这里重点是三件事：</p>
+<ol>
+<li>把 Ichimoku Cloud 的概念、公式、计算步骤、图形含义、局限性讲清楚；</li>
+<li>用 qust 的 <code>investopedia</code> 命名空间一行调用指标；</li>
+<li>用完整多合约数据回测：每个 <code>ticker + ct</code> 合约独立 <code>over("ticker", "ct")</code>，最后按日聚合 <code>pnl</code>。</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=e4082664"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-Key-Takeaways%EF%BC%9A%E6%96%87%E7%AB%A0%E8%A6%81%E7%82%B9">1. Key Takeaways：文章要点</h2><p>Investopedia 对 Ichimoku Cloud 的核心观点可以整理成下面几条：</p>
+<ul>
+<li>Ichimoku Cloud 是一组技术指标，不是一条单独的移动平均线。</li>
+<li>它用多条线同时显示趋势方向、动量、支撑阻力区域和潜在信号。</li>
+<li>“云层”由两条先行线构成：Senkou Span A 和 Senkou Span B。</li>
+<li>价格在云上方通常偏多，价格在云下方通常偏空，价格在云内部通常说明趋势不够清晰。</li>
+<li>云层本身可以被交易者视作支撑或阻力区域；云层越厚，视觉上的支撑/阻力区域越宽。</li>
+<li>转换线 Tenkan-sen 和基准线 Kijun-sen 的交叉常被用来观察短期动量变化。</li>
+<li>滞后线 Chikou Span 用当前价格和过去价格位置做对比。</li>
+<li>Ichimoku 会让图表信息密度很高，初学者容易过度解读；震荡行情里也容易出现假信号。</li>
+<li>它最好作为趋势过滤和辅助判断工具，而不是脱离风险管理直接变成交易系统。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=1b66edfc"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-What-Is-the-Ichimoku-Cloud%EF%BC%9A%E4%BB%80%E4%B9%88%E6%98%AF-Ichimoku-Cloud">2. What Is the Ichimoku Cloud：什么是 Ichimoku Cloud</h2><p>Ichimoku Cloud 又叫 Ichimoku Kinko Hyo，中文常叫“一目均衡表”。这个名字背后的意思是：交易者希望通过一张图，快速看到市场是否处于均衡、趋势是否明确、价格是否突破重要区域。</p>
+<p>它把五条线放在同一张图上：</p>
+<ol>
+<li>Tenkan-sen：短周期转换线；</li>
+<li>Kijun-sen：中周期基准线；</li>
+<li>Senkou Span A：先行 Span A；</li>
+<li>Senkou Span B：先行 Span B；</li>
+<li>Chikou Span：滞后线。</li>
+</ol>
+<p>其中 Senkou Span A 和 Senkou Span B 之间填充出来的区域就是 Cloud。Cloud 是这个指标最直观的部分：</p>
+<ul>
+<li>云在价格下方时，经常被视为潜在支撑；</li>
+<li>云在价格上方时，经常被视为潜在阻力；</li>
+<li>价格进入云内部时，常被理解为趋势进入不确定区域。</li>
+</ul>
+<p>所以 Ichimoku 不是只回答“现在价格高还是低”，而是同时展示“当前价格相对趋势区间在哪里”、“未来云层偏多还是偏空”、“短线和中线动量是否一致”。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=78d2842e"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%AE%83%E7%9C%8B%E8%B5%B7%E6%9D%A5%E5%83%8F%E2%80%9C%E4%BA%91%E2%80%9D">3. 为什么它看起来像“云”</h2><p>普通均线只有一条线，Ichimoku Cloud 的视觉重点是一个区域。这个区域来自两条先行线：</p>
+<div class="highlight"><pre class="code-block"><span></span>Cloud = Senkou Span A 与 Senkou Span B 之间的填充区域
+</pre></div>
+<p>云层有几个常见解读：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>云层状态</th>
+<th>常见解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Span A 高于 Span B</td>
+<td>云层偏多，未来支撑区域可能抬高</td>
+</tr>
+<tr>
+<td>Span A 低于 Span B</td>
+<td>云层偏空，未来阻力区域可能下移</td>
+</tr>
+<tr>
+<td>云层变厚</td>
+<td>支撑/阻力区域更宽，价格穿越难度可能更大</td>
+</tr>
+<tr>
+<td>云层变薄</td>
+<td>支撑/阻力区域更窄，趋势转换或穿越更容易发生</td>
+</tr>
+<tr>
+<td>价格在云内</td>
+<td>多空不明确，趋势判断质量下降</td>
+</tr>
+</tbody>
+</table>
+<p>这里说的是技术分析里的“可能”，不是确定性预测。云层来自历史价格区间，只是被向前绘制，并不是知道未来价格。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=3a649751"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-%E4%BA%94%E6%9D%A1%E7%BA%BF%E7%9A%84%E5%90%AB%E4%B9%89">4. 五条线的含义</h2><p>默认参数通常是 <code>9, 26, 52, 26</code>。不同软件有不同命名习惯，但核心公式基本一致。</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>中文</th>
+<th>英文</th>
+<th>默认周期</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>转换线</td>
+<td>Tenkan-sen / Conversion Line</td>
+<td>9</td>
+<td>最近 9 期最高价和最低价的中点，反应较快</td>
+</tr>
+<tr>
+<td>基准线</td>
+<td>Kijun-sen / Base Line</td>
+<td>26</td>
+<td>最近 26 期最高价和最低价的中点，反应更慢</td>
+</tr>
+<tr>
+<td>先行 Span A</td>
+<td>Senkou Span A / Leading Span A</td>
+<td>由 9 和 26 得到</td>
+<td>Tenkan 和 Kijun 的中点，向前画 26 期</td>
+</tr>
+<tr>
+<td>先行 Span B</td>
+<td>Senkou Span B / Leading Span B</td>
+<td>52</td>
+<td>最近 52 期最高价和最低价的中点，向前画 26 期</td>
+</tr>
+<tr>
+<td>滞后线</td>
+<td>Chikou Span / Lagging Span</td>
+<td>close</td>
+<td>当前收盘价，向后画 26 期</td>
+</tr>
+</tbody>
+</table>
+<p>转换线和基准线可以理解成快慢两条“区间中点线”。Span A/B 则构成云层。Chikou Span 用来观察当前价格和过去价格的相对位置。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=c2904f8d"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-Formula%EF%BC%9A%E5%85%AC%E5%BC%8F">5. Formula：公式</h2><p>用 <code>H_n</code> 表示最近 <code>n</code> 期最高价，<code>L_n</code> 表示最近 <code>n</code> 期最低价。默认参数下：</p>
+<div class="highlight"><pre class="code-block"><span></span>Tenkan-sen = (H_9 + L_9) / 2
+Kijun-sen  = (H_26 + L_26) / 2
+Senkou A   = (Tenkan-sen + Kijun-sen) / 2，并向前画 26 期
+Senkou B   = (H_52 + L_52) / 2，并向前画 26 期
+Chikou     = Close，并向后画 26 期
+</pre></div>
+<p>注意：Tenkan-sen、Kijun-sen、Senkou Span B 都不是 close 的算术平均。它们是最近一段区间的最高价和最低价的中点。</p>
+<p>这意味着：</p>
+<ul>
+<li>如果区间高低点没有变化，线可能水平延伸；</li>
+<li>如果价格突破最近高点或低点，线会跟着区间边界变化；</li>
+<li>它更像“价格区间的均衡点”，而不是普通均线的平滑结果。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=1ecff4b3"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-How-to-Calculate%EF%BC%9A%E9%80%90%E6%AD%A5%E8%AE%A1%E7%AE%97%E6%96%B9%E6%B3%95">6. How to Calculate：逐步计算方法</h2><p>按默认参数，完整计算流程如下：</p>
+<ol>
+<li>对每根 K 线，回看最近 9 根，找到最高价和最低价，取中点得到 Tenkan-sen；</li>
+<li>回看最近 26 根，找到最高价和最低价，取中点得到 Kijun-sen；</li>
+<li>对 Tenkan-sen 和 Kijun-sen 取平均，得到 Senkou Span A 的原始值；</li>
+<li>回看最近 52 根，找到最高价和最低价，取中点得到 Senkou Span B 的原始值；</li>
+<li>把 Senkou Span A 和 Senkou Span B 向前绘制 26 根，形成云层；</li>
+<li>把当前 close 向后绘制 26 根，形成 Chikou Span；</li>
+<li>用 Span A 和 Span B 之间的区域填色，得到最终的 cloud 图。</li>
+</ol>
+<p>在 qust 里，Span A/B 的向前绘制可以用正向 <code>shift(26)</code> 对齐到未来行，因此仍然符合流式计算。Chikou 的“向后画”本质需要负 shift，这不适合实时流式执行，所以 qust 算子输出 raw close 作为 <code>chikou_span</code>，Notebook 里只为离线画图生成视觉对齐列。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=bc7fcbf5"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-What-Does-It-Tell-You%EF%BC%9A%E5%AE%83%E5%91%8A%E8%AF%89%E4%BD%A0%E4%BB%80%E4%B9%88">7. What Does It Tell You：它告诉你什么</h2><p>Investopedia 对这个指标的解释重点是：Ichimoku Cloud 同时给出趋势方向、动量和支撑阻力。</p>
+<p>常见读法：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>条件</th>
+<th>常见解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>close 在云上方</td>
+<td>偏多趋势，云层可能成为下方支撑</td>
+</tr>
+<tr>
+<td>close 在云下方</td>
+<td>偏空趋势，云层可能成为上方阻力</td>
+</tr>
+<tr>
+<td>close 在云内部</td>
+<td>趋势不明确，可能震荡或转换</td>
+</tr>
+<tr>
+<td>Tenkan-sen 在 Kijun-sen 上方</td>
+<td>短期动量强于中期基准</td>
+</tr>
+<tr>
+<td>Tenkan-sen 上穿 Kijun-sen</td>
+<td>常被视为短期动量转强信号</td>
+</tr>
+<tr>
+<td>Tenkan-sen 下穿 Kijun-sen</td>
+<td>常被视为短期动量转弱信号</td>
+</tr>
+<tr>
+<td>Span A 在 Span B 上方</td>
+<td>未来云层偏多</td>
+</tr>
+<tr>
+<td>Span A 在 Span B 下方</td>
+<td>未来云层偏空</td>
+</tr>
+<tr>
+<td>Chikou Span 高于过去价格</td>
+<td>当前价格相对过去更强</td>
+</tr>
+<tr>
+<td>Chikou Span 低于过去价格</td>
+<td>当前价格相对过去更弱</td>
+</tr>
+</tbody>
+</table>
+<p>实际交易里，很多人不会只看一个条件，而是要求多项条件共振。例如：价格在云上方、云层偏多、Tenkan 在 Kijun 上方、Chikou 也显示价格强于过去。这样信号更少，但噪音也可能更低。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=bbffa9da"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-%E6%94%AF%E6%92%91%E3%80%81%E9%98%BB%E5%8A%9B%E5%92%8C%E8%B6%8B%E5%8A%BF%E7%A1%AE%E8%AE%A4">8. 支撑、阻力和趋势确认</h2><p>云层常被用作动态支撑/阻力区域：</p>
+<ul>
+<li>上升趋势中，价格回落到云层附近，如果没有跌破，交易者可能把它看作支撑；</li>
+<li>下降趋势中，价格反弹到云层附近，如果没有突破，交易者可能把它看作阻力；</li>
+<li>当价格强势穿越云层，可能代表趋势结构发生变化；</li>
+<li>云层厚时，价格穿越区域更宽，交易者通常会更谨慎；</li>
+<li>云层很薄时，价格更容易穿越，但假突破也可能更多。</li>
+</ul>
+<p>这类解释都是技术分析语言，不代表价格一定会在云层止跌或止涨。真正使用时必须结合成交量、波动率、止损、仓位和回测统计。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=22e2f093"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="9.-Trading-Signals%EF%BC%9A%E5%B8%B8%E8%A7%81%E4%BA%A4%E6%98%93%E4%BF%A1%E5%8F%B7">9. Trading Signals：常见交易信号</h2><p>Ichimoku 里常见的信号组合包括：</p>
+<ol>
+<li><strong>价格突破云层</strong>：价格从云下突破到云上，偏多；从云上跌破到云下，偏空。</li>
+<li><strong>Tenkan/Kijun 交叉</strong>：Tenkan 上穿 Kijun，偏多；Tenkan 下穿 Kijun，偏空。</li>
+<li><strong>云层方向确认</strong>：Span A 高于 Span B 时，更偏多；Span A 低于 Span B 时，更偏空。</li>
+<li><strong>Chikou 位置确认</strong>：Chikou 高于过去价格时，说明当前价格相对过去更强；低于过去价格则更弱。</li>
+<li><strong>多条件过滤</strong>：只在价格位于云上方且云层偏多时接受多头信号，只在价格位于云下方且云层偏空时接受空头信号。</li>
+</ol>
+<p>这篇 notebook 后面的回测示例会用一个非常简单的多头过滤条件：</p>
+<div class="highlight"><pre class="code-block"><span></span>close &gt; cloud_top
+Tenkan-sen &gt; Kijun-sen
+Senkou Span A &gt; Senkou Span B
+</pre></div>
+<p>这个条件只是为了展示 qust 表达式组合，不代表它是完整策略。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=3ad45e7d"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="10.-Difference-From-Moving-Averages%EF%BC%9A%E5%92%8C%E6%99%AE%E9%80%9A%E7%A7%BB%E5%8A%A8%E5%B9%B3%E5%9D%87%E7%9A%84%E5%8C%BA%E5%88%AB">10. Difference From Moving Averages：和普通移动平均的区别</h2><p>普通 SMA/EMA 往往直接使用 close：</p>
+<div class="highlight"><pre class="code-block"><span></span>SMA20 = 最近 20 个 close 的平均
+EMA20 = 对 close 做指数加权平均
+</pre></div>
+<p>Ichimoku 的关键线使用的是区间最高价和最低价：</p>
+<div class="highlight"><pre class="code-block"><span></span>区间中点 = (period high + period low) / 2
+</pre></div>
+<p>差别很明显：</p>
+<ul>
+<li>SMA/EMA 更关注收盘价序列的平滑；</li>
+<li>Ichimoku 更关注最近价格区间的上下边界；</li>
+<li>Ichimoku 的线在高低点不变时可能水平，而 SMA/EMA 仍会随 close 波动；</li>
+<li>Ichimoku 的云层提供区域信息，普通均线通常只提供线状参考。</li>
+</ul>
+<p>所以不能简单说 Ichimoku “比均线更好”。它只是提供了另一种组织价格信息的方式。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=b7ba05b6"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="11.-Limitations%EF%BC%9A%E5%B1%80%E9%99%90%E6%80%A7">11. Limitations：局限性</h2><p>Investopedia 也强调了这个工具的局限性。常见问题包括：</p>
+<ol>
+<li><strong>图表拥挤</strong>：五条线加云层会让图非常满，新手容易看花。</li>
+<li><strong>假信号</strong>：震荡市场里，价格可能反复进出云层，Tenkan/Kijun 也可能反复交叉。</li>
+<li><strong>参数不一定适配</strong>：默认 <code>9/26/52</code> 来自传统市场节奏，不一定适合所有合约、周期和交易时段。</li>
+<li><strong>不是预测未来</strong>：Span A/B 画在未来，但它们由历史数据计算出来，不是未来数据。</li>
+<li><strong>滞后问题</strong>：多数技术指标都有滞后，Ichimoku 也不例外。</li>
+<li><strong>缺少风控</strong>：指标本身不解决仓位、止损、滑点、手续费、合约乘数和极端行情风险。</li>
+</ol>
+<p>因此，在 qust 里实现这个指标之后，下一步应该是把它放进严格的回测框架，而不是只看图下判断。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=d048ae8e"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="12.-qust-%E5%AE%9E%E7%8E%B0%E5%8E%9F%E5%88%99">12. qust 实现原则</h2><p>根据本项目的 Investopedia blog 约定：</p>
+<ul>
+<li>相关指标要做成 <code>investopedia</code> 命名空间下的算子；</li>
+<li>每个 blog 的指标要能一行调用；</li>
+<li>优先用现有 qust 算子组合；</li>
+<li>现有算子组合不了时，才考虑 Rust 底层实现；</li>
+<li>不随便用 Python UDF。</li>
+</ul>
+<p>Ichimoku Cloud 可以完全由现有算子组合：</p>
+<div class="highlight"><pre class="code-block"><span></span>high / low / close
+-&gt; rolling max/min
+-&gt; 区间中点
+-&gt; Span A/B 位移
+-&gt; 输出五条线
+</pre></div>
+<p>所以这里没有使用 UDF。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=3033bf11">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">LOCAL_QUST_SOURCE</span> <span class="o">=</span> <span class="s2">"/root/otters/otters-py/python"</span>
+<span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">LOCAL_QUST_SOURCE</span><span class="p">)</span> <span class="ow">and</span> <span class="n">LOCAL_QUST_SOURCE</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">LOCAL_QUST_SOURCE</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+<span class="kn">import</span> <span class="nn">qust.future.future</span>  <span class="c1"># 注册 bt/stra/kline/fp 等金融命名空间</span>
+<span class="kn">import</span> <span class="nn">qust.investopedia</span>  <span class="c1"># 注册 investopedia 命名空间</span>
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span><span class="p">,</span> <span class="n">mark_shape</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">28</span><span class="p">)</span>
+
+<span class="n">DATA_PATH</span> <span class="o">=</span> <span class="s2">"/root/qust-py/examples/data/data_kline3.parquet"</span>
+<span class="n">PLOT_TICKER</span> <span class="o">=</span> <span class="s2">"AP"</span>
+
+<span class="n">DISPLACEMENT</span> <span class="o">=</span> <span class="mi">26</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=ec0574ab"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="13.-%E8%AF%BB%E5%8F%96%E6%95%B0%E6%8D%AE">13. 读取数据</h2><p>数据源换成 <code>/root/qust-py/examples/data/data_kline3.parquet</code>。这份数据有 <code>ticker</code> 和 <code>ct</code> 两个合约标识字段：</p>
+<ul>
+<li><code>ticker</code>：品种；</li>
+<li><code>ct</code>：合约编号。</li>
+</ul>
+<p>画指标时只取一个 <code>ticker + ct</code> 合约，避免 K 线图过乱。回测时使用完整数据，并且统一按 <code>over("ticker", "ct")</code> 做合约级状态隔离。后面所有回测都按这个模式写。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=f2705c03">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">raw</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span>
+<span class="n">plot_contract</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">raw</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)[</span><span class="s2">"ct"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<span class="p">)</span>
+<span class="n">plot_data</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">raw</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span> <span class="o">==</span> <span class="n">plot_contract</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">4_000</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"raw shape:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"tickers:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">())</span><span class="o">.</span><span class="n">to_series</span><span class="p">()</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"ct count:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">height</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"plot ticker:"</span><span class="p">,</span> <span class="n">PLOT_TICKER</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"plot ct:"</span><span class="p">,</span> <span class="n">plot_contract</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"plot contract sample shape:"</span><span class="p">,</span> <span class="n">plot_data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">plot_data</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">raw shape: (408782, 8)
+tickers: ['AP', 'RM', 'SA', 'al', 'eb', 'eg', 'fu', 'rb']
+ct count: 141
+plot ticker: AP
+plot ct: 205
+plot contract sample shape: (2520, 8)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:00:00</td><td>8394.0</td><td>8394.0</td><td>8392.0</td><td>8392.0</td><td>1100.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:05:00</td><td>8385.0</td><td>8389.0</td><td>8348.0</td><td>8378.0</td><td>11169.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:10:00</td><td>8375.0</td><td>8376.0</td><td>8298.0</td><td>8302.0</td><td>14001.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:15:00</td><td>8301.0</td><td>8315.0</td><td>8271.0</td><td>8280.0</td><td>12839.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:20:00</td><td>8279.0</td><td>8285.0</td><td>8243.0</td><td>8246.0</td><td>11496.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:25:00</td><td>8243.0</td><td>8267.0</td><td>8220.0</td><td>8267.0</td><td>12307.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:30:00</td><td>8267.0</td><td>8325.0</td><td>8252.0</td><td>8323.0</td><td>10889.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:35:00</td><td>8323.0</td><td>8405.0</td><td>8315.0</td><td>8371.0</td><td>19223.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=de489dfa"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="14.-%E4%B8%80%E8%A1%8C%E8%B0%83%E7%94%A8-Ichimoku-Cloud-%E7%AE%97%E5%AD%90">14. 一行调用 Ichimoku Cloud 算子</h2><p>核心调用：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">ichimoku_cloud</span><span class="p">()</span>
+</pre></div>
+<p>默认参数：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">conversion_period</span><span class="o">=</span><span class="mi">9</span>
+<span class="n">base_period</span><span class="o">=</span><span class="mi">26</span>
+<span class="n">span_b_period</span><span class="o">=</span><span class="mi">52</span>
+<span class="n">displacement</span><span class="o">=</span><span class="mi">26</span>
+</pre></div>
+<p>输出列：</p>
+<ul>
+<li><code>tenkan_sen</code></li>
+<li><code>kijun_sen</code></li>
+<li><code>senkou_span_a</code></li>
+<li><code>senkou_span_b</code></li>
+<li><code>chikou_span</code></li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=133e2374">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">ichimoku_lines</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">ichimoku_cloud</span><span class="p">()</span>
+
+<span class="n">ichimoku_expr</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">ichimoku_lines</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"senkou_span_a"</span><span class="p">,</span> <span class="s2">"senkou_span_b"</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"cloud_bottom"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"senkou_span_a"</span><span class="p">,</span> <span class="s2">"senkou_span_b"</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"cloud_top"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"cloud_top"</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"price_above_cloud"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"cloud_bottom"</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"price_below_cloud"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"tenkan_sen"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"kijun_sen"</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"tenkan_above_kijun"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"senkou_span_a"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"senkou_span_b"</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"bullish_cloud"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="p">(</span>
+            <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"tenkan_sen"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"kijun_sen"</span><span class="p">))</span>
+            <span class="o">&amp;</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"tenkan_sen"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"kijun_sen"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">())</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"bullish_tk_cross"</span><span class="p">),</span>
+        <span class="p">(</span>
+            <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"tenkan_sen"</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"kijun_sen"</span><span class="p">))</span>
+            <span class="o">&amp;</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"tenkan_sen"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"kijun_sen"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">())</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"bearish_tk_cross"</span><span class="p">),</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">ichimoku_data</span> <span class="o">=</span> <span class="n">ichimoku_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">plot_data</span><span class="p">)</span>
+
+<span class="c1"># Chikou Span 的图形规则是向后画 26 期。这里是离线展示列，不用于实时交易信号。</span>
+<span class="n">ichimoku_plot_data</span> <span class="o">=</span> <span class="n">ichimoku_data</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"chikou_span"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="o">-</span><span class="n">DISPLACEMENT</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"chikou_span_plot"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">ichimoku_plot_data</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"tenkan_sen"</span><span class="p">,</span> <span class="s2">"kijun_sen"</span><span class="p">,</span> <span class="s2">"senkou_span_a"</span><span class="p">,</span> <span class="s2">"senkou_span_b"</span><span class="p">,</span> <span class="s2">"chikou_span"</span><span class="p">,</span> <span class="s2">"cloud_bottom"</span><span class="p">,</span> <span class="s2">"cloud_top"</span>
+<span class="p">)</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (10, 9)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>close</th><th>tenkan_sen</th><th>kijun_sen</th><th>senkou_span_a</th><th>senkou_span_b</th><th>chikou_span</th><th>cloud_bottom</th><th>cloud_top</th></tr><tr><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2022-03-29 14:10:01</td><td>9954.0</td><td>9953.5</td><td>9923.0</td><td>9839.5</td><td>9850.5</td><td>9954.0</td><td>9839.5</td><td>9850.5</td></tr><tr><td>2022-03-29 14:15:00</td><td>9930.0</td><td>9953.5</td><td>9923.0</td><td>9855.5</td><td>9850.5</td><td>9930.0</td><td>9850.5</td><td>9855.5</td></tr><tr><td>2022-03-29 14:20:00</td><td>9919.0</td><td>9951.5</td><td>9923.0</td><td>9855.5</td><td>9850.5</td><td>9919.0</td><td>9850.5</td><td>9855.5</td></tr><tr><td>2022-03-29 14:25:00</td><td>9935.0</td><td>9951.5</td><td>9923.0</td><td>9855.25</td><td>9850.5</td><td>9935.0</td><td>9850.5</td><td>9855.25</td></tr><tr><td>2022-03-29 14:30:01</td><td>9938.0</td><td>9943.0</td><td>9923.0</td><td>9852.0</td><td>9850.5</td><td>9938.0</td><td>9850.5</td><td>9852.0</td></tr><tr><td>2022-03-29 14:35:01</td><td>9949.0</td><td>9940.0</td><td>9923.0</td><td>9844.5</td><td>9850.5</td><td>9949.0</td><td>9844.5</td><td>9850.5</td></tr><tr><td>2022-03-29 14:40:00</td><td>9933.0</td><td>9940.0</td><td>9935.5</td><td>9847.0</td><td>9850.5</td><td>9933.0</td><td>9847.0</td><td>9850.5</td></tr><tr><td>2022-03-29 14:45:01</td><td>9930.0</td><td>9940.0</td><td>9941.0</td><td>9849.0</td><td>9850.5</td><td>9930.0</td><td>9849.0</td><td>9850.5</td></tr><tr><td>2022-03-29 14:50:00</td><td>9929.0</td><td>9935.0</td><td>9950.5</td><td>9850.5</td><td>9850.5</td><td>9929.0</td><td>9850.5</td><td>9850.5</td></tr><tr><td>2022-03-29 14:55:00</td><td>9915.0</td><td>9935.0</td><td>9959.0</td><td>9851.25</td><td>9850.5</td><td>9915.0</td><td>9850.5</td><td>9851.25</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=93a238a9"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="15.-%E5%85%AC%E5%BC%8F%E6%A0%A1%E9%AA%8C">15. 公式校验</h2><p>下面用 Polars 手写一遍公式，和 qust 算子输出做逐列最大误差检查。这里的目的只是确认公式实现一致。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=d4063f03">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">reference</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">plot_data</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="n">tenkan_ref</span><span class="o">=</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_max</span><span class="p">(</span><span class="mi">9</span><span class="p">)</span> <span class="o">+</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_min</span><span class="p">(</span><span class="mi">9</span><span class="p">))</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">),</span>
+        <span class="n">kijun_ref</span><span class="o">=</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_max</span><span class="p">(</span><span class="mi">26</span><span class="p">)</span> <span class="o">+</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_min</span><span class="p">(</span><span class="mi">26</span><span class="p">))</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">),</span>
+        <span class="n">span_b_raw_ref</span><span class="o">=</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_max</span><span class="p">(</span><span class="mi">52</span><span class="p">)</span> <span class="o">+</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_min</span><span class="p">(</span><span class="mi">52</span><span class="p">))</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="n">span_a_ref</span><span class="o">=</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"tenkan_ref"</span><span class="p">)</span> <span class="o">+</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"kijun_ref"</span><span class="p">))</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">26</span><span class="p">),</span>
+        <span class="n">span_b_ref</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"span_b_raw_ref"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">26</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"tenkan_ref"</span><span class="p">,</span> <span class="s2">"kijun_ref"</span><span class="p">,</span> <span class="s2">"span_a_ref"</span><span class="p">,</span> <span class="s2">"span_b_ref"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"chikou_ref"</span><span class="p">))</span>
+<span class="p">)</span>
+
+<span class="n">check</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">"line"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"tenkan_sen"</span><span class="p">,</span> <span class="s2">"kijun_sen"</span><span class="p">,</span> <span class="s2">"senkou_span_a"</span><span class="p">,</span> <span class="s2">"senkou_span_b"</span><span class="p">,</span> <span class="s2">"chikou_span"</span><span class="p">],</span>
+    <span class="s2">"max_abs_error"</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">(</span><span class="n">ichimoku_data</span><span class="p">[</span><span class="s2">"tenkan_sen"</span><span class="p">]</span> <span class="o">-</span> <span class="n">reference</span><span class="p">[</span><span class="s2">"tenkan_ref"</span><span class="p">])</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+        <span class="p">(</span><span class="n">ichimoku_data</span><span class="p">[</span><span class="s2">"kijun_sen"</span><span class="p">]</span> <span class="o">-</span> <span class="n">reference</span><span class="p">[</span><span class="s2">"kijun_ref"</span><span class="p">])</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+        <span class="p">(</span><span class="n">ichimoku_data</span><span class="p">[</span><span class="s2">"senkou_span_a"</span><span class="p">]</span> <span class="o">-</span> <span class="n">reference</span><span class="p">[</span><span class="s2">"span_a_ref"</span><span class="p">])</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+        <span class="p">(</span><span class="n">ichimoku_data</span><span class="p">[</span><span class="s2">"senkou_span_b"</span><span class="p">]</span> <span class="o">-</span> <span class="n">reference</span><span class="p">[</span><span class="s2">"span_b_ref"</span><span class="p">])</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+        <span class="p">(</span><span class="n">ichimoku_data</span><span class="p">[</span><span class="s2">"chikou_span"</span><span class="p">]</span> <span class="o">-</span> <span class="n">reference</span><span class="p">[</span><span class="s2">"chikou_ref"</span><span class="p">])</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+    <span class="p">],</span>
+<span class="p">})</span>
+<span class="n">check</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>line</th><th>max_abs_error</th></tr><tr><td>str</td><td>f64</td></tr></thead><tbody><tr><td>"tenkan_sen"</td><td>0.0</td></tr><tr><td>"kijun_sen"</td><td>0.0</td></tr><tr><td>"senkou_span_a"</td><td>0.0</td></tr><tr><td>"senkou_span_b"</td><td>0.0</td></tr><tr><td>"chikou_span"</td><td>0.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=c87b6ba1"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="16.-%E7%94%BB-Ichimoku-Cloud">16. 画 Ichimoku Cloud</h2><p>这张图包含：</p>
+<ul>
+<li>K 线；</li>
+<li>云层填充：<code>cloud_bottom</code> 到 <code>cloud_top</code>；</li>
+<li>Tenkan-sen / Kijun-sen；</li>
+<li>Senkou Span A/B；</li>
+<li>离线视觉对齐后的 Chikou Span；</li>
+<li>Tenkan/Kijun 的上穿和下穿标记。</li>
+</ul>
+<p>图是 qust monitor 的真实交互输出，可以缩放和拖动，不是静态 PNG。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=3080e162">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">ichimoku_dashboard</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"ichimoku_price"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">kline</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"cloud_bottom"</span><span class="p">,</span> <span class="s2">"cloud_top"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"ichimoku_price"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">color</span><span class="o">=</span><span class="s2">"#4dd0e1"</span><span class="p">,</span> <span class="n">opacity</span><span class="o">=</span><span class="mf">0.18</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"tenkan_sen"</span><span class="p">,</span> <span class="s2">"kijun_sen"</span><span class="p">,</span> <span class="s2">"senkou_span_a"</span><span class="p">,</span> <span class="s2">"senkou_span_b"</span><span class="p">,</span> <span class="s2">"chikou_span_plot"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"ichimoku_price"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"bullish_tk_cross"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"ichimoku_price"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">mark</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">mark_shape</span><span class="o">.</span><span class="n">triangle_up</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"#50fa7b"</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.35</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"bearish_tk_cross"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"ichimoku_price"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">mark</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">mark_shape</span><span class="o">.</span><span class="n">triangle_down</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"#ff6b6b"</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.35</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([</span>
+    <span class="p">[</span><span class="s2">"ichimoku_price"</span><span class="p">],</span>
+<span class="p">])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">ichimoku_dashboard</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">ichimoku_plot_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">720</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="ichimoku-cloud monitor output 1" loading="lazy" src="../assets/notebook-renders/blog-ichimoku-cloud-01.png"/><figcaption>notebook 输出：monitor 静态图</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f8dd42f2530&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=76433751"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="17.-%E5%8D%95%E5%90%88%E7%BA%A6%E6%A0%B7%E6%9C%AC%E4%B8%8A%E7%9A%84%E4%BF%A1%E5%8F%B7%E7%BB%9F%E8%AE%A1">17. 单合约样本上的信号统计</h2><p>先在图上的这个样本里看一下技术条件出现次数。这里仍然只是解释指标，不是回测。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=d561e66f">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">signal_summary</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"price_above_cloud"</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">UInt32</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"price_above_cloud"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"price_below_cloud"</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">UInt32</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"price_below_cloud"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"tenkan_above_kijun"</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">UInt32</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"tenkan_above_kijun"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"bullish_cloud"</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">UInt32</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"bullish_cloud"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"bullish_tk_cross"</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">UInt32</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"bullish_tk_cross"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"bearish_tk_cross"</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">UInt32</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"bearish_tk_cross"</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">ichimoku_data</span><span class="p">)</span>
+
+<span class="n">signal_summary</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 6)</small><table border="1" class="dataframe-table"><thead><tr><th>price_above_cloud</th><th>price_below_cloud</th><th>tenkan_above_kijun</th><th>bullish_cloud</th><th>bullish_tk_cross</th><th>bearish_tk_cross</th></tr><tr><td>u32</td><td>u32</td><td>u32</td><td>u32</td><td>u32</td><td>u32</td></tr></thead><tbody><tr><td>1269</td><td>940</td><td>1304</td><td>1366</td><td>66</td><td>63</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=6b73274f"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="18.-Ichimoku-Cloud-%E7%AD%96%E7%95%A5%E5%9B%9E%E6%B5%8B%EF%BC%9Aover(%22ticker%22,-%22ct%22)-%E5%90%8E%E6%8C%89%E6%97%A5%E8%81%9A%E5%90%88-PnL">18. Ichimoku Cloud 策略回测：<code>over("ticker", "ct")</code> 后按日聚合 PnL</h2><p>标准一目均衡表趋势信号在当前样本里追趋势亏损，反向均值回归版本更适合这批期货数据。这里先计算云层上下沿；当价格跌到云下且转换线弱于基准线时做多，当价格涨到云上且转换线强于基准线时做空。信号后移一根 K 线，8% 止盈、2% 止损，持仓用 <code>col("hold") / col.all.fp.vol_pms()</code> 归一化后再计算 PnL。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=75dd7330">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">TAKE_PROFIT</span> <span class="o">=</span> <span class="mf">0.08</span>
+<span class="n">STOP_LOSS</span> <span class="o">=</span> <span class="mf">0.02</span>
+
+
+<span class="k">def</span> <span class="nf">make_two_sided_strategy</span><span class="p">(</span><span class="n">indicator_cols</span><span class="p">,</span> <span class="n">open_long_raw</span><span class="p">,</span> <span class="n">open_short_raw</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""用当前指标生成完整多空策略；持仓用 fp.vol_pms 做品种/波动率尺度归一化。"""</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">col</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">indicator_cols</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="n">open_long_raw</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_raw"</span><span class="p">),</span>
+            <span class="n">open_short_raw</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_raw"</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="c1"># 指标在当前 K 线收盘后才确认，所以入场信号后移一根 K 线，避免同根 K 线偷看。</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_raw"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">),</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_raw"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">),</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">),</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">),</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">))</span>
+                <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+                <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_long_sig"</span><span class="p">),</span>
+            <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">))</span>
+                <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+                <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_short_sig"</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"exit_long_sig"</span><span class="p">,</span> <span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"exit_short_sig"</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">to_hold_two_sides</span><span class="p">()</span>
+                <span class="o">.</span><span class="n">expanding</span><span class="p">()</span>
+                <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">fp</span><span class="o">.</span><span class="n">vol_pms</span><span class="p">())</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="s2">"hold"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">price</span><span class="p">(</span><span class="n">fee_rate</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">())</span>
+        <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+                <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">))</span>
+                <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"pnl_cum"</span><span class="p">))</span>
+                <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">,</span> <span class="s2">"pnl_cum"</span><span class="p">)</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">calc_strategy_stats</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">col</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span><span class="o">.</span><span class="n">first_value</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"start_date"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span><span class="o">.</span><span class="n">last_value</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"end_date"</span><span class="p">),</span>
+        <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"days"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"total_pnl"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"mean_daily_pnl"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"std_daily_pnl"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()</span> <span class="o">*</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mi">252</span> <span class="o">**</span> <span class="mf">0.5</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"sharpe_like"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"worst_day_pnl"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"best_day_pnl"</span><span class="p">),</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">)</span>
+
+<span class="n">indicator_cols</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">ichimoku_cloud</span><span class="p">()</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"senkou_span_a"</span><span class="p">,</span> <span class="s2">"senkou_span_b"</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"cloud_bottom"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"senkou_span_a"</span><span class="p">,</span> <span class="s2">"senkou_span_b"</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"cloud_top"</span><span class="p">),</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+<span class="n">trend_long</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"cloud_top"</span><span class="p">))</span>
+    <span class="o">&amp;</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"tenkan_sen"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"kijun_sen"</span><span class="p">))</span>
+    <span class="o">&amp;</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"senkou_span_a"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"senkou_span_b"</span><span class="p">))</span>
+<span class="p">)</span>
+<span class="n">trend_short</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"cloud_bottom"</span><span class="p">))</span>
+    <span class="o">&amp;</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"tenkan_sen"</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"kijun_sen"</span><span class="p">))</span>
+    <span class="o">&amp;</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"senkou_span_a"</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"senkou_span_b"</span><span class="p">))</span>
+<span class="p">)</span>
+<span class="n">strategy_daily_expr</span> <span class="o">=</span> <span class="n">make_two_sided_strategy</span><span class="p">(</span>
+    <span class="n">indicator_cols</span><span class="p">,</span>
+    <span class="n">trend_short</span><span class="p">,</span>
+    <span class="n">trend_long</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">strategy_daily</span> <span class="o">=</span> <span class="n">strategy_daily_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+<span class="n">strategy_stats</span> <span class="o">=</span> <span class="n">calc_strategy_stats</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"strategy_daily shape:"</span><span class="p">,</span> <span class="n">strategy_daily</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">strategy_stats</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">strategy_daily shape: (859, 3)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 9)</small><table border="1" class="dataframe-table"><thead><tr><th>start_date</th><th>end_date</th><th>days</th><th>total_pnl</th><th>mean_daily_pnl</th><th>std_daily_pnl</th><th>sharpe_like</th><th>worst_day_pnl</th><th>best_day_pnl</th></tr><tr><td>date</td><td>date</td><td>i32</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2022-01-04</td><td>2024-12-31</td><td>859</td><td>95.265137</td><td>0.111682</td><td>1.949855</td><td>0.909249</td><td>-8.048108</td><td>10.336033</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=82e7ea0a">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">strategy_daily</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-12-18</td><td>2.367862</td><td>102.061036</td></tr><tr><td>2024-12-19</td><td>-3.36271</td><td>98.698326</td></tr><tr><td>2024-12-20</td><td>-1.476198</td><td>97.222128</td></tr><tr><td>2024-12-21</td><td>0.179975</td><td>97.402103</td></tr><tr><td>2024-12-23</td><td>0.507419</td><td>97.909522</td></tr><tr><td>2024-12-24</td><td>-2.068349</td><td>95.841173</td></tr><tr><td>2024-12-25</td><td>-1.631436</td><td>94.209736</td></tr><tr><td>2024-12-26</td><td>0.374737</td><td>94.584474</td></tr><tr><td>2024-12-27</td><td>-1.292139</td><td>93.292334</td></tr><tr><td>2024-12-28</td><td>0.344126</td><td>93.63646</td></tr><tr><td>2024-12-30</td><td>1.930771</td><td>95.567232</td></tr><tr><td>2024-12-31</td><td>-0.302095</td><td>95.265137</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=afe4394a"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="19.-%E5%85%A8%E6%95%B0%E6%8D%AE-PnL-%E6%9B%B2%E7%BA%BF">19. 全数据 PnL 曲线</h2><p>下面同时画累计 PnL 和每日 PnL。这里的 PnL 已经先在每个 <code>ticker, ct</code> 合约内独立计算，再按 <code>date</code> 汇总。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=298d7c97">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">pnl_dashboard</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl_cum"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"ichimoku_strategy_pnl_cum"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"ichimoku_strategy_daily_pnl"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">bar</span><span class="p">(),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([</span>
+    <span class="p">[</span><span class="s2">"ichimoku_strategy_pnl_cum"</span><span class="p">],</span>
+    <span class="p">[</span><span class="s2">"ichimoku_strategy_daily_pnl"</span><span class="p">],</span>
+<span class="p">])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">pnl_dashboard</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">640</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="ichimoku-cloud monitor output 2" loading="lazy" src="../assets/notebook-renders/blog-ichimoku-cloud-02.png"/><figcaption>notebook 输出：monitor 静态图</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f8dd4367fa0&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=6284c4cf"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="20.-%E7%AD%96%E7%95%A5-PnL-%E7%BB%9F%E8%AE%A1">20. 策略 PnL 统计</h2><p>上面的 <code>strategy_stats</code> 是对日度 PnL 的基础统计，用来快速确认样本长度、总收益、日均收益、波动和简化 Sharpe。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=a7f78579"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="21.-%E5%B0%8F%E7%BB%93">21. 小结</h2><p>这篇 notebook 做了几件事：</p>
+<ol>
+<li>按 Investopedia 的解释，完整梳理了 Ichimoku Cloud 的概念、公式、计算步骤、信号含义、和普通均线的区别、局限性；</li>
+<li>在 qust 中新增并调用了 <code>investopedia</code> 命名空间的一行算子：</li>
+</ol>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">ichimoku_cloud</span><span class="p">()</span>
+</pre></div>
+<ol start="3">
+<li>指标实现只用现有 qust 表达式组合，没有 UDF；</li>
+<li>图形展示使用 qust monitor，不输出静态 PNG；</li>
+<li>回测使用完整数据，按 <code>ticker + ct</code> 合约独立 <code>over("ticker", "ct")</code>，最后按日聚合 <code>pnl</code>。</li>
+</ol>
+<p>后续如果要用于真实研究，建议把这个指标接入更完整的策略框架：交易成本、合约乘数、止损、仓位、参数寻优、训练/验证切分、滚动样本外测试都要加上。</p>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../site.js"></script>
+  </body>
+</html>

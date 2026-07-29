@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust 高性能计算引擎：DataFrame、流计算、量化研究、ClickHouse 与高性能算子。">
+    <title>服务 | qust</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body class="service">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="index.html" aria-label="qust 首页">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <a href="tutorial.html">学习路径</a>
+          <a href="blog.html">Blog</a>
+          <a href="../examples/docs/index.html">Doc</a>
+          <a href="service.html">服务</a>
+        </nav>
+      </header>
+    
+
+    <main class="page-shell service-page">
+      <section class="service-hero">
+        <div>
+          <p class="eyebrow">SERVICE</p>
+          <h1>qust 服务与源码交付</h1>
+          <p>围绕高性能算子开发、量化平台搭建、源码提供、私有部署、数据源接入和实盘联调，把研究脚本升级成可维护的工程资产。</p>
+        </div>
+        <div class="service-focus">
+          <strong>核心服务</strong>
+          <span>高性能算子开发</span>
+          <span>量化平台搭建</span>
+          <span>源码提供与私有部署</span>
+        </div>
+      </section>
+
+      <section class="service-grid">
+        <article>
+          <span>01</span>
+          <h2>高性能算子开发</h2>
+          <p>把 Python 研究逻辑下沉到 Rust/Arrow 执行路径，适合 rolling、rank、group、over、tick/kline、回测、风控和交易状态类算子。</p>
+          <ul>
+            <li>梳理输入/输出 schema、空值和流式语义。</li>
+            <li>实现 Rust 原生执行器、Python namespace 和文档示例。</li>
+            <li>补齐小样本、批量、流式和性能测试。</li>
+          </ul>
+        </article>
+        <article>
+          <span>02</span>
+          <h2>量化平台搭建</h2>
+          <p>围绕行情、因子、策略、回测、参数、监控和报告搭建统一工作流，让研究员用表达式沉淀策略资产。</p>
+          <ul>
+            <li>设计数据源接入、缓存、分块计算和结果归档。</li>
+            <li>建立策略模板、指标库、回测评价和组合分析。</li>
+            <li>把 notebook、脚本、服务进程和监控页面组织起来。</li>
+          </ul>
+        </article>
+        <article>
+          <span>03</span>
+          <h2>源码提供与私有部署</h2>
+          <p>按团队环境交付源码、构建脚本、部署说明和二次开发规范，方便在内网或专有服务器里长期维护。</p>
+          <ul>
+            <li>支持闭源私有交付、版本升级和接口冻结。</li>
+            <li>提供 Python/Rust 构建、wheel、Docker 和 CI 建议。</li>
+            <li>按团队权限、数据安全和运维方式定制部署。</li>
+          </ul>
+        </article>
+        <article>
+          <span>04</span>
+          <h2>数据源与远程计算</h2>
+          <p>接入 Parquet、ClickHouse、LazyFrame、流式数据和自定义 datasource，减少研究代码里的 IO 分叉。</p>
+          <ul>
+            <li>ClickHouse schema、Date/DateTime、字符串类型和 Arrow 类型适配。</li>
+            <li>大数据分块读取、谓词下推和流式执行链路。</li>
+            <li>数据质量检查、抽样校验和异常定位。</li>
+          </ul>
+        </article>
+        <article>
+          <span>05</span>
+          <h2>Monitor 与研究 UI</h2>
+          <p>把价格、信号、PnL、分布、参数、debug trace 和交互 callback 做成研究员能直接使用的页面。</p>
+          <ul>
+            <li>定制图表、联动选择、参数面板和调试视图。</li>
+            <li>把 notebook 输出升级成稳定的研究 dashboard。</li>
+            <li>保留表达式链路，避免图表和计算逻辑割裂。</li>
+          </ul>
+        </article>
+        <article>
+          <span>06</span>
+          <h2>实盘联调与策略服务</h2>
+          <p>把离线表达式接到模拟盘、实盘 API 或内部交易系统，重点处理信号时序、持仓状态、风控和日志回放。</p>
+          <ul>
+            <li>研究表达式、回测、模拟盘和实盘调用保持一致。</li>
+            <li>接入 QMT 等交易接口，拆分 API 层和策略层。</li>
+            <li>提供运行手册、异常日志、停止/暂停和恢复机制。</li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="service-process">
+        <h2>合作流程</h2>
+        <div>
+          <article><b>1</b><span>梳理场景</span><p>明确数据、算子、性能、部署和策略运行方式。</p></article>
+          <article><b>2</b><span>做最小可运行版本</span><p>先跑通核心表达式、结果输出和验收样例。</p></article>
+          <article><b>3</b><span>扩展工程链路</span><p>补齐测试、文档、监控、部署和团队二次开发接口。</p></article>
+          <article><b>4</b><span>维护升级</span><p>持续处理算子扩展、性能瓶颈、数据源变化和版本升级。</p></article>
+        </div>
+      </section>
+
+      <section class="contact-panel">
+        <p class="eyebrow">CONTACT</p>
+        <h2>联系服务支持</h2>
+        <p>适合沟通：算子开发、源码交付、ClickHouse 接入、量化平台、实盘联调、Monitor 面板和策略研究工作流。</p>
+        <strong>微信：aruster</strong>
+      </section>
+    </main>
+    
+    <script src="site.js"></script>
+  </body>
+</html>

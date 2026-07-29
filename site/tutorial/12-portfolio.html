@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust 高性能计算引擎：DataFrame、流计算、量化研究、ClickHouse 与高性能算子。">
+    <title>Portfolio：两条策略的 PnL、等权组合与 convex_sr 组合 | qust</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust 首页">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <a href="../tutorial.html">学习路径</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../examples/docs/index.html">Doc</a>
+          <a href="../service.html">服务</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../tutorial.html">返回目录</a>
+        <div class="article-list">
+          <a class="article-link" href="1-overview.html">项目概览</a><a class="article-link" href="2-qust-basics.html">基础用法</a><a class="article-link" href="3-performance.html">性能对比</a><a class="article-link" href="4-qust-advanced.html">高阶用法</a><a class="article-link" href="5-monitor-usage.html">Monitor</a><a class="article-link" href="6-alpha-strategy-analysis.html">Alpha 与策略分析</a><a class="article-link" href="7-analysis.html">分析示例</a><a class="article-link" href="8-indicators.html">指标示例</a><a class="article-link" href="9-optimization.html">参数优化</a><a class="article-link" href="10-strategy-writing.html">策略编写</a><a class="article-link" href="11-smc.html">SMC</a><a class="article-link active" href="12-portfolio.html">组合策略</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=5712c0ba"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Portfolio%EF%BC%9A%E4%B8%A4%E6%9D%A1%E7%AD%96%E7%95%A5%E7%9A%84-PnL%E3%80%81%E7%AD%89%E6%9D%83%E7%BB%84%E5%90%88%E4%B8%8E-convex_sr-%E7%BB%84%E5%90%88">Portfolio：两条策略的 PnL、等权组合与 convex_sr 组合</h1><p>这份 notebook 展示一个完整的策略组合流程。我们不直接跳到最终结果，而是把每一步拆开：</p>
+<ol>
+<li>读取 K 线数据；</li>
+<li>从 <code>stra_assets.get_all_strategy_exprs()</code> 里选两条策略；</li>
+<li>把策略信号转成持仓；</li>
+<li>用 <code>bt.price</code> 生成逐行 PnL；</li>
+<li>按日期汇总成日 PnL；</li>
+<li>分别画两条策略的累计 PnL；</li>
+<li>画等权组合曲线；</li>
+<li>用 <code>opt.convex_sr(lower_bound=0.0, up_bound=1.0)</code> 求权重；</li>
+<li>画 convex_sr 加权后的组合曲线。</li>
+</ol>
+<p>这里的重点是“组合逻辑怎么组织”，不是证明某个策略未来有效。<code>convex_sr</code> 用的是样本内统计，真实研究必须做训练/验证切分、滚动训练和交易成本约束。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=6de44d2d">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">LOCAL_QUST_SOURCE</span> <span class="o">=</span> <span class="s2">"/root/otters/otters-py/python"</span>
+<span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">LOCAL_QUST_SOURCE</span><span class="p">)</span> <span class="ow">and</span> <span class="n">LOCAL_QUST_SOURCE</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">LOCAL_QUST_SOURCE</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+<span class="kn">import</span> <span class="nn">qust.future.future</span>  <span class="c1"># 注册 future / stra / bt / opt / monitor 等命名空间</span>
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span><span class="p">,</span> <span class="n">stra_assets</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+
+
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">18</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">24</span><span class="p">)</span>
+
+<span class="n">KLINE_PATH</span> <span class="o">=</span> <span class="s2">"/root/qust-py/examples/data/data_kline2.parquet"</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=ad18661b"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-%E8%AF%BB%E5%8F%96%E6%95%B0%E6%8D%AE%E5%92%8C%E7%AD%96%E7%95%A5%E5%BA%93">1. 读取数据和策略库</h2><p><code>data_kline2.parquet</code> 是本地样例 K 线数据，包含多个期货品种。内置策略通过 <code>stra_assets.get_all_strategy_exprs()</code> 获取，每个策略表达式的输入通常是 <code>datetime/open/high/low/close/volume</code>，输出是四列布尔信号：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>输出列</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open_long_sig</code></td>
+<td>开多信号</td>
+</tr>
+<tr>
+<td><code>exit_long_sig</code></td>
+<td>平多信号</td>
+</tr>
+<tr>
+<td><code>open_short_sig</code></td>
+<td>开空信号</td>
+</tr>
+<tr>
+<td><code>exit_short_sig</code></td>
+<td>平空信号</td>
+</tr>
+</tbody>
+</table>
+<p>后面我们会把这四列信号送入 <code>stra.to_hold_two_sides()</code>，生成目标持仓。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=5880fbce">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">data_kline</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">KLINE_PATH</span><span class="p">)</span>
+<span class="n">stras</span> <span class="o">=</span> <span class="n">stra_assets</span><span class="o">.</span><span class="n">get_all_strategy_exprs</span><span class="p">()</span>
+
+<span class="n">selected_indices</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+<span class="n">selected</span> <span class="o">=</span> <span class="p">[(</span><span class="n">idx</span><span class="p">,</span> <span class="n">stras</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">selected_indices</span><span class="p">]</span>
+<span class="n">strategy_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">get_metadata_value</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">"strategy_</span><span class="si">{</span><span class="n">idx</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">selected</span><span class="p">]</span>
+
+<span class="n">strategy_info</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">"index"</span><span class="p">:</span> <span class="n">selected_indices</span><span class="p">,</span>
+        <span class="s2">"name"</span><span class="p">:</span> <span class="n">strategy_names</span><span class="p">,</span>
+        <span class="s2">"description"</span><span class="p">:</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">get_metadata</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"description"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">selected</span><span class="p">],</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"data shape:"</span><span class="p">,</span> <span class="n">data_kline</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"strategy count:"</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">stras</span><span class="p">))</span>
+<span class="n">strategy_info</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">data shape: (610463, 8)
+strategy count: 130
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (2, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>index</th><th>name</th><th>description</th></tr><tr><td>i64</td><td>str</td><td>str</td></tr></thead><tbody><tr><td>0</td><td>"c02"</td><td>"C02 策略
+输入列：datetime, open, hig…</td></tr><tr><td>3</td><td>"c05"</td><td>"C05 策略
+输入列：datetime, open, hig…</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=60a03197"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-%E4%BB%8E%E7%AD%96%E7%95%A5%E4%BF%A1%E5%8F%B7%E5%88%B0%E6%97%A5-PnL">2. 从策略信号到日 PnL</h2><p>组合之前必须先统一策略输出的口径。这里每条策略都走同一条回测管线：</p>
+<div class="highlight"><pre class="code-block"><span></span>K 线数据
+-&gt; 内置策略表达式，输出 open/exit 信号
+-&gt; to_hold_two_sides，四列开平仓信号变成持仓 hold
+-&gt; bt.price，按 close 与 hold 计算逐行 pnl
+-&gt; over("ticker")，每个品种独立维护持仓和回测状态
+-&gt; group_by(date)，把所有品种的逐行 pnl 汇总成日 pnl
+</pre></div>
+<p>注意 <code>over("ticker")</code> 放在回测链路外层，是为了让每个品种独立维护持仓状态；最后再按日期把所有品种的 PnL 汇总成一条策略曲线。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=dd03183c">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="k">def</span> <span class="nf">strategy_daily_pnl_expr</span><span class="p">(</span><span class="n">stra_expr</span><span class="p">,</span> <span class="n">alias</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">col</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">stra_expr</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"exit_long_sig"</span><span class="p">,</span> <span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"exit_short_sig"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">stra</span>
+            <span class="o">.</span><span class="n">to_hold_two_sides</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">expanding</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="s2">"hold"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">bt</span>
+            <span class="o">.</span><span class="n">price</span><span class="p">(</span><span class="n">fee_rate</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">expanding</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">))</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+
+<span class="n">pnl_tables</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">stra_expr</span><span class="p">),</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">selected</span><span class="p">,</span> <span class="n">strategy_names</span><span class="p">):</span>
+    <span class="n">daily_pnl</span> <span class="o">=</span> <span class="n">strategy_daily_pnl_expr</span><span class="p">(</span><span class="n">stra_expr</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data_kline</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
+    <span class="n">pnl_tables</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">daily_pnl</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: rows=</span><span class="si">{</span><span class="n">daily_pnl</span><span class="o">.</span><span class="n">height</span><span class="si">}</span><span class="s2">, total_pnl=</span><span class="si">{</span><span class="n">daily_pnl</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+<span class="n">portfolio_daily</span> <span class="o">=</span> <span class="n">pnl_tables</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">table</span> <span class="ow">in</span> <span class="n">pnl_tables</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+    <span class="n">portfolio_daily</span> <span class="o">=</span> <span class="n">portfolio_daily</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s2">"date"</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s2">"inner"</span><span class="p">)</span>
+<span class="n">portfolio_daily</span> <span class="o">=</span> <span class="n">portfolio_daily</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
+
+<span class="n">portfolio_daily</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">c02: rows=461, total_pnl=-587.3199
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">c05: rows=461, total_pnl=2165.0399
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (10, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>c02</th><th>c05</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2022-07-02</td><td>0.0</td><td>0.26001</td></tr><tr><td>2022-07-04</td><td>-26.940002</td><td>-77.880005</td></tr><tr><td>2022-07-05</td><td>-23.0</td><td>288.28009</td></tr><tr><td>2022-07-06</td><td>-0.23999</td><td>160.300018</td></tr><tr><td>2022-07-07</td><td>36.0</td><td>-18.02005</td></tr><tr><td>2022-07-08</td><td>-11.0</td><td>-41.919952</td></tr><tr><td>2022-07-09</td><td>0.0</td><td>-1.000061</td></tr><tr><td>2022-07-11</td><td>-8.0</td><td>-14.659912</td></tr><tr><td>2022-07-12</td><td>-37.119995</td><td>507.999969</td></tr><tr><td>2022-07-13</td><td>-0.219971</td><td>-93.28006</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=e0728eba"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-%E5%88%86%E5%88%AB%E7%94%BB%E4%B8%A4%E6%9D%A1%E7%AD%96%E7%95%A5%E7%9A%84%E7%B4%AF%E8%AE%A1-PnL">3. 分别画两条策略的累计 PnL</h2><p>日 PnL 本身会正负跳动，不适合直接观察策略整体表现，所以先对每条策略做累计和。这里仍然用 qust 表达式完成累计：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span>
+</pre></div>
+<p><code>expanding()</code> 表示从第一天累积到当前天。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=5299906a">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">strategy_curve_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="s2">"date"</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">[</span><span class="n">col</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">strategy_names</span><span class="p">],</span>
+<span class="p">)</span>
+
+<span class="n">strategy_curves</span> <span class="o">=</span> <span class="n">strategy_curve_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">portfolio_daily</span><span class="p">)</span>
+<span class="n">strategy_curves</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>c02</th><th>c05</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-24</td><td>-563.319885</td><td>2097.259888</td></tr><tr><td>2024-01-25</td><td>-563.319885</td><td>2113.359924</td></tr><tr><td>2024-01-26</td><td>-571.319885</td><td>2136.039917</td></tr><tr><td>2024-01-27</td><td>-571.319885</td><td>2135.899902</td></tr><tr><td>2024-01-29</td><td>-571.319885</td><td>2177.519897</td></tr><tr><td>2024-01-30</td><td>-574.319885</td><td>2227.759857</td></tr><tr><td>2024-01-31</td><td>-574.319885</td><td>2155.599884</td></tr><tr><td>2024-02-01</td><td>-587.319885</td><td>2165.039886</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=de50ba33">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">strategy_0_runtime</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="n">strategy_names</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">strategy_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">_cum_pnl"</span><span class="p">,</span>
+    <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">strategy_0_runtime</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">strategy_curves</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="n">strategy_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">420</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="12-portfolio monitor output 1" loading="lazy" src="../assets/notebook-renders/tutorial-12-portfolio-01.png"/><figcaption>notebook 输出：monitor 静态图</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f932e702650&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=a32700d5">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">strategy_1_runtime</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="n">strategy_names</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">strategy_names</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">_cum_pnl"</span><span class="p">,</span>
+    <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">strategy_1_runtime</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">strategy_curves</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="n">strategy_names</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">420</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="12-portfolio monitor output 2" loading="lazy" src="../assets/notebook-renders/tutorial-12-portfolio-02.png"/><figcaption>notebook 输出：monitor 静态图</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f932e701330&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=1fd9bb76"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-%E7%AD%89%E6%9D%83%E7%BB%84%E5%90%88">4. 等权组合</h2><p>最简单的组合方式是等权：两条策略每天的 PnL 各占 50%。如果策略之间相关性不高，等权组合常常能降低曲线波动；如果两条策略高度同向，等权的分散效果就会很弱。</p>
+<p>下面同时画出两条单策略累计曲线和等权组合累计曲线。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=e9c751ab">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">equal_weight_expr</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="n">strategy_names</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="n">col</span><span class="p">(</span><span class="n">strategy_names</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span> <span class="o">/</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span>
+<span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"equal_weight"</span><span class="p">)</span>
+
+<span class="n">portfolio_curve_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="s2">"date"</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">[</span><span class="n">col</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">strategy_names</span><span class="p">],</span>
+    <span class="n">equal_weight_expr</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"equal_weight"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">portfolio_curves</span> <span class="o">=</span> <span class="n">portfolio_curve_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">portfolio_daily</span><span class="p">)</span>
+<span class="n">portfolio_curves</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 4)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>c02</th><th>c05</th><th>equal_weight</th></tr><tr><td>date</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-24</td><td>-563.319885</td><td>2097.259888</td><td>766.970001</td></tr><tr><td>2024-01-25</td><td>-563.319885</td><td>2113.359924</td><td>775.02002</td></tr><tr><td>2024-01-26</td><td>-571.319885</td><td>2136.039917</td><td>782.360016</td></tr><tr><td>2024-01-27</td><td>-571.319885</td><td>2135.899902</td><td>782.290009</td></tr><tr><td>2024-01-29</td><td>-571.319885</td><td>2177.519897</td><td>803.100006</td></tr><tr><td>2024-01-30</td><td>-574.319885</td><td>2227.759857</td><td>826.719986</td></tr><tr><td>2024-01-31</td><td>-574.319885</td><td>2155.599884</td><td>790.639999</td></tr><tr><td>2024-02-01</td><td>-587.319885</td><td>2165.039886</td><td>788.860001</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=3b1745c6">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">equal_runtime</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="o">*</span><span class="n">strategy_names</span><span class="p">,</span> <span class="s2">"equal_weight"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span>
+    <span class="s2">"single_and_equal_weight"</span><span class="p">,</span>
+    <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">equal_runtime</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">portfolio_curves</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">480</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="12-portfolio monitor output 3" loading="lazy" src="../assets/notebook-renders/tutorial-12-portfolio-03.png"/><figcaption>notebook 输出：monitor 静态图</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f932e701960&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=b347f6c4"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-convex_sr%EF%BC%9A%E7%94%A8-Sharpe-%E7%9B%AE%E6%A0%87%E6%B1%82%E7%BB%84%E5%90%88%E6%9D%83%E9%87%8D">5. convex_sr：用 Sharpe 目标求组合权重</h2><p><code>convex_sr</code> 的输入是一组收益或 PnL 列，输出每一列对应的权重。这里用：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"c02"</span><span class="p">,</span> <span class="s2">"c05"</span><span class="p">)</span><span class="o">.</span><span class="n">opt</span><span class="o">.</span><span class="n">convex_sr</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
+</pre></div>
+<p>参数含义：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>参数</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lower_bound=0.0</code></td>
+<td>每个策略权重不能低于 0，即 long-only</td>
+</tr>
+<tr>
+<td><code>up_bound=1.0</code></td>
+<td>每个策略权重不能高于 1</td>
+</tr>
+<tr>
+<td>权重和</td>
+<td>底层约束为权重和等于 1</td>
+</tr>
+<tr>
+<td>目标</td>
+<td>在样本内最大化 Sharpe 近似目标</td>
+</tr>
+</tbody>
+</table>
+<p>它不是“未来一定更好”的按钮。它只是根据历史日 PnL 的均值、波动和协方差，求一个样本内更优的线性组合。真实使用时通常要做滚动窗口优化，比如只用过去 3 个月训练权重，再用未来 1 周或 1 个月验证。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=493d0e32">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">weights</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="o">*</span><span class="n">strategy_names</span><span class="p">)</span><span class="o">.</span><span class="n">opt</span><span class="o">.</span><span class="n">convex_sr</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">portfolio_daily</span><span class="p">)</span>
+<span class="n">weights</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>c02</th><th>c05</th></tr><tr><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>1.1102e-16</td><td>1.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=0f6e27f2">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">weight_values</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">weights</span><span class="p">[</span><span class="n">name</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">strategy_names</span><span class="p">}</span>
+<span class="n">weight_table</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">"strategy"</span><span class="p">:</span> <span class="n">strategy_names</span><span class="p">,</span>
+        <span class="s2">"weight"</span><span class="p">:</span> <span class="p">[</span><span class="n">weight_values</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">strategy_names</span><span class="p">],</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+<span class="n">weight_table</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (2, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>strategy</th><th>weight</th></tr><tr><td>str</td><td>f64</td></tr></thead><tbody><tr><td>"c02"</td><td>1.1102e-16</td></tr><tr><td>"c05"</td><td>1.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=2c02abce"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-convex_sr-%E7%BB%84%E5%90%88%E6%9B%B2%E7%BA%BF">6. convex_sr 组合曲线</h2><p>得到权重后，组合每日 PnL 是：</p>
+<div class="highlight"><pre class="code-block"><span></span>convex_daily_pnl = w0 * strategy_0_daily_pnl + w1 * strategy_1_daily_pnl
+</pre></div>
+<p>然后再对每日组合 PnL 做累计和，得到组合净值曲线。下面把等权组合和 convex_sr 组合放在同一张图里比较。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=2f17eae8">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">convex_daily_expr</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">*</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="n">weight_values</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">strategy_names</span>
+<span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"convex_sr"</span><span class="p">)</span>
+
+<span class="n">compare_curve_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="s2">"date"</span><span class="p">,</span>
+    <span class="n">equal_weight_expr</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"equal_weight"</span><span class="p">),</span>
+    <span class="n">convex_daily_expr</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"convex_sr"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">compare_curves</span> <span class="o">=</span> <span class="n">compare_curve_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">portfolio_daily</span><span class="p">)</span>
+<span class="n">compare_curves</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (10, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>equal_weight</th><th>convex_sr</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-01-22</td><td>795.279984</td><td>2153.799866</td></tr><tr><td>2024-01-23</td><td>816.339996</td><td>2195.999878</td></tr><tr><td>2024-01-24</td><td>766.970001</td><td>2097.259888</td></tr><tr><td>2024-01-25</td><td>775.02002</td><td>2113.359924</td></tr><tr><td>2024-01-26</td><td>782.360016</td><td>2136.039917</td></tr><tr><td>2024-01-27</td><td>782.290009</td><td>2135.899902</td></tr><tr><td>2024-01-29</td><td>803.100006</td><td>2177.519897</td></tr><tr><td>2024-01-30</td><td>826.719986</td><td>2227.759857</td></tr><tr><td>2024-01-31</td><td>790.639999</td><td>2155.599884</td></tr><tr><td>2024-02-01</td><td>788.860001</td><td>2165.039886</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=61d07054">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">convex_runtime</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"equal_weight"</span><span class="p">,</span> <span class="s2">"convex_sr"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span>
+    <span class="s2">"equal_vs_convex_sr"</span><span class="p">,</span>
+    <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">convex_runtime</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">compare_curves</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">460</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="12-portfolio monitor output 4" loading="lazy" src="../assets/notebook-renders/tutorial-12-portfolio-04.png"/><figcaption>notebook 输出：monitor 静态图</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f932e701720&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=7b903c0a"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-%E8%A1%A5%E5%85%85%EF%BC%9A%E7%BB%84%E5%90%88%E6%94%B6%E7%9B%8A%E7%BB%9F%E8%AE%A1">7. 补充：组合收益统计</h2><p>曲线只能告诉我们“看起来怎么样”，统计表能把收益、波动、回撤、偏度、峰度等指标列出来。<code>bt.returns_stats()</code> 的输入是 <code>date + 每期收益/PnL</code>。这里为了演示，直接把每日 PnL 当作每期收益序列来统计。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=01124a11">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">portfolio_returns</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="s2">"date"</span><span class="p">,</span>
+    <span class="n">equal_weight_expr</span><span class="p">,</span>
+    <span class="n">convex_daily_expr</span><span class="p">,</span>
+<span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">portfolio_daily</span><span class="p">)</span>
+
+<span class="n">stats_equal</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"equal_weight"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">returns_stats</span><span class="p">(</span><span class="n">periods_per_year</span><span class="o">=</span><span class="mi">252</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">portfolio_returns</span><span class="p">)</span>
+<span class="n">stats_convex</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"convex_sr"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">returns_stats</span><span class="p">(</span><span class="n">periods_per_year</span><span class="o">=</span><span class="mi">252</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">portfolio_returns</span><span class="p">)</span>
+
+<span class="n">stats_preview</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">stats_equal</span>
+    <span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s2">"value"</span><span class="p">:</span> <span class="s2">"equal_weight"</span><span class="p">,</span> <span class="s2">"value_float"</span><span class="p">:</span> <span class="s2">"equal_weight_float"</span><span class="p">})</span>
+    <span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="n">stats_convex</span><span class="o">.</span><span class="n">rename</span><span class="p">({</span><span class="s2">"value"</span><span class="p">:</span> <span class="s2">"convex_sr"</span><span class="p">,</span> <span class="s2">"value_float"</span><span class="p">:</span> <span class="s2">"convex_sr_float"</span><span class="p">}),</span>
+        <span class="n">on</span><span class="o">=</span><span class="s2">"metric"</span><span class="p">,</span>
+        <span class="n">how</span><span class="o">=</span><span class="s2">"inner"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"metric"</span><span class="p">,</span> <span class="s2">"equal_weight"</span><span class="p">,</span> <span class="s2">"convex_sr"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">stats_preview</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">18</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (18, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>metric</th><th>equal_weight</th><th>convex_sr</th></tr><tr><td>str</td><td>str</td><td>str</td></tr></thead><tbody><tr><td>"Start Index"</td><td>"2022-07-02"</td><td>"2022-07-02"</td></tr><tr><td>"End Index"</td><td>"2024-02-01"</td><td>"2024-02-01"</td></tr><tr><td>"Total Duration"</td><td>"579 days, 0:00:00"</td><td>"579 days, 0:00:00"</td></tr><tr><td>"Total Return [%]"</td><td>null</td><td>null</td></tr><tr><td>"Benchmark Return [%]"</td><td>null</td><td>null</td></tr><tr><td>"Annualized Return [%]"</td><td>null</td><td>null</td></tr><tr><td>"Annualized Volatility [%]"</td><td>"75822.66090854956"</td><td>"149967.63236737464"</td></tr><tr><td>"Max Drawdown [%]"</td><td>"849025626070.9075"</td><td>"inf"</td></tr><tr><td>"Max Drawdown Duration"</td><td>"0:00:00"</td><td>"7 days, 0:00:00"</td></tr><tr><td>"Sharpe Ratio"</td><td>"0.5687226561633859"</td><td>"0.7891653022756577"</td></tr><tr><td>"Calmar Ratio"</td><td>null</td><td>null</td></tr><tr><td>"Omega Ratio"</td><td>"1.1211422250239909"</td><td>"1.1733338129265192"</td></tr><tr><td>"Sortino Ratio"</td><td>"0.8922038326904188"</td><td>"1.2484135706340276"</td></tr><tr><td>"Skew"</td><td>"-0.7963121385663032"</td><td>"-0.7342539091246362"</td></tr><tr><td>"Kurtosis"</td><td>"15.582220681355306"</td><td>"16.294636018739354"</td></tr><tr><td>"Tail Ratio"</td><td>"1.3006010260193133"</td><td>"1.2834133917478412"</td></tr><tr><td>"Common Sense Ratio"</td><td>"1.4581587281797783"</td><td>"1.505872328500451"</td></tr><tr><td>"Value at Risk"</td><td>"-58.25"</td><td>"-115.52005004882812"</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=386cef2c"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-%E5%B0%8F%E7%BB%93">8. 小结</h2><p>这条 portfolio 管线的核心逻辑是：</p>
+<div class="highlight"><pre class="code-block"><span></span>策略表达式 -&gt; 信号 -&gt; 持仓 -&gt; 单策略 PnL -&gt; 日 PnL -&gt; 组合权重 -&gt; 组合曲线
+</pre></div>
+<p>qust 的优势在这里比较明显：</p>
+<ol>
+<li>策略、持仓、回测、分组汇总、组合优化、画图都是表达式或表达式 runtime；</li>
+<li>单策略和组合策略使用同一套数据口径，不需要到处复制 pandas 代码；</li>
+<li><code>over("ticker")</code> 把每个品种的状态隔离开，避免多品种回测互相串状态；</li>
+<li><code>convex_sr</code> 可以直接对多列策略收益求权重，方便批量策略筛选和组合研究；</li>
+<li>notebook 输出的是真实 monitor iframe，可以继续缩放、拖动和检查曲线。</li>
+</ol>
+<p>真实投研里，下一步通常是把 <code>convex_sr</code> 放进滚动训练框架：例如过去 60 个交易日训练权重，未来 5 个交易日应用权重，然后不断向前滚动。这样才更接近实际可交易的组合构建过程。</p>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../site.js"></script>
+  </body>
+</html>
