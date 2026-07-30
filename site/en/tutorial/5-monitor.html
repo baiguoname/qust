@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust is a high-performance compute engine for DataFrame workflows, streaming computation, quantitative research, ClickHouse, and custom operators.">
+    <title>qust monitor 用法：从输入列到图形输出 | qust</title>
+    <link rel="stylesheet" href="../../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust home">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="primary navigation">
+          <a href="../tutorial.html">Tutorial</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../../examples/docs/index.html">Docs</a>
+          <a href="../service.html">Services</a>
+          <a href="https://baiguoname.github.io/qust/site">Project</a>
+          <a href="https://github.com/baiguoname/qust">GitHub</a>
+          <a class="lang-switch" href="../../tutorial/5-monitor.html">中文</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../tutorial.html">Back to index</a>
+        <div class="article-list">
+          <a class="article-link" href="1-项目概览.html">项目概览</a><a class="article-link" href="2-基础用法.html">基础用法</a><a class="article-link" href="3-性能对比.html">性能对比</a><a class="article-link" href="4-高阶用法.html">高阶用法</a><a class="article-link active" href="5-monitor.html">Monitor</a><a class="article-link" href="6-alpha-与策略分析.html">Alpha 与策略分析</a><a class="article-link" href="7-分析示例.html">分析示例</a><a class="article-link" href="8-指标示例.html">指标示例</a><a class="article-link" href="9-参数优化.html">参数优化</a><a class="article-link" href="10-策略编写.html">策略编写</a><a class="article-link" href="11-smc.html">SMC</a><a class="article-link" href="12-组合策略.html">组合策略</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=6258c4e7"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="qust-monitor-%E7%94%A8%E6%B3%95%EF%BC%9A%E4%BB%8E%E8%BE%93%E5%85%A5%E5%88%97%E5%88%B0%E5%9B%BE%E5%BD%A2%E8%BE%93%E5%87%BA">qust monitor 用法：从输入列到图形输出</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>monitor 是 qust 的可视化层。你可以把它理解成：</p>
+<div class="highlight"><pre class="code-block"><span></span>qust 表达式算出绘图数据 -&gt; monitor 根据图类型解释列 -&gt; runtime.plot(data) 打开交互图
+</pre></div>
+<p>示例不用 matplotlib，图形由 qust 原生 monitor 输出。</p>
+<p>学习重点：</p>
+<ol>
+<li>每种图需要什么输入列；</li>
+<li><code>monitor("slot")</code> 的 slot 是什么；</li>
+<li>多个图层怎么叠到同一个 slot；</li>
+<li><code>make_monitor + add_grid</code> 怎么组织 dashboard；</li>
+<li>violin 为什么推荐先算 <code>batch.violin_profile()</code>。</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=61548ce0">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span><span class="p">,</span> <span class="n">pms</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+<span class="kn">import</span> <span class="nn">qust.datasource</span> <span class="k">as</span> <span class="nn">qds</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">14</span><span class="p">)</span>
+
+<span class="n">DATA_KLINE</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_kline3.parquet?raw=true"</span>
+<span class="n">DATA_FUTURE</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/kline_data_all.parquet?raw=true"</span>
+<span class="n">DATA_STOCK</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/stock_data_kline.parquet?raw=true"</span>
+
+<span class="kn">from</span> <span class="nn">qust.monitor</span> <span class="kn">import</span> <span class="n">mark_shape</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=9c17f40c"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-%E5%87%86%E5%A4%87%E7%BB%98%E5%9B%BE%E6%95%B0%E6%8D%AE">1. 准备绘图数据</h2><p>所有 monitor 图都不是凭空画的，它只消费表达式输出的列。</p>
+<p>下面先构造一张统一的绘图表：</p>
+<ul>
+<li><code>datetime</code>：x 轴；</li>
+<li><code>open/high/low/close/volume</code>：K 线；</li>
+<li><code>ma30</code>：30 窗口均线；</li>
+<li><code>ret</code>：单 bar 收益；</li>
+<li><code>up</code>：是否上涨，用来画 mark。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=c6c51b90">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">raw_kline</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_KLINE</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">])</span>
+<span class="n">PLOT_ROW</span> <span class="o">=</span> <span class="n">raw_kline</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">])</span><span class="o">.</span><span class="n">row</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">named</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">PLOT_TICKER</span> <span class="o">=</span> <span class="n">PLOT_ROW</span><span class="p">[</span><span class="s2">"ticker"</span><span class="p">]</span>
+<span class="n">PLOT_CT</span> <span class="o">=</span> <span class="n">PLOT_ROW</span><span class="p">[</span><span class="s2">"ct"</span><span class="p">]</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">raw_kline</span><span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_CT</span><span class="p">))</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">500</span><span class="p">)</span>
+<span class="n">plot_data</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ma30"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">1.0</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"plot contract:"</span><span class="p">,</span> <span class="n">PLOT_TICKER</span><span class="p">,</span> <span class="n">PLOT_CT</span><span class="p">)</span>
+<span class="n">plot_data</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 11)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th><th>is_finished</th><th>ma30</th><th>ret</th><th>up</th></tr><tr><td>str</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>bool</td><td>f64</td><td>f64</td><td>bool</td></tr></thead><tbody><tr><td>"au"</td><td>2022-07-02 00:01:00</td><td>390.160004</td><td>390.160004</td><td>390.059998</td><td>390.119995</td><td>81.0</td><td>true</td><td>null</td><td>-0.00128</td><td>false</td></tr><tr><td>"au"</td><td>2022-07-02 00:02:00.500</td><td>390.119995</td><td>390.140015</td><td>390.079987</td><td>390.140015</td><td>52.0</td><td>true</td><td>null</td><td>-0.001229</td><td>true</td></tr><tr><td>"au"</td><td>2022-07-02 00:03:00</td><td>390.140015</td><td>390.200012</td><td>390.119995</td><td>390.200012</td><td>50.0</td><td>true</td><td>null</td><td>-0.001075</td><td>true</td></tr><tr><td>"au"</td><td>2022-07-02 00:04:01</td><td>390.200012</td><td>390.220001</td><td>390.140015</td><td>390.160004</td><td>61.0</td><td>true</td><td>null</td><td>-0.001178</td><td>false</td></tr><tr><td>"au"</td><td>2022-07-02 00:05:00.500</td><td>390.140015</td><td>390.140015</td><td>390.079987</td><td>390.100006</td><td>41.0</td><td>true</td><td>null</td><td>-0.001331</td><td>false</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=996bd253"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-line-/-area-/-step_line">2. line / area / step_line</h2><p>line 输入至少两列：</p>
+<div class="highlight"><pre class="code-block"><span></span>x, y1, y2, ...
+</pre></div>
+<p>这里 <code>datetime</code> 是 x，<code>close</code> 和 <code>ma30</code> 是两条 y 线。area 同样是 x + y，只是把线下区域填充出来，更适合展示收益、回撤、成交量占比等。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=60406644">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">line_rt</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"ma30"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"line"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">line_rt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">420</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="5-monitor monitor output 1" loading="lazy" src="../../assets/notebook-renders/tutorial-5-monitor-usage-01.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7ffa93eb3550&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=0e318fa4">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">area_rt</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"ret"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"area"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">area</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">area_rt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">360</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="5-monitor monitor output 2" loading="lazy" src="../../assets/notebook-renders/tutorial-5-monitor-usage-02.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7ffa93eb28f0&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=d5ccaddd"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-kline-+-mark-+-fill">3. kline + mark + fill</h2><p>K 线图最少需要 5 列：</p>
+<div class="highlight"><pre class="code-block"><span></span>datetime, open, high, low, close
+</pre></div>
+<p>mark 图层一般需要：</p>
+<div class="highlight"><pre class="code-block"><span></span>x, y, flag
+</pre></div>
+<p>当 <code>flag=True</code> 时，在 <code>(x, y)</code> 位置画标记。下面把上涨 bar 画成绿色三角，并把 <code>ma30</code> 叠在同一个 <code>price</code> slot 里。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=497336c4">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">kline_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"price"</span><span class="p">)</span><span class="o">.</span><span class="n">kline</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"up"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"price"</span><span class="p">)</span><span class="o">.</span><span class="n">mark</span><span class="p">(</span><span class="n">mark_shape</span><span class="o">.</span><span class="n">triangle_up</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"lime"</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.4</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"ma30"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"price"</span><span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([[</span><span class="s2">"price"</span><span class="p">]])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">kline_expr</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">520</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="5-monitor monitor output 3" loading="lazy" src="../../assets/notebook-renders/tutorial-5-monitor-usage-03.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7ffa5c706ce0&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=5f422908"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-bar-%E5%92%8C-table">4. bar 和 table</h2><p>bar 输入是：</p>
+<div class="highlight"><pre class="code-block"><span></span>category, value1, value2, ...
+</pre></div>
+<p>适合展示不同品种、不同参数、不同策略之间的数值对比。</p>
+<p>table 输入可以是任意列，适合展示统计表、参数表、优化结果表。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=59b89a32">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">bar_data</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_KLINE</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">50_000</span><span class="p">))</span>
+<span class="p">)</span>
+
+<span class="n">bar_rt</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"bar"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">bar</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">bar_rt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">bar_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">420</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="5-monitor monitor output 4" loading="lazy" src="../../assets/notebook-renders/tutorial-5-monitor-usage-04.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7ffa93eb3430&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=c999dff7">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">table_rt</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">table</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">table_rt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">bar_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">360</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="5-monitor monitor output 5" loading="lazy" src="../../assets/notebook-renders/tutorial-5-monitor-usage-05.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7ffa93eb1690&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=35690f1b"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-scatter">5. scatter</h2><p>scatter 输入至少两列：</p>
+<div class="highlight"><pre class="code-block"><span></span>x, y
+</pre></div>
+<p>后续列可以作为 hover 或交互选择时的上下文。散点图适合看两个变量之间的关系，比如成交量和收益、因子值和未来收益。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=a76b04e5">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">scatter_rt</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">,</span> <span class="s2">"ret"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"scatter"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="mf">0.04</span><span class="p">)</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">scatter_rt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_data</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">()),</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">460</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="5-monitor monitor output 6" loading="lazy" src="../../assets/notebook-renders/tutorial-5-monitor-usage-06.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7ffa94012470&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=a0671cff"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-heatmap">6. heatmap</h2><p>heatmap 输入至少三列：</p>
+<div class="highlight"><pre class="code-block"><span></span>x_label, y_label, value
+</pre></div>
+<p>适合展示二维参数平面、相关性矩阵、分组统计矩阵。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=90d945cb">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">heat_data</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">"x"</span><span class="p">:</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"x</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)],</span>
+    <span class="s2">"y"</span><span class="p">:</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"y</span><span class="si">{</span><span class="n">j</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)],</span>
+    <span class="s2">"value"</span><span class="p">:</span> <span class="p">[((</span><span class="n">i</span> <span class="o">*</span> <span class="mi">7</span> <span class="o">+</span> <span class="n">j</span> <span class="o">*</span> <span class="mi">3</span><span class="p">)</span> <span class="o">%</span> <span class="mi">17</span><span class="p">)</span> <span class="o">/</span> <span class="mi">16</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)],</span>
+<span class="p">})</span>
+
+<span class="n">heat_rt</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"x"</span><span class="p">,</span> <span class="s2">"y"</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"heatmap"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">heatmap</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">heat_rt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">heat_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">420</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="5-monitor monitor output 7" loading="lazy" src="../../assets/notebook-renders/tutorial-5-monitor-usage-07.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7ffa5c705d50&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=7546ff39"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-violin">7. violin</h2><p>violin 不是直接吃原始样本，而是推荐吃：</p>
+<div class="highlight"><pre class="code-block"><span></span>label + batch.violin_profile() 输出的 profile 列
+</pre></div>
+<p>原因：如果图形交互时每次都从原始样本重算分布，拖动/缩放会慢，而且可能因为可见窗口变化导致分布看起来变了。先算 profile 后，monitor 只负责画图，分布是稳定的。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=83112e37">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">violin_source</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">"elapsed"</span><span class="p">:</span> <span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="mi">6</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">240</span><span class="p">)],</span>
+    <span class="s2">"ret"</span><span class="p">:</span> <span class="p">[((</span><span class="n">i</span> <span class="o">*</span> <span class="mi">17</span><span class="p">)</span> <span class="o">%</span> <span class="mi">41</span> <span class="o">-</span> <span class="mi">20</span><span class="p">)</span> <span class="o">/</span> <span class="mi">1000</span> <span class="o">+</span> <span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="mi">6</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.002</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">240</span><span class="p">)],</span>
+<span class="p">})</span>
+
+<span class="n">violin_profile</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">violin_profile</span><span class="p">(</span><span class="n">lower_bound</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">up_bound</span><span class="o">=</span><span class="mf">0.95</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"elapsed"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"elapsed"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">violin_source</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">violin_rt</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"violin"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">violin</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">violin_rt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">violin_profile</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">460</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="5-monitor monitor output 8" loading="lazy" src="../../assets/notebook-renders/tutorial-5-monitor-usage-08.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7ffa93e774c0&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=a5f11776"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-%E5%A4%9A%E5%9B%BE%E5%B8%83%E5%B1%80%EF%BC%9Amake_monitor-+-add_grid">8. 多图布局：make_monitor + add_grid</h2><p>多个 plot layer 可以放进同一个 monitor slot；<code>add_grid</code> 控制页面网格。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=c693555c">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">dashboard</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"price"</span><span class="p">)</span><span class="o">.</span><span class="n">kline</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"ma30"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"price"</span><span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">bar</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"ret"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([</span>
+    <span class="p">[</span><span class="s2">"price"</span><span class="p">,</span> <span class="s2">"price"</span><span class="p">],</span>
+    <span class="p">[</span><span class="s2">"volume"</span><span class="p">,</span> <span class="s2">"ret"</span><span class="p">],</span>
+<span class="p">])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">dashboard</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">720</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="5-monitor monitor output 9" loading="lazy" src="../../assets/notebook-renders/tutorial-5-monitor-usage-09.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7ffa5c707f70&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=42bc9684"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="9.-monitor-%E5%85%AC%E5%85%B1%E5%8F%82%E6%95%B0">9. monitor 公共参数</h2><p>常用公共参数：</p>
+<ul>
+<li><code>slot_id</code>：<code>monitor("price")</code> 里的图层槽位；</li>
+<li><code>y_axis</code>：同一 slot 里的第几个 y 轴；</li>
+<li><code>y_ratio</code>：子图高度比例，负数常用于把填充/回撤放到下方；</li>
+<li><code>show_axis_label=True</code>：是否显示轴名称；</li>
+<li><code>over_type="stack"/"split"/"select"</code>：部分图类型支持按 over 分组堆叠、拆分、选择。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=483b35da">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">"parameter"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"slot_id"</span><span class="p">,</span> <span class="s2">"y_axis"</span><span class="p">,</span> <span class="s2">"y_ratio"</span><span class="p">,</span> <span class="s2">"show_axis_label"</span><span class="p">,</span> <span class="s2">"over_type"</span><span class="p">],</span>
+    <span class="s2">"example"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"monitor('price')"</span><span class="p">,</span> <span class="s2">"monitor('price', y_axis=1)"</span><span class="p">,</span> <span class="s2">"monitor('dd', y_ratio=-0.3)"</span><span class="p">,</span> <span class="s2">"monitor(show_axis_label=False)"</span><span class="p">,</span> <span class="s2">"monitor(over_type='stack')"</span><span class="p">],</span>
+    <span class="s2">"meaning"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"同一槽位叠加图层"</span><span class="p">,</span> <span class="s2">"同一图里使用额外 y 轴"</span><span class="p">,</span> <span class="s2">"控制高度或下方子区域"</span><span class="p">,</span> <span class="s2">"隐藏/显示轴标题"</span><span class="p">,</span> <span class="s2">"按 over 分组交互展示"</span><span class="p">],</span>
+<span class="p">})</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>parameter</th><th>example</th><th>meaning</th></tr><tr><td>str</td><td>str</td><td>str</td></tr></thead><tbody><tr><td>"slot_id"</td><td>"monitor('price')"</td><td>"同一槽位叠加图层"</td></tr><tr><td>"y_axis"</td><td>"monitor('price', y_axis=1)"</td><td>"同一图里使用额外 y 轴"</td></tr><tr><td>"y_ratio"</td><td>"monitor('dd', y_ratio=-0.3)"</td><td>"控制高度或下方子区域"</td></tr><tr><td>"show_axis_label"</td><td>"monitor(show_axis_label=False)"</td><td>"隐藏/显示轴标题"</td></tr><tr><td>"over_type"</td><td>"monitor(over_type='stack')"</td><td>"按 over 分组交互展示"</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../../site.js"></script>
+  </body>
+</html>

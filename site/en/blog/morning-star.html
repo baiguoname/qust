@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust is a high-performance compute engine for DataFrame workflows, streaming computation, quantitative research, ClickHouse, and custom operators.">
+    <title>Morning Star：用 qust 识别早晨之星 | qust</title>
+    <link rel="stylesheet" href="../../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust home">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="primary navigation">
+          <a href="../tutorial.html">Tutorial</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../../examples/docs/index.html">Docs</a>
+          <a href="../service.html">Services</a>
+          <a href="https://baiguoname.github.io/qust/site">Project</a>
+          <a href="https://github.com/baiguoname/qust">GitHub</a>
+          <a class="lang-switch" href="../../blog/morning-star.html">中文</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../blog.html">Back to index</a>
+        <div class="article-list">
+          <a class="article-link" href="bearish-engulfing.html">Bearish Engulfing</a><a class="article-link" href="breadth-thrust.html">Breadth Thrust</a><a class="article-link" href="bullish-harami.html">Bullish Harami</a><a class="article-link" href="descending-triangle.html">Descending Triangle</a><a class="article-link" href="donchian-channels.html">Donchian Channels</a><a class="article-link" href="double-top.html">Double Top</a><a class="article-link" href="gap.html">Gap</a><a class="article-link" href="ichimoku-cloud.html">Ichimoku Cloud</a><a class="article-link active" href="morning-star.html">Morning Star</a><a class="article-link" href="triple-bottom.html">Triple Bottom</a><a class="article-link" href="wedge.html">Wedge</a><a class="article-link" href="zig-zag.html">Zig Zag</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=64af874d"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Morning-Star%EF%BC%9A%E7%94%A8-qust-%E8%AF%86%E5%88%AB%E6%97%A9%E6%99%A8%E4%B9%8B%E6%98%9F">Morning Star：用 qust 识别早晨之星</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>来源参考：<a href="https://www.investopedia.com/terms/m/morningstar.asp">Investopedia</a></p>
+<p>本文按 Investopedia 原文结构讲解指标含义、常见用法和局限性，并展示如何用 qust 一行计算指标、选择单个 <code>ticker + ct</code> 合约画图，以及在完整多合约数据上按 <code>over("ticker", "ct")</code> 做回测。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=437824a2"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-Investopedia-%E5%8E%9F%E6%96%87%E5%86%85%E5%AE%B9%E5%AE%8C%E6%95%B4%E6%94%B9%E5%86%99%EF%BC%9AMorning-Star">1. Investopedia 原文内容完整改写：Morning Star</h2><h3 id="%E4%BB%80%E4%B9%88%E6%98%AF-Morning-Star">什么是 Morning Star</h3><p>Morning Star 是三根 K 线组成的看涨反转形态。名字暗示“夜晚之后出现晨星”：市场先经历一根明显下跌蜡烛，随后出现一根小实体表示犹豫，最后第三根强阳线把价格重新推高。它通常出现在下跌趋势末端。</p>
+<h3 id="%E4%B8%89%E6%A0%B9-K-%E7%BA%BF%E7%BB%93%E6%9E%84">三根 K 线结构</h3><p>第一根是较长阴线，代表空头仍在推动价格下行。第二根是小实体，可以是小阴、小阳或十字星，代表市场犹豫和动能减弱。第三根是阳线，最好能明显收回第一根阴线实体的一部分，说明买方重新取得主动。</p>
+<h3 id="%E5%B8%82%E5%9C%BA%E5%BF%83%E7%90%86">市场心理</h3><p>第一根让下跌看起来延续；第二根没有继续大幅走弱，说明卖方力量开始衰减；第三根强势上涨则改变了短期预期。这个三段式变化比单根 K 线更强调情绪转换过程。</p>
+<h3 id="%E7%A1%AE%E8%AE%A4%E5%92%8C%E4%BD%BF%E7%94%A8">确认和使用</h3><p>交易者通常关注第三根阳线的力度，例如是否收回第一根实体的一半以上，是否放量，是否突破第二根高点，是否发生在支撑区域。形态确认后，风险常参考第二根或整个形态的低点。</p>
+<h3 id="%E5%8F%82%E6%95%B0%E5%92%8C%E5%8F%98%E4%BD%93">参数和变体</h3><p>不同软件对第二根“小实体”和第三根“收回多少”定义不同。有些市场存在跳空，传统蜡烛书会强调第二根与第一根之间的 gap；但在连续交易或期货数据中 gap 不总是稳定出现，因此程序化常用实体大小和收复比例替代。</p>
+<h3 id="%E5%B1%80%E9%99%90%E6%80%A7">局限性</h3><p>Morning Star 可能出现后价格只短暂反弹。它需要趋势背景和后续确认，否则只是普通三根 K 线组合。强下跌趋势中，任何看涨反转形态都可能失败。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=bd1e636b"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-%E4%BB%8E%E6%96%87%E7%AB%A0%E5%88%B0-qust-%E7%AE%97%E5%AD%90%E7%9A%84%E8%90%BD%E5%9C%B0">2. 从文章到 qust 算子的落地</h2><p>qust 用 <code>small_body_ratio</code> 控制第二根实体大小，用 <code>close_into_body</code> 控制第三根收复第一根实体的比例。默认还检查下跌背景，输出布尔列 <code>morning_star</code>。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=197e0244"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-qust-%E4%B8%80%E8%A1%8C%E8%B0%83%E7%94%A8">3. qust 一行调用</h2><div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">morning_star</span><span class="p">()</span>
+</pre></div>
+<p>输入列顺序：<code>open, high, low, close</code>。</p>
+<p>输出列：<code>morning_star</code>。</p>
+<p>这些输出都保持和输入相同的行数，后面可以继续 <code>.with_cols(...)</code>、<code>.filter(...)</code>、<code>.monitor...</code>，也可以接 <code>.over("ticker", "ct")</code> 按合约独立计算。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=e4382b86">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+<span class="kn">import</span> <span class="nn">qust.future.future</span>  <span class="c1"># 注册 bt/stra/kline/fp 等金融命名空间</span>
+<span class="kn">import</span> <span class="nn">qust.investopedia</span>  <span class="c1"># 注册 investopedia 命名空间</span>
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span><span class="p">,</span> <span class="n">mark_shape</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">28</span><span class="p">)</span>
+
+<span class="n">DATA_PATH</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_kline3.parquet?raw=true"</span>
+<span class="n">PLOT_TICKER</span> <span class="o">=</span> <span class="s2">"AP"</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=0a832053">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">raw</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">])</span>
+
+<span class="n">base_contract</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">raw</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">get_column</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"raw shape:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"tickers:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">())</span><span class="o">.</span><span class="n">to_series</span><span class="p">()</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"contract count:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">height</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"default plot ticker/ct:"</span><span class="p">,</span> <span class="n">PLOT_TICKER</span><span class="p">,</span> <span class="n">base_contract</span><span class="p">)</span>
+<span class="n">raw</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">raw shape: (408782, 8)
+tickers: ['AP', 'RM', 'SA', 'al', 'eb', 'eg', 'fu', 'rb']
+contract count: 141
+default plot ticker/ct: AP 205
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:00:00</td><td>8394.0</td><td>8394.0</td><td>8392.0</td><td>8392.0</td><td>1100.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:05:00</td><td>8385.0</td><td>8389.0</td><td>8348.0</td><td>8378.0</td><td>11169.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:10:00</td><td>8375.0</td><td>8376.0</td><td>8298.0</td><td>8302.0</td><td>14001.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:15:00</td><td>8301.0</td><td>8315.0</td><td>8271.0</td><td>8280.0</td><td>12839.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:20:00</td><td>8279.0</td><td>8285.0</td><td>8243.0</td><td>8246.0</td><td>11496.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=dedfe5ea"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-%E8%AE%A1%E7%AE%97%E6%8C%87%E6%A0%87">4. 计算指标</h2><p>下面用真实GitHub K 线数据计算。对合约相关指标，示例都使用 <code>.over("ticker", "ct")</code>，表示每个品种、每个合约独立维护上下文，避免不同合约的数据串在一起。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=6851f186">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">indicator_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">morning_star</span><span class="p">()</span>
+<span class="n">morning_data</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">indicator_expr</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+<span class="n">plot_data</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">morning_data</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span> <span class="o">==</span> <span class="n">base_contract</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1200</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">summary</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"morning_star"</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">UInt32</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"morning_star_count"</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">morning_data</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"plot shape:"</span><span class="p">,</span> <span class="n">plot_data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">summary</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">plot shape: (1200, 9)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>morning_star_count</th></tr><tr><td>u32</td></tr></thead><tbody><tr><td>1264</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=227119aa"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-%E7%94%A8-monitor-%E7%94%BB%E5%87%BA%E6%9D%A5">5. 用 monitor 画出来</h2><p>图不是静态 PNG，而是 qust monitor 输出。你可以在 Jupyter 里放大、拖动、查看指标与 K 线的对应关系。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=22dc1de1">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">morning_plot</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"morning_price"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">kline</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"morning_star"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"morning_price"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">mark</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">mark_shape</span><span class="o">.</span><span class="n">triangle_up</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"#50fa7b"</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.45</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([</span>
+    <span class="p">[</span><span class="s2">"morning_price"</span><span class="p">],</span>
+<span class="p">])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">morning_plot</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">560</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="morning-star monitor output 1" loading="lazy" src="../../assets/notebook-renders/blog-morning-star-01.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f8dd42f2b90&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=49cfae09"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-Morning-Star-%E7%AD%96%E7%95%A5%E5%9B%9E%E6%B5%8B">6. Morning Star 策略回测</h2><p>早晨之星是看涨反转形态，但默认严格参数信号太少、收益不稳定。这里放宽形态参数：不额外要求前置趋势，允许第二根小实体比例到 1.0，并要求第三根收回第一根实体 70%。交易方向仍按文章含义做多；使用 5% 止盈、2% 止损，并对 <code>hold</code> 做 <code>fp.vol_pms</code> 归一化。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=b6556ac1">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">TAKE_PROFIT</span> <span class="o">=</span> <span class="mf">0.05</span>
+<span class="n">STOP_LOSS</span> <span class="o">=</span> <span class="mf">0.02</span>
+
+<span class="n">indicator_cols</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">morning_star</span><span class="p">(</span>
+    <span class="n">trend_period</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">small_body_ratio</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">close_into_body</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">strategy_daily_expr</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">indicator_cols</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"morning_star"</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_raw"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_raw"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="c1"># 指标在当前 K 线收盘后才确认，所以入场信号后移一根 K 线，避免同根 K 线偷看。</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_raw"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_raw"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_long_sig"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_short_sig"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"exit_long_sig"</span><span class="p">,</span> <span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"exit_short_sig"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">to_hold_two_sides</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">expanding</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">((</span><span class="n">col</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">fp</span><span class="o">.</span><span class="n">vol_pms</span><span class="p">())</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="s2">"hold"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">price</span><span class="p">(</span><span class="n">fee_rate</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">())</span>
+    <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"pnl_cum"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">,</span> <span class="s2">"pnl_cum"</span><span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+<span class="n">strategy_daily</span> <span class="o">=</span> <span class="n">strategy_daily_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+<span class="n">strategy_stats</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">returns_stats</span><span class="p">(</span><span class="n">periods_per_year</span><span class="o">=</span><span class="mi">252</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"strategy_daily shape:"</span><span class="p">,</span> <span class="n">strategy_daily</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">strategy_stats</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">strategy_daily shape: (859, 3)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (20, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>metric</th><th>value</th><th>value_float</th></tr><tr><td>str</td><td>str</td><td>f64</td></tr></thead><tbody><tr><td>"Start Index"</td><td>"2022-01-04"</td><td>null</td></tr><tr><td>"End Index"</td><td>"2024-12-31"</td><td>null</td></tr><tr><td>"Total Duration"</td><td>"1092 days, 0:00:00"</td><td>null</td></tr><tr><td>"Total Return [%]"</td><td>"3.815329248753348e+48"</td><td>3.8153e48</td></tr><tr><td>"Benchmark Return [%]"</td><td>null</td><td>null</td></tr><tr><td>"Annualized Return [%]"</td><td>"5774099388076225.0"</td><td>5.7741e15</td></tr><tr><td>"Annualized Volatility [%]"</td><td>"2937.952224554212"</td><td>2937.952225</td></tr><tr><td>"Max Drawdown [%]"</td><td>"221978.1898581617"</td><td>221978.189858</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>"Sortino Ratio"</td><td>"0.9298775163949298"</td><td>0.929878</td></tr><tr><td>"Skew"</td><td>"0.27712107429740845"</td><td>0.277121</td></tr><tr><td>"Kurtosis"</td><td>"3.881082440253485"</td><td>3.881082</td></tr><tr><td>"Tail Ratio"</td><td>"1.0720862131382258"</td><td>1.072086</td></tr><tr><td>"Common Sense Ratio"</td><td>"1.1742153523329393"</td><td>1.174215</td></tr><tr><td>"Value at Risk"</td><td>"-3.023071946391541"</td><td>-3.023072</td></tr><tr><td>"Alpha"</td><td>null</td><td>null</td></tr><tr><td>"Beta"</td><td>null</td><td>null</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=f37419a4">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">strategy_daily</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-12-18</td><td>0.874114</td><td>53.321088</td></tr><tr><td>2024-12-19</td><td>-1.651979</td><td>51.66911</td></tr><tr><td>2024-12-20</td><td>0.323268</td><td>51.992378</td></tr><tr><td>2024-12-21</td><td>-0.125345</td><td>51.867032</td></tr><tr><td>2024-12-23</td><td>0.475886</td><td>52.342918</td></tr><tr><td>2024-12-24</td><td>1.23771</td><td>53.580628</td></tr><tr><td>2024-12-25</td><td>-0.697574</td><td>52.883054</td></tr><tr><td>2024-12-26</td><td>-0.359509</td><td>52.523544</td></tr><tr><td>2024-12-27</td><td>-2.347694</td><td>50.17585</td></tr><tr><td>2024-12-28</td><td>0.346206</td><td>50.522056</td></tr><tr><td>2024-12-30</td><td>2.061908</td><td>52.583964</td></tr><tr><td>2024-12-31</td><td>-0.016867</td><td>52.567097</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=b6fa0834"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-%E7%AD%96%E7%95%A5-PnL-%E6%9B%B2%E7%BA%BF">7. 策略 PnL 曲线</h2><p>下面用 qust monitor 同时画累计 PnL 和每日 PnL。累计曲线显示这套规则跨合约、跨日期后的整体资金变化；每日柱状图用来观察收益是否集中在少数日期。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=7d79b5aa">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">pnl_dashboard</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl_cum"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"strategy_pnl_cum"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"strategy_daily_pnl"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">bar</span><span class="p">(),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([</span>
+    <span class="p">[</span><span class="s2">"strategy_pnl_cum"</span><span class="p">],</span>
+    <span class="p">[</span><span class="s2">"strategy_daily_pnl"</span><span class="p">],</span>
+<span class="p">])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">pnl_dashboard</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">640</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="morning-star monitor output 2" loading="lazy" src="../../assets/notebook-renders/blog-morning-star-02.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f8dd4364c40&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=1a94073e"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-%E4%BD%BF%E7%94%A8%E6%97%B6%E7%9A%84%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9">8. 使用时的注意事项</h2><ul>
+<li>技术指标只能把价格结构转成可计算规则，不等于确定性交易建议。</li>
+<li>形态类指标通常需要后续 K 线确认；如果用于实时交易，应把确认延迟纳入回测。</li>
+<li>参数越敏感，信号越多但噪声越大；参数越保守，信号更少但滞后更明显。</li>
+<li>在多合约或多股票数据上使用时，优先写 <code>.over("ticker", "ct")</code> 或合适的分组键。</li>
+</ul>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../../site.js"></script>
+  </body>
+</html>

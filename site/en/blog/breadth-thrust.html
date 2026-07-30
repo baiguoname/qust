@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust is a high-performance compute engine for DataFrame workflows, streaming computation, quantitative research, ClickHouse, and custom operators.">
+    <title>Breadth Thrust Indicator：用 qust 衡量市场宽度突增 | qust</title>
+    <link rel="stylesheet" href="../../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust home">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="primary navigation">
+          <a href="../tutorial.html">Tutorial</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../../examples/docs/index.html">Docs</a>
+          <a href="../service.html">Services</a>
+          <a href="https://baiguoname.github.io/qust/site">Project</a>
+          <a href="https://github.com/baiguoname/qust">GitHub</a>
+          <a class="lang-switch" href="../../blog/breadth-thrust.html">中文</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../blog.html">Back to index</a>
+        <div class="article-list">
+          <a class="article-link" href="bearish-engulfing.html">Bearish Engulfing</a><a class="article-link active" href="breadth-thrust.html">Breadth Thrust</a><a class="article-link" href="bullish-harami.html">Bullish Harami</a><a class="article-link" href="descending-triangle.html">Descending Triangle</a><a class="article-link" href="donchian-channels.html">Donchian Channels</a><a class="article-link" href="double-top.html">Double Top</a><a class="article-link" href="gap.html">Gap</a><a class="article-link" href="ichimoku-cloud.html">Ichimoku Cloud</a><a class="article-link" href="morning-star.html">Morning Star</a><a class="article-link" href="triple-bottom.html">Triple Bottom</a><a class="article-link" href="wedge.html">Wedge</a><a class="article-link" href="zig-zag.html">Zig Zag</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=1d722193"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Breadth-Thrust-Indicator%EF%BC%9A%E7%94%A8-qust-%E8%A1%A1%E9%87%8F%E5%B8%82%E5%9C%BA%E5%AE%BD%E5%BA%A6%E7%AA%81%E5%A2%9E">Breadth Thrust Indicator：用 qust 衡量市场宽度突增</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>来源参考：<a href="https://www.investopedia.com/terms/b/breadth-thrust-indicator.asp">Investopedia</a></p>
+<p>本文按 Investopedia 原文结构讲解指标含义、常见用法和局限性，并展示如何用 qust 一行计算指标、选择单个 <code>ticker + ct</code> 合约画图，以及在完整多合约数据上按 <code>over("ticker", "ct")</code> 做回测。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=0838e1c3"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-Investopedia-%E5%8E%9F%E6%96%87%E5%86%85%E5%AE%B9%E5%AE%8C%E6%95%B4%E6%94%B9%E5%86%99%EF%BC%9ABreadth-Thrust-Indicator">1. Investopedia 原文内容完整改写：Breadth Thrust Indicator</h2><h3 id="%E4%BB%80%E4%B9%88%E6%98%AF-Breadth-Thrust">什么是 Breadth Thrust</h3><p>Breadth Thrust 是市场宽度指标，用来衡量上涨参与度是否突然扩张。它不是看某一只股票或某一个合约的价格，而是看市场里有多少标的在上涨。常见计算会用上涨家数除以上涨家数加下跌家数，再对这个比例做短期平滑。</p>
+<h3 id="%E6%8C%87%E6%A0%87%E6%83%B3%E8%A1%A8%E8%BE%BE%E4%BB%80%E4%B9%88">指标想表达什么</h3><p>指数上涨有时可能只由少数权重股推动，这种上涨的广度并不强。Breadth Thrust 关注的是“很多标的同时转强”的情况。如果短时间内上涨家数占比从低位快速升到高位，说明买盘扩散到更广范围，市场内部力量可能发生变化。</p>
+<h3 id="%E7%BB%8F%E5%85%B8%E9%98%88%E5%80%BC%E6%80%9D%E6%83%B3">经典阈值思想</h3><p>常见 Zweig Breadth Thrust 读法会观察一个短周期宽度均线是否在较短窗口内从 40% 以下上升到 61.5% 以上。低于 40% 说明市场宽度偏弱，高于 61.5% 说明上涨参与度明显扩大。重点不是单日比例，而是短时间内从弱到强的快速切换。</p>
+<h3 id="%E8%AE%A1%E7%AE%97%E8%BF%87%E7%A8%8B">计算过程</h3><p>先得到 advancing 和 declining 数量，然后计算 <code>advancing / (advancing + declining)</code>。再对这个比例做 rolling mean。最后检测 rolling mean 是否在指定窗口内曾经低于低阈值，并在当前上穿高阈值。</p>
+<h3 id="%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8">如何使用</h3><p>它常用于判断大盘或组合层面的风险偏好，而不是单个价格形态。出现 Breadth Thrust 后，交易者可能认为市场从极弱状态进入广泛修复状态。但它通常作为环境过滤器或仓位背景，而不是单独的入场信号。</p>
+<h3 id="%E5%B1%80%E9%99%90%E6%80%A7">局限性</h3><p>市场宽度数据的定义很重要。不同交易所、指数成分、过滤规则会得到不同结果。阈值也来自经验，并非所有市场都适用。对期货、行业组合或自定义股票池使用时，要明确 advancing/declining 的来源。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=75e4cfde"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-%E4%BB%8E%E6%96%87%E7%AB%A0%E5%88%B0-qust-%E7%AE%97%E5%AD%90%E7%9A%84%E8%90%BD%E5%9C%B0">2. 从文章到 qust 算子的落地</h2><p>qust 的 <code>breadth_thrust</code> 接收两列：上涨数量和下跌数量。示例里用期货合约横截面的上涨/下跌数量演示方法；真实股票市场应替换成指数成分或交易所的上涨/下跌家数。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=3a59053f"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-qust-%E4%B8%80%E8%A1%8C%E8%B0%83%E7%94%A8">3. qust 一行调用</h2><div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"advancing"</span><span class="p">,</span> <span class="s2">"declining"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">breadth_thrust</span><span class="p">()</span>
+</pre></div>
+<p>输入列顺序：<code>advancing, declining</code>。</p>
+<p>输出列：<code>breadth_ratio</code>, <code>breadth_thrust</code>, <code>breadth_thrust_signal</code>。</p>
+<p>这些输出都保持和输入相同的行数，后面可以继续 <code>.with_cols(...)</code>、<code>.filter(...)</code>、<code>.monitor...</code>，也可以接 <code>.over("ticker", "ct")</code> 按合约独立计算。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=06eca1b3">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+<span class="kn">import</span> <span class="nn">qust.future.future</span>  <span class="c1"># 注册 bt/stra/kline/fp 等金融命名空间</span>
+<span class="kn">import</span> <span class="nn">qust.investopedia</span>  <span class="c1"># 注册 investopedia 命名空间</span>
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span><span class="p">,</span> <span class="n">mark_shape</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">28</span><span class="p">)</span>
+
+<span class="n">DATA_PATH</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_kline3.parquet?raw=true"</span>
+<span class="n">PLOT_TICKER</span> <span class="o">=</span> <span class="s2">"AP"</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=5bed7a28">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">raw</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">])</span>
+
+<span class="n">base_contract</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">raw</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">get_column</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"raw shape:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"tickers:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">())</span><span class="o">.</span><span class="n">to_series</span><span class="p">()</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"contract count:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">height</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"default plot ticker/ct:"</span><span class="p">,</span> <span class="n">PLOT_TICKER</span><span class="p">,</span> <span class="n">base_contract</span><span class="p">)</span>
+<span class="n">raw</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">raw shape: (408782, 8)
+tickers: ['AP', 'RM', 'SA', 'al', 'eb', 'eg', 'fu', 'rb']
+contract count: 141
+default plot ticker/ct: AP 205
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:00:00</td><td>8394.0</td><td>8394.0</td><td>8392.0</td><td>8392.0</td><td>1100.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:05:00</td><td>8385.0</td><td>8389.0</td><td>8348.0</td><td>8378.0</td><td>11169.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:10:00</td><td>8375.0</td><td>8376.0</td><td>8298.0</td><td>8302.0</td><td>14001.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:15:00</td><td>8301.0</td><td>8315.0</td><td>8271.0</td><td>8280.0</td><td>12839.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:20:00</td><td>8279.0</td><td>8285.0</td><td>8243.0</td><td>8246.0</td><td>11496.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=165be914"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-%E8%AE%A1%E7%AE%97%E6%8C%87%E6%A0%87">4. 计算指标</h2><p>下面用真实GitHub K 线数据计算。对合约相关指标，示例都使用 <code>.over("ticker", "ct")</code>，表示每个品种、每个合约独立维护上下文，避免不同合约的数据串在一起。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=131faf3c">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">market_breadth</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">raw</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="n">ret</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">pct_change</span><span class="p">()</span><span class="o">.</span><span class="n">over</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">]),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"advancing"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"declining"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"advancing"</span><span class="p">)</span> <span class="o">+</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"declining"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"active_count"</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"active_count"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">"active_count"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">indicator_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"advancing"</span><span class="p">,</span> <span class="s2">"declining"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">breadth_thrust</span><span class="p">(</span>
+    <span class="n">ma_period</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">signal_window</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">breadth_data</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">indicator_expr</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">market_breadth</span><span class="p">)</span>
+<span class="n">plot_data</span> <span class="o">=</span> <span class="n">breadth_data</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">2500</span><span class="p">)</span>
+
+<span class="n">summary</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"breadth_thrust_signal"</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">UInt32</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"breadth_thrust_signal_count"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"breadth_ratio"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"avg_breadth_ratio"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"breadth_thrust"</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"max_breadth_thrust"</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">breadth_data</span><span class="p">)</span>
+
+<span class="n">summary</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>breadth_thrust_signal_count</th><th>avg_breadth_ratio</th><th>max_breadth_thrust</th></tr><tr><td>u32</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>17817</td><td>0.499647</td><td>1.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=59db7437"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-%E7%94%A8-monitor-%E7%94%BB%E5%87%BA%E6%9D%A5">5. 用 monitor 画出来</h2><p>图不是静态 PNG，而是 qust monitor 输出。你可以在 Jupyter 里放大、拖动、查看指标与 K 线的对应关系。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=10f1f87e">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">breadth_plot</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"breadth_ratio"</span><span class="p">,</span> <span class="s2">"breadth_thrust"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"breadth"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"breadth_thrust"</span><span class="p">,</span> <span class="s2">"breadth_thrust_signal"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"breadth"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">mark</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">mark_shape</span><span class="o">.</span><span class="n">triangle_up</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"#50fa7b"</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.4</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([</span>
+    <span class="p">[</span><span class="s2">"breadth"</span><span class="p">],</span>
+<span class="p">])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">breadth_plot</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">560</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="breadth-thrust monitor output 1" loading="lazy" src="../../assets/notebook-renders/blog-breadth-thrust-indicator-01.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f8dd4364190&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=e3a79e08"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-Breadth-Thrust-%E7%AD%96%E7%95%A5%E5%9B%9E%E6%B5%8B">6. Breadth Thrust 策略回测</h2><p>Breadth Thrust 是市场宽度信号，不来自单个合约。先用 Polars 做市场宽度数据准备，再用 qust <code>breadth_thrust</code> 算子生成宽度信号，最后把信号按 <code>datetime</code> join 回每个合约。当前样本里宽度突增后做多为正：信号后移一根 K 线入场，2% 止盈、1.5% 止损，并用 <code>col("hold") / col.all.fp.vol_pms()</code> 做持仓归一化。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=852449a6">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">TAKE_PROFIT</span> <span class="o">=</span> <span class="mf">0.02</span>
+<span class="n">STOP_LOSS</span> <span class="o">=</span> <span class="mf">0.015</span>
+
+<span class="n">market_breadth_for_strategy</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">raw</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">ret</span><span class="o">=</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">pct_change</span><span class="p">()</span><span class="o">.</span><span class="n">over</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">]))</span>
+    <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"advancing"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"declining"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"advancing"</span><span class="p">)</span> <span class="o">+</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"declining"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"active_count"</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"active_count"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="s2">"active_count"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">breadth_signal</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"advancing"</span><span class="p">,</span> <span class="s2">"declining"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">breadth_thrust</span><span class="p">(</span><span class="n">ma_period</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">signal_window</span><span class="o">=</span><span class="mi">10</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"breadth_thrust_signal"</span><span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"breadth_open_long"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"breadth_open_long"</span><span class="p">,</span> <span class="s2">"breadth_ratio"</span><span class="p">,</span> <span class="s2">"breadth_thrust"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">market_breadth_for_strategy</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">strategy_input</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">raw</span>
+    <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">breadth_signal</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s2">"left"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"breadth_open_long"</span><span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+<span class="p">)</span>
+
+<span class="n">strategy_daily_expr</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"breadth_open_long"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">),</span>
+        <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">),</span>
+        <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">),</span>
+        <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_long_sig"</span><span class="p">),</span>
+        <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_short_sig"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"exit_long_sig"</span><span class="p">,</span> <span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"exit_short_sig"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">to_hold_two_sides</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">expanding</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">((</span><span class="n">col</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">fp</span><span class="o">.</span><span class="n">vol_pms</span><span class="p">())</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="s2">"hold"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">price</span><span class="p">(</span><span class="n">fee_rate</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">())</span>
+    <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"pnl_cum"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">,</span> <span class="s2">"pnl_cum"</span><span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">strategy_daily</span> <span class="o">=</span> <span class="n">strategy_daily_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">strategy_input</span><span class="p">)</span>
+<span class="n">strategy_stats</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">returns_stats</span><span class="p">(</span><span class="n">periods_per_year</span><span class="o">=</span><span class="mi">252</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"strategy_input shape:"</span><span class="p">,</span> <span class="n">strategy_input</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"strategy_daily shape:"</span><span class="p">,</span> <span class="n">strategy_daily</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">strategy_stats</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">strategy_input shape: (408782, 11)
+strategy_daily shape: (859, 3)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (20, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>metric</th><th>value</th><th>value_float</th></tr><tr><td>str</td><td>str</td><td>f64</td></tr></thead><tbody><tr><td>"Start Index"</td><td>"2022-01-04"</td><td>null</td></tr><tr><td>"End Index"</td><td>"2024-12-31"</td><td>null</td></tr><tr><td>"Total Duration"</td><td>"1092 days, 0:00:00"</td><td>null</td></tr><tr><td>"Total Return [%]"</td><td>"-5.706035535512229e+148"</td><td>-5.7060e148</td></tr><tr><td>"Benchmark Return [%]"</td><td>null</td><td>null</td></tr><tr><td>"Annualized Return [%]"</td><td>null</td><td>null</td></tr><tr><td>"Annualized Volatility [%]"</td><td>"3987.3801682096014"</td><td>3987.380168</td></tr><tr><td>"Max Drawdown [%]"</td><td>"54019.29728207572"</td><td>54019.297282</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>"Sortino Ratio"</td><td>"0.8753643298504824"</td><td>0.875364</td></tr><tr><td>"Skew"</td><td>"0.11480416122683877"</td><td>0.114804</td></tr><tr><td>"Kurtosis"</td><td>"3.6066376773632234"</td><td>3.606638</td></tr><tr><td>"Tail Ratio"</td><td>"1.0328226005768253"</td><td>1.032823</td></tr><tr><td>"Common Sense Ratio"</td><td>"1.1265734188857512"</td><td>1.126573</td></tr><tr><td>"Value at Risk"</td><td>"-4.016449414456803"</td><td>-4.016449</td></tr><tr><td>"Alpha"</td><td>null</td><td>null</td></tr><tr><td>"Beta"</td><td>null</td><td>null</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=eaf9a52c">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">strategy_daily</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-12-18</td><td>-0.279737</td><td>70.055148</td></tr><tr><td>2024-12-19</td><td>-1.5994</td><td>68.455747</td></tr><tr><td>2024-12-20</td><td>-0.789056</td><td>67.666692</td></tr><tr><td>2024-12-21</td><td>-0.125345</td><td>67.541346</td></tr><tr><td>2024-12-23</td><td>-0.003989</td><td>67.537357</td></tr><tr><td>2024-12-24</td><td>1.935381</td><td>69.472738</td></tr><tr><td>2024-12-25</td><td>-1.474957</td><td>67.997781</td></tr><tr><td>2024-12-26</td><td>-0.15077</td><td>67.847012</td></tr><tr><td>2024-12-27</td><td>-2.337743</td><td>65.509269</td></tr><tr><td>2024-12-28</td><td>0.346206</td><td>65.855474</td></tr><tr><td>2024-12-30</td><td>2.483849</td><td>68.339323</td></tr><tr><td>2024-12-31</td><td>0.463115</td><td>68.802439</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=9ce05c65"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-%E7%AD%96%E7%95%A5-PnL-%E6%9B%B2%E7%BA%BF">7. 策略 PnL 曲线</h2><p>下面用 qust monitor 画策略累计 PnL 和每日 PnL。Breadth Thrust 是全市场信号，所以每个合约会在同一市场宽度事件后进入自己的持仓管理流程。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=fc0f91f2">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">pnl_dashboard</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl_cum"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"strategy_pnl_cum"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"strategy_daily_pnl"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">bar</span><span class="p">(),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([</span>
+    <span class="p">[</span><span class="s2">"strategy_pnl_cum"</span><span class="p">],</span>
+    <span class="p">[</span><span class="s2">"strategy_daily_pnl"</span><span class="p">],</span>
+<span class="p">])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">pnl_dashboard</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">640</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="breadth-thrust monitor output 2" loading="lazy" src="../../assets/notebook-renders/blog-breadth-thrust-indicator-02.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f8e0babba30&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=98efb4d2"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-%E4%BD%BF%E7%94%A8%E6%97%B6%E7%9A%84%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9">8. 使用时的注意事项</h2><ul>
+<li>技术指标只能把价格结构转成可计算规则，不等于确定性交易建议。</li>
+<li>形态类指标通常需要后续 K 线确认；如果用于实时交易，应把确认延迟纳入回测。</li>
+<li>参数越敏感，信号越多但噪声越大；参数越保守，信号更少但滞后更明显。</li>
+<li>在多合约或多股票数据上使用时，优先写 <code>.over("ticker", "ct")</code> 或合适的分组键。</li>
+</ul>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../../site.js"></script>
+  </body>
+</html>

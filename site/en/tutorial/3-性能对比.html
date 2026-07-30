@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust is a high-performance compute engine for DataFrame workflows, streaming computation, quantitative research, ClickHouse, and custom operators.">
+    <title>qust operator and context performance comparison | qust</title>
+    <link rel="stylesheet" href="../../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust home">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="primary navigation">
+          <a href="../tutorial.html">Tutorial</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../../examples/docs/index.html">Docs</a>
+          <a href="../service.html">Services</a>
+          <a href="https://baiguoname.github.io/qust/site">Project</a>
+          <a href="https://github.com/baiguoname/qust">GitHub</a>
+          <a class="lang-switch" href="../../tutorial/3-性能对比.html">中文</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../tutorial.html">Back to index</a>
+        <div class="article-list">
+          <a class="article-link" href="1-项目概览.html">项目概览</a><a class="article-link" href="2-基础用法.html">基础用法</a><a class="article-link active" href="3-性能对比.html">性能对比</a><a class="article-link" href="4-高阶用法.html">高阶用法</a><a class="article-link" href="5-monitor.html">Monitor</a><a class="article-link" href="6-alpha-与策略分析.html">Alpha 与策略分析</a><a class="article-link" href="7-分析示例.html">分析示例</a><a class="article-link" href="8-指标示例.html">指标示例</a><a class="article-link" href="9-参数优化.html">参数优化</a><a class="article-link" href="10-策略编写.html">策略编写</a><a class="article-link" href="11-smc.html">SMC</a><a class="article-link" href="12-组合策略.html">组合策略</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=2edffddf"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="qust-operator-and-context-performance-comparison">qust operator and context performance comparison</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>本节 对比常见算子和常见上下文的性能，重点放在日常研究里高频使用的计算路径。</p>
+<p>对比范围：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>类别</th>
+<th>场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>基础聚合</td>
+<td><code>mean/std/sum/count/min/max</code></td>
+</tr>
+<tr>
+<td>分组聚合</td>
+<td><code>group_by("ticker")</code> 下的多聚合、first/last value</td>
+</tr>
+<tr>
+<td>序列算子</td>
+<td><code>shift</code>、<code>ffill</code></td>
+</tr>
+<tr>
+<td>rolling</td>
+<td><code>rolling_mean</code>、<code>rolling_std</code>、<code>rolling_sum</code>、<code>rolling_rank</code></td>
+</tr>
+<tr>
+<td>expanding + over</td>
+<td>每个 <code>ticker</code> 独立累计 <code>sum</code> 和 <code>mean</code></td>
+</tr>
+<tr>
+<td>rolling + over</td>
+<td>每个 <code>ticker</code> 独立 rolling mean/std/rank</td>
+</tr>
+<tr>
+<td>batch/cross-section</td>
+<td><code>batch.rank().over("date")</code>、<code>batch.sort("close")</code></td>
+</tr>
+<tr>
+<td>常见 TA</td>
+<td><code>RSI(14)</code>，Polars/DuckDB 没有内置等价时作为 qust-only 参考</td>
+</tr>
+</tbody>
+</table>
+<p>所有基准场景都展开成 50 列宽表再跑一遍，单列算子不会只算一列。
+图形使用 qust monitor bar。底层 bar 已支持同一 x 分类下多 y 序列并排显示，所以 Polars/qust/DuckDB 会用不同颜色展示。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=e8260165"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="%E9%98%85%E8%AF%BB%E6%96%B9%E5%BC%8F">阅读方式</h2><p>读法：</p>
+<ol>
+<li><code>Scenario</code> 定义了算子、上下文和各引擎实现；</li>
+<li><code>summary</code> 表看每个场景的 median/best/rows；</li>
+<li>第一张图是不同引擎的 median 耗时并排柱；</li>
+<li>第二张图是不同引擎的 best 耗时并排柱；</li>
+<li>第三张图只展示 qust-only 的常见领域算子。</li>
+</ol>
+<p>这里固定使用内存中的 <code>DataFrame</code>，只看算子和上下文本身的执行开销。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=d1028fdc">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">gc</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Callable</span>
+
+<span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+
+<span class="kn">import</span> <span class="nn">qust.future.future</span>
+<span class="kn">import</span> <span class="nn">qust.future</span>
+
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">duckdb</span>
+    <span class="n">HAS_DUCKDB</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+    <span class="n">duckdb</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">HAS_DUCKDB</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">DUCKDB_IMPORT_ERROR</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">DUCKDB_IMPORT_ERROR</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">18</span><span class="p">)</span>
+
+<span class="n">DATA_PATH</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_kline3.parquet?raw=true"</span>
+<span class="n">BENCH_N_ROWS</span> <span class="o">=</span> <span class="mi">500_000</span>
+<span class="n">REPEAT</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">WARMUP</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">WIDE_COLS</span> <span class="o">=</span> <span class="mi">50</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=ebfa0aa6"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-Benchmark-%E6%95%B0%E6%8D%AE">1. Benchmark 数据</h2><p>读取GitHub K 线数据后，取前 50 万行作为 benchmark 数据，并额外生成：</p>
+<ul>
+<li><code>date</code>：横截面上下文用；</li>
+<li><code>ret</code>：收益类算子或后续扩展示例可用。</li>
+</ul>
+<p>读取数据和派生 <code>date/ret</code> 不计入 benchmark 时间。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=03e8a269">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">raw</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span>
+<span class="n">data</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">raw</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="n">BENCH_N_ROWS</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">/</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">),</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">engine_status</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">"engine"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"polars"</span><span class="p">,</span> <span class="s2">"qust"</span><span class="p">,</span> <span class="s2">"duckdb"</span><span class="p">],</span>
+    <span class="s2">"available"</span><span class="p">:</span> <span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="n">HAS_DUCKDB</span><span class="p">],</span>
+    <span class="s2">"note"</span><span class="p">:</span> <span class="p">[</span>
+        <span class="s2">"eager DataFrame API"</span><span class="p">,</span>
+        <span class="s2">"Expr.calc_data(data)"</span><span class="p">,</span>
+        <span class="s2">"import duckdb ok"</span> <span class="k">if</span> <span class="n">HAS_DUCKDB</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"skipped: </span><span class="si">{</span><span class="n">DUCKDB_IMPORT_ERROR</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+    <span class="p">],</span>
+<span class="p">})</span>
+
+<span class="n">wide_sort_data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">[</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="sa">f</span><span class="s2">"close_w</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">WIDE_COLS</span><span class="p">)]</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"raw shape:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"benchmark shape:"</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"wide sort shape:"</span><span class="p">,</span> <span class="n">wide_sort_data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">engine_status</span><span class="p">)</span>
+<span class="n">data</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">raw shape: (610463, 8)
+benchmark shape: (500000, 10)
+wide sort shape: (500000, 60)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>engine</th><th>available</th><th>note</th></tr><tr><td>str</td><td>bool</td><td>str</td></tr></thead><tbody><tr><td>"polars"</td><td>true</td><td>"eager DataFrame API"</td></tr><tr><td>"qust"</td><td>true</td><td>"Expr.calc_data(data)"</td></tr><tr><td>"duckdb"</td><td>false</td><td>"skipped: ModuleNotFoundError("…</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 10)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th><th>is_finished</th><th>date</th><th>ret</th></tr><tr><td>str</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>bool</td><td>date</td><td>f64</td></tr></thead><tbody><tr><td>"au"</td><td>2022-07-02 00:01:00</td><td>390.160004</td><td>390.160004</td><td>390.059998</td><td>390.119995</td><td>81.0</td><td>true</td><td>2022-07-02</td><td>-0.000103</td></tr><tr><td>"au"</td><td>2022-07-02 00:02:00.500</td><td>390.119995</td><td>390.140015</td><td>390.079987</td><td>390.140015</td><td>52.0</td><td>true</td><td>2022-07-02</td><td>0.000051</td></tr><tr><td>"au"</td><td>2022-07-02 00:03:00</td><td>390.140015</td><td>390.200012</td><td>390.119995</td><td>390.200012</td><td>50.0</td><td>true</td><td>2022-07-02</td><td>0.000154</td></tr><tr><td>"au"</td><td>2022-07-02 00:04:01</td><td>390.200012</td><td>390.220001</td><td>390.140015</td><td>390.160004</td><td>61.0</td><td>true</td><td>2022-07-02</td><td>-0.000103</td></tr><tr><td>"au"</td><td>2022-07-02 00:05:00.500</td><td>390.140015</td><td>390.140015</td><td>390.079987</td><td>390.100006</td><td>41.0</td><td>true</td><td>2022-07-02</td><td>-0.000103</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=a12682dd"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-%E5%9C%BA%E6%99%AF%E5%AE%9A%E4%B9%89%EF%BC%9A%E5%B8%B8%E8%A7%81%E7%AE%97%E5%AD%90-+-%E5%B8%B8%E8%A7%81%E4%B8%8A%E4%B8%8B%E6%96%87">2. 场景定义：常见算子 + 常见上下文</h2><p>字段说明：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>family</code></td>
+<td>算子大类</td>
+</tr>
+<tr>
+<td><code>context</code></td>
+<td>执行上下文</td>
+</tr>
+<tr>
+<td><code>operator</code></td>
+<td>具体算子</td>
+</tr>
+<tr>
+<td><code>qust_fn</code></td>
+<td>qust 实现</td>
+</tr>
+<tr>
+<td><code>polars_fn</code></td>
+<td>Polars 等价实现</td>
+</tr>
+<tr>
+<td><code>duckdb_sql</code></td>
+<td>DuckDB 等价 SQL，没有等价时为空</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=9d03130b">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">Scenario</span><span class="p">:</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">label</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">family</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">context</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">operator</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">qust_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="nb">object</span><span class="p">]</span>
+    <span class="n">polars_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="nb">object</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">duckdb_sql</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="n">WIDE_COLS</span> <span class="o">=</span> <span class="mi">50</span>
+
+<span class="k">def</span> <span class="nf">wide_named_exprs</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">,</span> <span class="n">total</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">WIDE_COLS</span><span class="p">):</span>
+    <span class="n">named_exprs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">named_exprs</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"wide_named_exprs requires at least one expression"</span><span class="p">)</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">total</span><span class="p">):</span>
+        <span class="n">base_name</span><span class="p">,</span> <span class="n">expr</span> <span class="o">=</span> <span class="n">named_exprs</span><span class="p">[</span><span class="n">i</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">)]</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="n">i</span> <span class="o">//</span> <span class="nb">len</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">)</span>
+        <span class="n">alias</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">base_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">suffix</span><span class="si">:</span><span class="s2">02d</span><span class="si">}</span><span class="s2">"</span>
+        <span class="n">wide</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">alias</span><span class="p">,</span> <span class="n">expr</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">wide</span>
+
+<span class="k">def</span> <span class="nf">q_select</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">()):</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="n">wide_named_exprs</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">)</span>
+    <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span> <span class="k">for</span> <span class="n">alias</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">wide</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">col</span><span class="p">(</span><span class="o">*</span><span class="n">keys</span><span class="p">,</span> <span class="o">*</span><span class="n">exprs</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">p_select</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">()):</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="n">wide_named_exprs</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">)</span>
+    <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span> <span class="k">for</span> <span class="n">alias</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">wide</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="o">*</span><span class="n">keys</span><span class="p">,</span> <span class="o">*</span><span class="n">exprs</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">q_groupby</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">):</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="n">wide_named_exprs</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">)</span>
+    <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span> <span class="k">for</span> <span class="n">alias</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">wide</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">col</span><span class="p">(</span><span class="o">*</span><span class="n">exprs</span><span class="p">)</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">p_groupby</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">):</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="n">wide_named_exprs</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">)</span>
+    <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span> <span class="k">for</span> <span class="n">alias</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">wide</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span><span class="o">.</span><span class="n">agg</span><span class="p">(</span><span class="o">*</span><span class="n">exprs</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">q_over</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">,</span> <span class="n">by</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">()):</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="n">wide_named_exprs</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">)</span>
+    <span class="n">aliases</span> <span class="o">=</span> <span class="p">[</span><span class="n">alias</span> <span class="k">for</span> <span class="n">alias</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">wide</span><span class="p">]</span>
+    <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span> <span class="k">for</span> <span class="n">alias</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">wide</span><span class="p">]</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">col</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="o">*</span><span class="n">exprs</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">by</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="o">*</span><span class="n">keys</span><span class="p">,</span> <span class="o">*</span><span class="n">aliases</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">p_over</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">,</span> <span class="n">by</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">()):</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="n">wide_named_exprs</span><span class="p">(</span><span class="n">named_exprs</span><span class="p">)</span>
+    <span class="n">aliases</span> <span class="o">=</span> <span class="p">[</span><span class="n">alias</span> <span class="k">for</span> <span class="n">alias</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">wide</span><span class="p">]</span>
+    <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="n">by</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span> <span class="k">for</span> <span class="n">alias</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">wide</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">data</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="o">*</span><span class="n">exprs</span><span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="o">*</span><span class="n">keys</span><span class="p">,</span> <span class="o">*</span><span class="n">aliases</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">duck_select</span><span class="p">(</span><span class="n">named_sql_exprs</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"bench_data"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(),</span> <span class="n">group_by</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">order_by</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="n">wide_named_exprs</span><span class="p">(</span><span class="n">named_sql_exprs</span><span class="p">)</span>
+    <span class="n">select_parts</span> <span class="o">=</span> <span class="p">[</span><span class="o">*</span><span class="n">keys</span><span class="p">,</span> <span class="o">*</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">sql</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">alias</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">alias</span><span class="p">,</span> <span class="n">sql</span> <span class="ow">in</span> <span class="n">wide</span><span class="p">]]</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"select </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">select_parts</span><span class="p">)</span><span class="si">}</span><span class="s2"> from </span><span class="si">{</span><span class="n">table</span><span class="si">}</span><span class="s2">"</span>
+    <span class="k">if</span> <span class="n">group_by</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">query</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">" group by </span><span class="si">{</span><span class="n">group_by</span><span class="si">}</span><span class="s2">"</span>
+    <span class="k">if</span> <span class="n">order_by</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">query</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">" order by </span><span class="si">{</span><span class="n">order_by</span><span class="si">}</span><span class="s2">"</span>
+    <span class="k">return</span> <span class="n">query</span>
+
+<span class="k">def</span> <span class="nf">q_global_basic_agg</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"mean_close"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"std_close"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"sum_volume"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"count_close"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">p_global_basic_agg</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"mean_close"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"std_close"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"sum_volume"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"count_close"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">q_global_min_max</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"min_low"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"max_high"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">p_global_min_max</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"min_low"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"max_high"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">q_groupby_basic_agg</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_groupby</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"mean_close"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"std_close"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"sum_volume"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"count_close"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">p_groupby_basic_agg</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_groupby</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"mean_close"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"std_close"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"sum_volume"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"count_close"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">count</span><span class="p">()),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">q_groupby_min_max</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_groupby</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"min_low"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"max_high"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">p_groupby_min_max</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_groupby</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"min_low"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"max_high"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">q_groupby_first_last</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_groupby</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"first_open"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">)</span><span class="o">.</span><span class="n">first_value</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"last_close"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">last_value</span><span class="p">()),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">p_groupby_first_last</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_groupby</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"first_open"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"last_close"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">last</span><span class="p">()),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">q_shift</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"close_shift1"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()),</span>
+    <span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">p_shift</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"close_shift1"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)),</span>
+    <span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">q_ffill</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"close_ffill"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">ffill</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()),</span>
+    <span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">p_ffill</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"close_ffill"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">forward_fill</span><span class="p">()),</span>
+    <span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">q_rolling_mean</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"ma50"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">p_rolling_mean</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"ma50"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_mean</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">q_rolling_std</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"std50"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">p_rolling_std</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"std50"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_std</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">q_rolling_sum</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"sum_volume50"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">p_rolling_sum</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"sum_volume50"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_sum</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">q_rolling_rank</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"rank50"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">p_rolling_rank</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_select</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"rank50"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_rank</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">q_expanding_sum_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"cum_close"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">p_expanding_sum_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"cum_close"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">cum_sum</span><span class="p">()),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">q_expanding_mean_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"mean_close"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">p_expanding_mean_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"mean_close"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">cum_sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">cum_count</span><span class="p">()),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">q_rolling_mean_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"ma50"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">p_rolling_mean_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"ma50"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_mean</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">q_rolling_std_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"std50"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">p_rolling_std_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"std50"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_std</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">q_rolling_rank_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"rank50"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">p_rolling_rank_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"rank50"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rolling_rank</span><span class="p">(</span><span class="mi">50</span><span class="p">)),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">q_batch_rank_over_date</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"rank_by_date"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">rank</span><span class="p">()),</span>
+    <span class="p">],</span> <span class="s2">"date"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"ticker"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">p_batch_rank_over_date</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">p_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"rank_by_date"</span><span class="p">,</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rank</span><span class="p">()),</span>
+    <span class="p">],</span> <span class="s2">"date"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"ticker"</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">q_batch_sort</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">wide_sort_data</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">p_batch_sort</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">wide_sort_data</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">q_ta_rsi_over</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">q_over</span><span class="p">([</span>
+        <span class="p">(</span><span class="s2">"rsi14"</span><span class="p">,</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">ta</span><span class="o">.</span><span class="n">rsi</span><span class="p">(</span><span class="mi">14</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()),</span>
+    <span class="p">],</span> <span class="s2">"ticker"</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+
+<span class="n">duck_global_basic_agg_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"mean_close"</span><span class="p">,</span> <span class="s2">"avg(close)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"std_close"</span><span class="p">,</span> <span class="s2">"stddev_samp(close)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"sum_volume"</span><span class="p">,</span> <span class="s2">"sum(volume)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"count_close"</span><span class="p">,</span> <span class="s2">"count(close)"</span><span class="p">),</span>
+<span class="p">])</span>
+<span class="n">duck_global_min_max_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"min_low"</span><span class="p">,</span> <span class="s2">"min(low)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"max_high"</span><span class="p">,</span> <span class="s2">"max(high)"</span><span class="p">),</span>
+<span class="p">])</span>
+<span class="n">duck_groupby_basic_agg_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"mean_close"</span><span class="p">,</span> <span class="s2">"avg(close)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"std_close"</span><span class="p">,</span> <span class="s2">"stddev_samp(close)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"sum_volume"</span><span class="p">,</span> <span class="s2">"sum(volume)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"count_close"</span><span class="p">,</span> <span class="s2">"count(close)"</span><span class="p">),</span>
+<span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,),</span> <span class="n">group_by</span><span class="o">=</span><span class="s2">"ticker"</span><span class="p">)</span>
+<span class="n">duck_groupby_min_max_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"min_low"</span><span class="p">,</span> <span class="s2">"min(low)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"max_high"</span><span class="p">,</span> <span class="s2">"max(high)"</span><span class="p">),</span>
+<span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,),</span> <span class="n">group_by</span><span class="o">=</span><span class="s2">"ticker"</span><span class="p">)</span>
+<span class="n">duck_groupby_first_last_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"first_open"</span><span class="p">,</span> <span class="s2">"first(open)"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">"last_close"</span><span class="p">,</span> <span class="s2">"last(close)"</span><span class="p">),</span>
+<span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,),</span> <span class="n">group_by</span><span class="o">=</span><span class="s2">"ticker"</span><span class="p">)</span>
+<span class="n">duck_shift_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"close_shift1"</span><span class="p">,</span> <span class="s2">"lag(close, 1) over (order by datetime)"</span><span class="p">),</span>
+<span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+<span class="n">duck_rolling_mean_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"ma50"</span><span class="p">,</span> <span class="s2">"avg(close) over (order by datetime rows between 49 preceding and current row)"</span><span class="p">),</span>
+<span class="p">])</span>
+<span class="n">duck_rolling_std_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"std50"</span><span class="p">,</span> <span class="s2">"stddev_samp(close) over (order by datetime rows between 49 preceding and current row)"</span><span class="p">),</span>
+<span class="p">])</span>
+<span class="n">duck_rolling_sum_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"sum_volume50"</span><span class="p">,</span> <span class="s2">"sum(volume) over (order by datetime rows between 49 preceding and current row)"</span><span class="p">),</span>
+<span class="p">])</span>
+<span class="n">duck_expanding_sum_over_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"cum_close"</span><span class="p">,</span> <span class="s2">"sum(close) over (partition by ticker order by datetime rows between unbounded preceding and current row)"</span><span class="p">),</span>
+<span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+<span class="n">duck_rolling_mean_over_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"ma50"</span><span class="p">,</span> <span class="s2">"avg(close) over (partition by ticker order by datetime rows between 49 preceding and current row)"</span><span class="p">),</span>
+<span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+<span class="n">duck_rolling_std_over_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"std50"</span><span class="p">,</span> <span class="s2">"stddev_samp(close) over (partition by ticker order by datetime rows between 49 preceding and current row)"</span><span class="p">),</span>
+<span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">))</span>
+<span class="n">duck_batch_rank_sql</span> <span class="o">=</span> <span class="n">duck_select</span><span class="p">([</span>
+    <span class="p">(</span><span class="s2">"rank_by_date"</span><span class="p">,</span> <span class="s2">"rank() over (partition by </span><span class="se">\"</span><span class="s2">date</span><span class="se">\"</span><span class="s2"> order by close)"</span><span class="p">),</span>
+<span class="p">],</span> <span class="n">keys</span><span class="o">=</span><span class="p">(</span><span class="s2">"</span><span class="se">\"</span><span class="s2">date</span><span class="se">\"</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"ticker"</span><span class="p">))</span>
+<span class="n">duck_batch_sort_sql</span> <span class="o">=</span> <span class="s2">"select * from wide_sort_data order by close"</span>
+
+<span class="n">scenarios</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"global_basic_agg"</span><span class="p">,</span> <span class="s2">"global basic agg"</span><span class="p">,</span> <span class="s2">"aggregation"</span><span class="p">,</span> <span class="s2">"global"</span><span class="p">,</span> <span class="s2">"mean/std/sum/count"</span><span class="p">,</span> <span class="s2">"整列基础聚合。"</span><span class="p">,</span> <span class="n">q_global_basic_agg</span><span class="p">,</span> <span class="n">p_global_basic_agg</span><span class="p">,</span> <span class="n">duck_global_basic_agg_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"global_min_max"</span><span class="p">,</span> <span class="s2">"global min/max"</span><span class="p">,</span> <span class="s2">"aggregation"</span><span class="p">,</span> <span class="s2">"global"</span><span class="p">,</span> <span class="s2">"min/max"</span><span class="p">,</span> <span class="s2">"整列 min/max。"</span><span class="p">,</span> <span class="n">q_global_min_max</span><span class="p">,</span> <span class="n">p_global_min_max</span><span class="p">,</span> <span class="n">duck_global_min_max_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"groupby_basic_agg"</span><span class="p">,</span> <span class="s2">"group_by basic agg"</span><span class="p">,</span> <span class="s2">"aggregation"</span><span class="p">,</span> <span class="s2">"group_by(ticker)"</span><span class="p">,</span> <span class="s2">"mean/std/sum/count"</span><span class="p">,</span> <span class="s2">"按 ticker 分组基础聚合。"</span><span class="p">,</span> <span class="n">q_groupby_basic_agg</span><span class="p">,</span> <span class="n">p_groupby_basic_agg</span><span class="p">,</span> <span class="n">duck_groupby_basic_agg_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"groupby_min_max"</span><span class="p">,</span> <span class="s2">"group_by min/max"</span><span class="p">,</span> <span class="s2">"aggregation"</span><span class="p">,</span> <span class="s2">"group_by(ticker)"</span><span class="p">,</span> <span class="s2">"min/max"</span><span class="p">,</span> <span class="s2">"按 ticker 分组 min/max。"</span><span class="p">,</span> <span class="n">q_groupby_min_max</span><span class="p">,</span> <span class="n">p_groupby_min_max</span><span class="p">,</span> <span class="n">duck_groupby_min_max_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"groupby_first_last"</span><span class="p">,</span> <span class="s2">"group_by first/last"</span><span class="p">,</span> <span class="s2">"aggregation"</span><span class="p">,</span> <span class="s2">"group_by(ticker)"</span><span class="p">,</span> <span class="s2">"first_value/last_value"</span><span class="p">,</span> <span class="s2">"按 ticker 取第一行 open 和最后一行 close。"</span><span class="p">,</span> <span class="n">q_groupby_first_last</span><span class="p">,</span> <span class="n">p_groupby_first_last</span><span class="p">,</span> <span class="n">duck_groupby_first_last_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"shift_1"</span><span class="p">,</span> <span class="s2">"shift"</span><span class="p">,</span> <span class="s2">"series"</span><span class="p">,</span> <span class="s2">"expanding"</span><span class="p">,</span> <span class="s2">"shift(1)"</span><span class="p">,</span> <span class="s2">"常见滞后一行。"</span><span class="p">,</span> <span class="n">q_shift</span><span class="p">,</span> <span class="n">p_shift</span><span class="p">,</span> <span class="n">duck_shift_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"ffill"</span><span class="p">,</span> <span class="s2">"ffill"</span><span class="p">,</span> <span class="s2">"series"</span><span class="p">,</span> <span class="s2">"expanding"</span><span class="p">,</span> <span class="s2">"ffill"</span><span class="p">,</span> <span class="s2">"前值填充。"</span><span class="p">,</span> <span class="n">q_ffill</span><span class="p">,</span> <span class="n">p_ffill</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"rolling_mean_50"</span><span class="p">,</span> <span class="s2">"rolling mean"</span><span class="p">,</span> <span class="s2">"rolling"</span><span class="p">,</span> <span class="s2">"rolling(50)"</span><span class="p">,</span> <span class="s2">"mean"</span><span class="p">,</span> <span class="s2">"50 窗口滚动均值。"</span><span class="p">,</span> <span class="n">q_rolling_mean</span><span class="p">,</span> <span class="n">p_rolling_mean</span><span class="p">,</span> <span class="n">duck_rolling_mean_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"rolling_std_50"</span><span class="p">,</span> <span class="s2">"rolling std"</span><span class="p">,</span> <span class="s2">"rolling"</span><span class="p">,</span> <span class="s2">"rolling(50)"</span><span class="p">,</span> <span class="s2">"std"</span><span class="p">,</span> <span class="s2">"50 窗口滚动标准差。"</span><span class="p">,</span> <span class="n">q_rolling_std</span><span class="p">,</span> <span class="n">p_rolling_std</span><span class="p">,</span> <span class="n">duck_rolling_std_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"rolling_sum_50"</span><span class="p">,</span> <span class="s2">"rolling sum"</span><span class="p">,</span> <span class="s2">"rolling"</span><span class="p">,</span> <span class="s2">"rolling(50)"</span><span class="p">,</span> <span class="s2">"sum"</span><span class="p">,</span> <span class="s2">"50 窗口滚动求和。"</span><span class="p">,</span> <span class="n">q_rolling_sum</span><span class="p">,</span> <span class="n">p_rolling_sum</span><span class="p">,</span> <span class="n">duck_rolling_sum_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"rolling_rank_50"</span><span class="p">,</span> <span class="s2">"rolling rank"</span><span class="p">,</span> <span class="s2">"rolling"</span><span class="p">,</span> <span class="s2">"rolling(50)"</span><span class="p">,</span> <span class="s2">"rank"</span><span class="p">,</span> <span class="s2">"50 窗口滚动 rank。"</span><span class="p">,</span> <span class="n">q_rolling_rank</span><span class="p">,</span> <span class="n">p_rolling_rank</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"expanding_sum_over"</span><span class="p">,</span> <span class="s2">"expanding sum over"</span><span class="p">,</span> <span class="s2">"over/state"</span><span class="p">,</span> <span class="s2">"expanding().over(ticker)"</span><span class="p">,</span> <span class="s2">"sum"</span><span class="p">,</span> <span class="s2">"每个 ticker 独立累计求和。"</span><span class="p">,</span> <span class="n">q_expanding_sum_over</span><span class="p">,</span> <span class="n">p_expanding_sum_over</span><span class="p">,</span> <span class="n">duck_expanding_sum_over_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"expanding_mean_over"</span><span class="p">,</span> <span class="s2">"expanding mean over"</span><span class="p">,</span> <span class="s2">"over/state"</span><span class="p">,</span> <span class="s2">"expanding().over(ticker)"</span><span class="p">,</span> <span class="s2">"mean"</span><span class="p">,</span> <span class="s2">"每个 ticker 独立累计均值。"</span><span class="p">,</span> <span class="n">q_expanding_mean_over</span><span class="p">,</span> <span class="n">p_expanding_mean_over</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"rolling_mean_over"</span><span class="p">,</span> <span class="s2">"rolling mean over"</span><span class="p">,</span> <span class="s2">"over/state"</span><span class="p">,</span> <span class="s2">"rolling(50).over(ticker)"</span><span class="p">,</span> <span class="s2">"mean"</span><span class="p">,</span> <span class="s2">"每个 ticker 独立 rolling mean。"</span><span class="p">,</span> <span class="n">q_rolling_mean_over</span><span class="p">,</span> <span class="n">p_rolling_mean_over</span><span class="p">,</span> <span class="n">duck_rolling_mean_over_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"rolling_std_over"</span><span class="p">,</span> <span class="s2">"rolling std over"</span><span class="p">,</span> <span class="s2">"over/state"</span><span class="p">,</span> <span class="s2">"rolling(50).over(ticker)"</span><span class="p">,</span> <span class="s2">"std"</span><span class="p">,</span> <span class="s2">"每个 ticker 独立 rolling std。"</span><span class="p">,</span> <span class="n">q_rolling_std_over</span><span class="p">,</span> <span class="n">p_rolling_std_over</span><span class="p">,</span> <span class="n">duck_rolling_std_over_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"rolling_rank_over"</span><span class="p">,</span> <span class="s2">"rolling rank over"</span><span class="p">,</span> <span class="s2">"over/state"</span><span class="p">,</span> <span class="s2">"rolling(50).over(ticker)"</span><span class="p">,</span> <span class="s2">"rank"</span><span class="p">,</span> <span class="s2">"每个 ticker 独立 rolling rank。"</span><span class="p">,</span> <span class="n">q_rolling_rank_over</span><span class="p">,</span> <span class="n">p_rolling_rank_over</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"batch_rank_date"</span><span class="p">,</span> <span class="s2">"cross-section rank"</span><span class="p">,</span> <span class="s2">"batch"</span><span class="p">,</span> <span class="s2">"batch.over(date)"</span><span class="p">,</span> <span class="s2">"batch.rank"</span><span class="p">,</span> <span class="s2">"每个 date 横截面 rank。"</span><span class="p">,</span> <span class="n">q_batch_rank_over_date</span><span class="p">,</span> <span class="n">p_batch_rank_over_date</span><span class="p">,</span> <span class="n">duck_batch_rank_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"batch_sort_close"</span><span class="p">,</span> <span class="s2">"sort"</span><span class="p">,</span> <span class="s2">"batch"</span><span class="p">,</span> <span class="s2">"batch"</span><span class="p">,</span> <span class="s2">"sort"</span><span class="p">,</span> <span class="s2">"按 close 排序。"</span><span class="p">,</span> <span class="n">q_batch_sort</span><span class="p">,</span> <span class="n">p_batch_sort</span><span class="p">,</span> <span class="n">duck_batch_sort_sql</span><span class="p">),</span>
+    <span class="n">Scenario</span><span class="p">(</span><span class="s2">"ta_rsi_over"</span><span class="p">,</span> <span class="s2">"TA RSI"</span><span class="p">,</span> <span class="s2">"domain"</span><span class="p">,</span> <span class="s2">"expanding().over(ticker)"</span><span class="p">,</span> <span class="s2">"rsi(14)"</span><span class="p">,</span> <span class="s2">"常见技术指标 RSI，qust-only 参考。"</span><span class="p">,</span> <span class="n">q_ta_rsi_over</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+<span class="p">]</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([</span>
+    <span class="p">{</span>
+        <span class="s2">"scenario"</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+        <span class="s2">"family"</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">family</span><span class="p">,</span>
+        <span class="s2">"context"</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">context</span><span class="p">,</span>
+        <span class="s2">"operator"</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">operator</span><span class="p">,</span>
+        <span class="s2">"polars"</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">polars_fn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"qust"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"duckdb"</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">duckdb_sql</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"description"</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scenarios</span>
+<span class="p">])</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (19, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>scenario</th><th>family</th><th>context</th><th>operator</th><th>polars</th><th>qust</th><th>duckdb</th><th>description</th></tr><tr><td>str</td><td>str</td><td>str</td><td>str</td><td>bool</td><td>bool</td><td>bool</td><td>str</td></tr></thead><tbody><tr><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>true</td><td>true</td><td>true</td><td>"整列基础聚合。"</td></tr><tr><td>"global min/max"</td><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>true</td><td>true</td><td>true</td><td>"整列 min/max。"</td></tr><tr><td>"group_by basic agg"</td><td>"aggregation"</td><td>"group_by(ticker)"</td><td>"mean/std/sum/count"</td><td>true</td><td>true</td><td>true</td><td>"按 ticker 分组基础聚合。"</td></tr><tr><td>"group_by min/max"</td><td>"aggregation"</td><td>"group_by(ticker)"</td><td>"min/max"</td><td>true</td><td>true</td><td>true</td><td>"按 ticker 分组 min/max。"</td></tr><tr><td>"group_by first/last"</td><td>"aggregation"</td><td>"group_by(ticker)"</td><td>"first_value/last_value"</td><td>true</td><td>true</td><td>true</td><td>"按 ticker 取第一行 open 和最后一行 close…</td></tr><tr><td>"shift"</td><td>"series"</td><td>"expanding"</td><td>"shift(1)"</td><td>true</td><td>true</td><td>true</td><td>"常见滞后一行。"</td></tr><tr><td>"ffill"</td><td>"series"</td><td>"expanding"</td><td>"ffill"</td><td>true</td><td>true</td><td>false</td><td>"前值填充。"</td></tr><tr><td>"rolling mean"</td><td>"rolling"</td><td>"rolling(50)"</td><td>"mean"</td><td>true</td><td>true</td><td>true</td><td>"50 窗口滚动均值。"</td></tr><tr><td>"rolling std"</td><td>"rolling"</td><td>"rolling(50)"</td><td>"std"</td><td>true</td><td>true</td><td>true</td><td>"50 窗口滚动标准差。"</td></tr><tr><td>"rolling sum"</td><td>"rolling"</td><td>"rolling(50)"</td><td>"sum"</td><td>true</td><td>true</td><td>true</td><td>"50 窗口滚动求和。"</td></tr><tr><td>"rolling rank"</td><td>"rolling"</td><td>"rolling(50)"</td><td>"rank"</td><td>true</td><td>true</td><td>false</td><td>"50 窗口滚动 rank。"</td></tr><tr><td>"expanding sum over"</td><td>"over/state"</td><td>"expanding().over(ticker)"</td><td>"sum"</td><td>true</td><td>true</td><td>true</td><td>"每个 ticker 独立累计求和。"</td></tr><tr><td>"expanding mean over"</td><td>"over/state"</td><td>"expanding().over(ticker)"</td><td>"mean"</td><td>true</td><td>true</td><td>false</td><td>"每个 ticker 独立累计均值。"</td></tr><tr><td>"rolling mean over"</td><td>"over/state"</td><td>"rolling(50).over(ticker)"</td><td>"mean"</td><td>true</td><td>true</td><td>true</td><td>"每个 ticker 独立 rolling mean。"</td></tr><tr><td>"rolling std over"</td><td>"over/state"</td><td>"rolling(50).over(ticker)"</td><td>"std"</td><td>true</td><td>true</td><td>true</td><td>"每个 ticker 独立 rolling std。"</td></tr><tr><td>"rolling rank over"</td><td>"over/state"</td><td>"rolling(50).over(ticker)"</td><td>"rank"</td><td>true</td><td>true</td><td>false</td><td>"每个 ticker 独立 rolling rank。"</td></tr><tr><td>"cross-section rank"</td><td>"batch"</td><td>"batch.over(date)"</td><td>"batch.rank"</td><td>true</td><td>true</td><td>true</td><td>"每个 date 横截面 rank。"</td></tr><tr><td>"sort"</td><td>"batch"</td><td>"batch"</td><td>"sort"</td><td>true</td><td>true</td><td>true</td><td>"按 close 排序。"</td></tr><tr><td>"TA RSI"</td><td>"domain"</td><td>"expanding().over(ticker)"</td><td>"rsi(14)"</td><td>false</td><td>true</td><td>false</td><td>"常见技术指标 RSI，qust-only 参考。"</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=9b5e132d"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-Benchmark-%E6%96%B9%E6%B3%95">3. Benchmark 方法</h2><p>每个 <code>engine/scenario</code> warmup 一次，然后重复 <code>REPEAT</code> 次。汇总使用 median 和 best。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=deffc33d">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="k">def</span> <span class="nf">output_rows</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">height</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s2">"height"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">height</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">height</span><span class="p">)</span>
+    <span class="n">shape</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s2">"shape"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+
+<span class="k">def</span> <span class="nf">bench_one</span><span class="p">(</span><span class="n">engine</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">scenario</span><span class="p">:</span> <span class="n">Scenario</span><span class="p">,</span> <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="nb">object</span><span class="p">],</span> <span class="n">repeat</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">REPEAT</span><span class="p">,</span> <span class="n">warmup</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">WARMUP</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">warmup</span><span class="p">):</span>
+        <span class="n">fn</span><span class="p">()</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">run</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">repeat</span><span class="p">):</span>
+        <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+        <span class="n">started</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">fn</span><span class="p">()</span>
+        <span class="n">elapsed_ms</span> <span class="o">=</span> <span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">started</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1000.0</span>
+        <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+            <span class="s2">"scenario"</span><span class="p">:</span> <span class="n">scenario</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="s2">"label"</span><span class="p">:</span> <span class="n">scenario</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+            <span class="s2">"family"</span><span class="p">:</span> <span class="n">scenario</span><span class="o">.</span><span class="n">family</span><span class="p">,</span>
+            <span class="s2">"context"</span><span class="p">:</span> <span class="n">scenario</span><span class="o">.</span><span class="n">context</span><span class="p">,</span>
+            <span class="s2">"operator"</span><span class="p">:</span> <span class="n">scenario</span><span class="o">.</span><span class="n">operator</span><span class="p">,</span>
+            <span class="s2">"engine"</span><span class="p">:</span> <span class="n">engine</span><span class="p">,</span>
+            <span class="s2">"run"</span><span class="p">:</span> <span class="n">run</span><span class="p">,</span>
+            <span class="s2">"elapsed_ms"</span><span class="p">:</span> <span class="n">elapsed_ms</span><span class="p">,</span>
+            <span class="s2">"rows"</span><span class="p">:</span> <span class="n">output_rows</span><span class="p">(</span><span class="n">out</span><span class="p">),</span>
+        <span class="p">})</span>
+    <span class="k">return</span> <span class="n">rows</span>
+
+<span class="k">def</span> <span class="nf">make_duckdb_runner</span><span class="p">(</span><span class="n">sql</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">run</span><span class="p">():</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">duck_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="s2">"pl"</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">pl</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">fetchdf</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">run</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=22805b50"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-%E6%89%A7%E8%A1%8C-benchmark">4. 执行 benchmark</h2><p>Polars/qust/DuckDB 只在语义等价时对比。DuckDB 当前环境如果没安装，会自动跳过。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=6a5cfb9d">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="k">if</span> <span class="n">HAS_DUCKDB</span><span class="p">:</span>
+    <span class="n">duck_conn</span> <span class="o">=</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">database</span><span class="o">=</span><span class="s2">":memory:"</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">register_duck_frame</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">frame</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">duck_conn</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">duck_conn</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">frame</span><span class="o">.</span><span class="n">to_arrow</span><span class="p">())</span>
+
+    <span class="n">register_duck_frame</span><span class="p">(</span><span class="s2">"bench_data"</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+    <span class="n">register_duck_frame</span><span class="p">(</span><span class="s2">"wide_sort_data"</span><span class="p">,</span> <span class="n">wide_sort_data</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">duck_conn</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="n">bench_rows</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">scenario</span> <span class="ow">in</span> <span class="n">scenarios</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">scenario</span><span class="o">.</span><span class="n">polars_fn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bench_rows</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">bench_one</span><span class="p">(</span><span class="s2">"polars"</span><span class="p">,</span> <span class="n">scenario</span><span class="p">,</span> <span class="n">scenario</span><span class="o">.</span><span class="n">polars_fn</span><span class="p">))</span>
+    <span class="n">bench_rows</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">bench_one</span><span class="p">(</span><span class="s2">"qust"</span><span class="p">,</span> <span class="n">scenario</span><span class="p">,</span> <span class="n">scenario</span><span class="o">.</span><span class="n">qust_fn</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">HAS_DUCKDB</span> <span class="ow">and</span> <span class="n">scenario</span><span class="o">.</span><span class="n">duckdb_sql</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bench_rows</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">bench_one</span><span class="p">(</span><span class="s2">"duckdb"</span><span class="p">,</span> <span class="n">scenario</span><span class="p">,</span> <span class="n">make_duckdb_runner</span><span class="p">(</span><span class="n">scenario</span><span class="o">.</span><span class="n">duckdb_sql</span><span class="p">)))</span>
+
+<span class="n">runs</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">bench_rows</span><span class="p">)</span>
+<span class="n">runs</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">18</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (18, 9)</small><table border="1" class="dataframe-table"><thead><tr><th>scenario</th><th>label</th><th>family</th><th>context</th><th>operator</th><th>engine</th><th>run</th><th>elapsed_ms</th><th>rows</th></tr><tr><td>str</td><td>str</td><td>str</td><td>str</td><td>str</td><td>str</td><td>i64</td><td>f64</td><td>i64</td></tr></thead><tbody><tr><td>"global_basic_agg"</td><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"polars"</td><td>0</td><td>3.736102</td><td>1</td></tr><tr><td>"global_basic_agg"</td><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"polars"</td><td>1</td><td>3.103489</td><td>1</td></tr><tr><td>"global_basic_agg"</td><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"polars"</td><td>2</td><td>3.656344</td><td>1</td></tr><tr><td>"global_basic_agg"</td><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"polars"</td><td>3</td><td>2.335706</td><td>1</td></tr><tr><td>"global_basic_agg"</td><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"polars"</td><td>4</td><td>3.592758</td><td>1</td></tr><tr><td>"global_basic_agg"</td><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"qust"</td><td>0</td><td>13.498021</td><td>1</td></tr><tr><td>"global_basic_agg"</td><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"qust"</td><td>1</td><td>12.565121</td><td>1</td></tr><tr><td>"global_basic_agg"</td><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"qust"</td><td>2</td><td>17.518085</td><td>1</td></tr><tr><td>"global_basic_agg"</td><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"qust"</td><td>3</td><td>21.852285</td><td>1</td></tr><tr><td>"global_basic_agg"</td><td>"global basic agg"</td><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"qust"</td><td>4</td><td>36.825865</td><td>1</td></tr><tr><td>"global_min_max"</td><td>"global min/max"</td><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>"polars"</td><td>0</td><td>4.09549</td><td>1</td></tr><tr><td>"global_min_max"</td><td>"global min/max"</td><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>"polars"</td><td>1</td><td>3.066436</td><td>1</td></tr><tr><td>"global_min_max"</td><td>"global min/max"</td><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>"polars"</td><td>2</td><td>2.887901</td><td>1</td></tr><tr><td>"global_min_max"</td><td>"global min/max"</td><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>"polars"</td><td>3</td><td>3.070475</td><td>1</td></tr><tr><td>"global_min_max"</td><td>"global min/max"</td><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>"polars"</td><td>4</td><td>2.678196</td><td>1</td></tr><tr><td>"global_min_max"</td><td>"global min/max"</td><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>"qust"</td><td>0</td><td>14.934129</td><td>1</td></tr><tr><td>"global_min_max"</td><td>"global min/max"</td><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>"qust"</td><td>1</td><td>12.494599</td><td>1</td></tr><tr><td>"global_min_max"</td><td>"global min/max"</td><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>"qust"</td><td>2</td><td>8.880497</td><td>1</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=f6f63388"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-%E6%B1%87%E6%80%BB%E7%BB%93%E6%9E%9C">5. 汇总结果</h2><p><code>median_ms</code> 是主要读数，<code>best_ms</code> 是重复运行里最快的一次耗时。后面的柱状图都直接画实际耗时，单位是毫秒。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=7dcbbe7a">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">runs</span>
+    <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"scenario"</span><span class="p">,</span> <span class="s2">"label"</span><span class="p">,</span> <span class="s2">"family"</span><span class="p">,</span> <span class="s2">"context"</span><span class="p">,</span> <span class="s2">"operator"</span><span class="p">,</span> <span class="s2">"engine"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"elapsed_ms"</span><span class="p">)</span><span class="o">.</span><span class="n">median</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"median_ms"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"elapsed_ms"</span><span class="p">)</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"best_ms"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"rows"</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"rows"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">len</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"runs"</span><span class="p">),</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">polars_base</span> <span class="o">=</span> <span class="n">summary</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"engine"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"polars"</span><span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="s2">"scenario"</span><span class="p">,</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"median_ms"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"polars_median_ms"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">summary</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">summary</span>
+    <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">polars_base</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="s2">"scenario"</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s2">"left"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"polars_median_ms"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"has_polars_baseline"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"rows"</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"median_ms"</span><span class="p">)</span> <span class="o">/</span> <span class="mf">1000.0</span><span class="p">)</span> <span class="o">/</span> <span class="mf">1_000_000.0</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"million_rows_per_sec"</span><span class="p">),</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">scenario_order</span> <span class="o">=</span> <span class="p">{</span><span class="n">scenario</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">idx</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">scenario</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">scenarios</span><span class="p">)}</span>
+<span class="n">engine_order</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"polars"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"qust"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"duckdb"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+
+<span class="n">summary</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([</span>
+    <span class="p">{</span>
+        <span class="o">**</span><span class="n">row</span><span class="p">,</span>
+        <span class="s2">"scenario_order"</span><span class="p">:</span> <span class="n">scenario_order</span><span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="s2">"scenario"</span><span class="p">]],</span>
+        <span class="s2">"engine_order"</span><span class="p">:</span> <span class="n">engine_order</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"engine"</span><span class="p">],</span> <span class="mi">99</span><span class="p">),</span>
+        <span class="s2">"case_label"</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s2">"label"</span><span class="p">],</span>
+    <span class="p">}</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">summary</span><span class="o">.</span><span class="n">to_dicts</span><span class="p">()</span>
+<span class="p">])</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"scenario_order"</span><span class="p">,</span> <span class="s2">"engine_order"</span><span class="p">)</span>
+
+<span class="n">summary</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="s2">"family"</span><span class="p">,</span> <span class="s2">"context"</span><span class="p">,</span> <span class="s2">"operator"</span><span class="p">,</span> <span class="s2">"engine"</span><span class="p">,</span>
+    <span class="s2">"median_ms"</span><span class="p">,</span> <span class="s2">"best_ms"</span><span class="p">,</span> <span class="s2">"rows"</span><span class="p">,</span> <span class="s2">"runs"</span><span class="p">,</span> <span class="s2">"million_rows_per_sec"</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (37, 9)</small><table border="1" class="dataframe-table"><thead><tr><th>family</th><th>context</th><th>operator</th><th>engine</th><th>median_ms</th><th>best_ms</th><th>rows</th><th>runs</th><th>million_rows_per_sec</th></tr><tr><td>str</td><td>str</td><td>str</td><td>str</td><td>f64</td><td>f64</td><td>i64</td><td>i64</td><td>f64</td></tr></thead><tbody><tr><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"polars"</td><td>3.592758</td><td>2.335706</td><td>1</td><td>5</td><td>0.000278</td></tr><tr><td>"aggregation"</td><td>"global"</td><td>"mean/std/sum/count"</td><td>"qust"</td><td>17.518085</td><td>12.565121</td><td>1</td><td>5</td><td>0.000057</td></tr><tr><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>"polars"</td><td>3.066436</td><td>2.678196</td><td>1</td><td>5</td><td>0.000326</td></tr><tr><td>"aggregation"</td><td>"global"</td><td>"min/max"</td><td>"qust"</td><td>9.917763</td><td>8.880497</td><td>1</td><td>5</td><td>0.000101</td></tr><tr><td>"aggregation"</td><td>"group_by(ticker)"</td><td>"mean/std/sum/count"</td><td>"polars"</td><td>16.504911</td><td>13.115799</td><td>4</td><td>5</td><td>0.000242</td></tr><tr><td>"aggregation"</td><td>"group_by(ticker)"</td><td>"mean/std/sum/count"</td><td>"qust"</td><td>53.419717</td><td>50.901456</td><td>4</td><td>5</td><td>0.000075</td></tr><tr><td>"aggregation"</td><td>"group_by(ticker)"</td><td>"min/max"</td><td>"polars"</td><td>9.367124</td><td>8.359393</td><td>4</td><td>5</td><td>0.000427</td></tr><tr><td>"aggregation"</td><td>"group_by(ticker)"</td><td>"min/max"</td><td>"qust"</td><td>57.627689</td><td>56.318508</td><td>4</td><td>5</td><td>0.000069</td></tr><tr><td>"aggregation"</td><td>"group_by(ticker)"</td><td>"first_value/last_value"</td><td>"polars"</td><td>8.563466</td><td>8.231376</td><td>4</td><td>5</td><td>0.000467</td></tr><tr><td>"aggregation"</td><td>"group_by(ticker)"</td><td>"first_value/last_value"</td><td>"qust"</td><td>63.128709</td><td>51.257866</td><td>4</td><td>5</td><td>0.000063</td></tr><tr><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr><tr><td>"over/state"</td><td>"rolling(50).over(ticker)"</td><td>"mean"</td><td>"qust"</td><td>121.294763</td><td>118.533012</td><td>500000</td><td>5</td><td>4.12219</td></tr><tr><td>"over/state"</td><td>"rolling(50).over(ticker)"</td><td>"std"</td><td>"polars"</td><td>184.545034</td><td>164.151538</td><td>500000</td><td>5</td><td>2.709366</td></tr><tr><td>"over/state"</td><td>"rolling(50).over(ticker)"</td><td>"std"</td><td>"qust"</td><td>161.582986</td><td>155.236963</td><td>500000</td><td>5</td><td>3.094385</td></tr><tr><td>"over/state"</td><td>"rolling(50).over(ticker)"</td><td>"rank"</td><td>"polars"</td><td>616.591234</td><td>561.254354</td><td>500000</td><td>5</td><td>0.81091</td></tr><tr><td>"over/state"</td><td>"rolling(50).over(ticker)"</td><td>"rank"</td><td>"qust"</td><td>244.708473</td><td>239.728623</td><td>500000</td><td>5</td><td>2.043248</td></tr><tr><td>"batch"</td><td>"batch.over(date)"</td><td>"batch.rank"</td><td>"polars"</td><td>192.715217</td><td>174.761631</td><td>500000</td><td>5</td><td>2.594502</td></tr><tr><td>"batch"</td><td>"batch.over(date)"</td><td>"batch.rank"</td><td>"qust"</td><td>136.715793</td><td>136.45751</td><td>500000</td><td>5</td><td>3.657222</td></tr><tr><td>"batch"</td><td>"batch"</td><td>"sort"</td><td>"polars"</td><td>67.217786</td><td>66.688187</td><td>500000</td><td>5</td><td>7.438507</td></tr><tr><td>"batch"</td><td>"batch"</td><td>"sort"</td><td>"qust"</td><td>215.550348</td><td>188.625155</td><td>500000</td><td>5</td><td>2.319644</td></tr><tr><td>"domain"</td><td>"expanding().over(ticker)"</td><td>"rsi(14)"</td><td>"qust"</td><td>117.090252</td><td>114.237685</td><td>500000</td><td>5</td><td>4.27021</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=89cb1af7"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-%E4%B8%8D%E5%90%8C%E5%BC%95%E6%93%8E-median-%E8%80%97%E6%97%B6%EF%BC%9A%E5%B9%B6%E6%8E%92%E5%A4%9A%E8%89%B2%E6%9F%B1">6. 不同引擎 median 耗时：并排多色柱</h2><p>这个图使用宽表输入：第一列是 <code>case_label</code>，后续列分别是 <code>polars/qust/duckdb</code>。bar 底层会把多 y 序列横向错开，并用不同颜色显示。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=f0ba3426">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="k">def</span> <span class="nf">wide_metric</span><span class="p">(</span><span class="n">metric</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">source</span><span class="p">:</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">include_qust_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
+    <span class="n">frame</span> <span class="o">=</span> <span class="n">source</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">include_qust_only</span><span class="p">:</span>
+        <span class="n">frame</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"has_polars_baseline"</span><span class="p">))</span>
+    <span class="n">frame</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="s2">"scenario_order"</span><span class="p">,</span>
+        <span class="s2">"case_label"</span><span class="p">,</span>
+        <span class="s2">"engine"</span><span class="p">,</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">metric</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">metric</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">frame</span><span class="o">.</span><span class="n">height</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"case_label"</span><span class="p">:</span> <span class="p">[]})</span>
+    <span class="n">wide</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">frame</span>
+        <span class="o">.</span><span class="n">pivot</span><span class="p">(</span>
+            <span class="n">on</span><span class="o">=</span><span class="s2">"engine"</span><span class="p">,</span>
+            <span class="n">index</span><span class="o">=</span><span class="p">[</span><span class="s2">"scenario_order"</span><span class="p">,</span> <span class="s2">"case_label"</span><span class="p">],</span>
+            <span class="n">values</span><span class="o">=</span><span class="n">metric</span><span class="p">,</span>
+            <span class="n">aggregate_function</span><span class="o">=</span><span class="s2">"first"</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"scenario_order"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">ordered_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"case_label"</span><span class="p">,</span> <span class="s2">"polars"</span><span class="p">,</span> <span class="s2">"qust"</span><span class="p">,</span> <span class="s2">"duckdb"</span><span class="p">]</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">wide</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">wide</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">ordered_cols</span><span class="p">)</span>
+
+<span class="n">median_chart</span> <span class="o">=</span> <span class="n">wide_metric</span><span class="p">(</span><span class="s2">"median_ms"</span><span class="p">,</span> <span class="n">summary</span><span class="p">,</span> <span class="n">include_qust_only</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">median_chart</span> <span class="o">=</span> <span class="n">median_chart</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="s2">"case_label"</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">[</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">median_chart</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="s2">"case_label"</span><span class="p">],</span>
+<span class="p">)</span>
+
+<span class="n">median_runtime</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="o">*</span><span class="n">median_chart</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"median_ms_by_engine"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">bar</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">median_runtime</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">median_chart</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">920</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="3-性能对比 monitor output 1" loading="lazy" src="../../assets/notebook-renders/tutorial-3-performance-01.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f93aa6da7a0&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=bf6fc1f9"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-%E4%B8%8D%E5%90%8C%E5%BC%95%E6%93%8E-best-%E8%80%97%E6%97%B6%EF%BC%9A%E5%B9%B6%E6%8E%92%E5%A4%9A%E8%89%B2%E6%9F%B1">7. 不同引擎 best 耗时：并排多色柱</h2><p>第二张图仍然画真实耗时，单位是毫秒。这里取每个场景重复运行里的最快一次 <code>best_ms</code>，用来观察稳定后的执行开销。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=8e56e755">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">best_chart</span> <span class="o">=</span> <span class="n">wide_metric</span><span class="p">(</span><span class="s2">"best_ms"</span><span class="p">,</span> <span class="n">summary</span><span class="p">,</span> <span class="n">include_qust_only</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">best_chart</span> <span class="o">=</span> <span class="n">best_chart</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="s2">"case_label"</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">[</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">best_chart</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">c</span> <span class="o">!=</span> <span class="s2">"case_label"</span><span class="p">],</span>
+<span class="p">)</span>
+
+<span class="n">best_runtime</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="o">*</span><span class="n">best_chart</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"best_ms_by_engine"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">bar</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">best_runtime</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">best_chart</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">820</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=bb378df7"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-qust-only-%E5%B8%B8%E8%A7%81%E9%A2%86%E5%9F%9F%E7%AE%97%E5%AD%90">8. qust-only 常见领域算子</h2><p>这里保留常见技术指标 <code>RSI</code> 作为 qust-only 参考，用来展示领域状态算子的耗时。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=3d4fb9c2">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">qust_only_chart</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">summary</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"engine"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"qust"</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"polars_median_ms"</span><span class="p">)</span><span class="o">.</span><span class="n">is_null</span><span class="p">())</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="s2">"case_label"</span><span class="p">,</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"median_ms"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"qust"</span><span class="p">),</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">qust_only_runtime</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"case_label"</span><span class="p">,</span> <span class="s2">"qust"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"qust_only_median_ms"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">bar</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">qust_only_runtime</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">qust_only_chart</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">420</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="3-性能对比 monitor output 2" loading="lazy" src="../../assets/notebook-renders/tutorial-3-performance-02.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f939813dde0&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=8f26066a"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="9.-%E6%89%A9%E5%B1%95%E7%A4%BA%E4%BE%8B%E7%9A%84%E5%8E%9F%E5%88%99">9. 扩展示例的原则</h2><p>新增性能场景时优先选择高频使用的算子，例如：聚合、rank、rolling、over、sort、shift、fill、常见 TA。只有确实需要展示某个专用能力时，才放 qust-only 场景。</p>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../../site.js"></script>
+  </body>
+</html>

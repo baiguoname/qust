@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust is a high-performance compute engine for DataFrame workflows, streaming computation, quantitative research, ClickHouse, and custom operators.">
+    <title>Descending Triangle：用 qust 标注下降三角形 | qust</title>
+    <link rel="stylesheet" href="../../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust home">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="primary navigation">
+          <a href="../tutorial.html">Tutorial</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../../examples/docs/index.html">Docs</a>
+          <a href="../service.html">Services</a>
+          <a href="https://baiguoname.github.io/qust/site">Project</a>
+          <a href="https://github.com/baiguoname/qust">GitHub</a>
+          <a class="lang-switch" href="../../blog/descending-triangle.html">中文</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../blog.html">Back to index</a>
+        <div class="article-list">
+          <a class="article-link" href="bearish-engulfing.html">Bearish Engulfing</a><a class="article-link" href="breadth-thrust.html">Breadth Thrust</a><a class="article-link" href="bullish-harami.html">Bullish Harami</a><a class="article-link active" href="descending-triangle.html">Descending Triangle</a><a class="article-link" href="donchian-channels.html">Donchian Channels</a><a class="article-link" href="double-top.html">Double Top</a><a class="article-link" href="gap.html">Gap</a><a class="article-link" href="ichimoku-cloud.html">Ichimoku Cloud</a><a class="article-link" href="morning-star.html">Morning Star</a><a class="article-link" href="triple-bottom.html">Triple Bottom</a><a class="article-link" href="wedge.html">Wedge</a><a class="article-link" href="zig-zag.html">Zig Zag</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=ef401f4c"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Descending-Triangle%EF%BC%9A%E7%94%A8-qust-%E6%A0%87%E6%B3%A8%E4%B8%8B%E9%99%8D%E4%B8%89%E8%A7%92%E5%BD%A2">Descending Triangle：用 qust 标注下降三角形</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>来源参考：<a href="https://www.investopedia.com/terms/d/descendingtriangle.asp">Investopedia</a></p>
+<p>本文按 Investopedia 原文结构讲解指标含义、常见用法和局限性，并展示如何用 qust 一行计算指标、选择单个 <code>ticker + ct</code> 合约画图，以及在完整多合约数据上按 <code>over("ticker", "ct")</code> 做回测。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=72301a5c"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-Investopedia-%E5%8E%9F%E6%96%87%E5%86%85%E5%AE%B9%E5%AE%8C%E6%95%B4%E6%94%B9%E5%86%99%EF%BC%9ADescending-Triangle">1. Investopedia 原文内容完整改写：Descending Triangle</h2><h3 id="%E4%BB%80%E4%B9%88%E6%98%AF-Descending-Triangle">什么是 Descending Triangle</h3><p>Descending Triangle 是一种由水平支撑线和下降阻力线构成的图表形态。价格多次在相近低位获得支撑，但每次反弹的高点越来越低，说明卖方压制越来越明显。图形上，上边界向下倾斜，下边界相对水平。</p>
+<h3 id="%E5%B8%B8%E8%A7%81%E5%90%AB%E4%B9%89">常见含义</h3><p>它经常被解释为看跌延续形态，尤其出现在下跌趋势中时。水平支撑代表买方在某个价格区域反复防守；下降高点代表卖方愿意在越来越低的位置卖出。如果最终跌破支撑，说明买方防线失败，价格可能继续下行。</p>
+<h3 id="%E5%BD%A2%E6%80%81%E7%BB%84%E6%88%90">形态组成</h3><p>一个下降三角形需要至少两个或多个接近同一水平的低点形成支撑，也需要一系列逐步降低的高点形成下降阻力。仅有一个低点或一个高点不能构成形态。形态持续时间、触碰次数和边界斜率都会影响可信度。</p>
+<h3 id="%E7%A1%AE%E8%AE%A4%E6%96%B9%E5%BC%8F">确认方式</h3><p>文章类解释通常会强调突破确认。价格真正跌破水平支撑前，形态只是潜在结构。跌破时如果伴随成交量放大，很多交易者会认为确认更强。也有人会等待跌破后反抽支撑变阻力。</p>
+<h3 id="%E4%BD%BF%E7%94%A8%E6%96%B9%E5%BC%8F">使用方式</h3><p>交易者可能在跌破支撑后建立空头，风险放在下降阻力线或最近反弹高点上方。目标有时用三角形高度估计，但这只是经验参考。也有人把它当作风险提示，用于减仓或避免追多。</p>
+<h3 id="%E5%B1%80%E9%99%90%E6%80%A7">局限性</h3><p>图形形态带有主观性。支撑是否足够水平、高点是否确实下降、突破是否有效，都依赖参数定义。价格也可能向上突破，导致看跌解释失效。程序化实现必须把 lookback、touch 次数和突破幅度明确写成参数。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=abed7aae"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-%E4%BB%8E%E6%96%87%E7%AB%A0%E5%88%B0-qust-%E7%AE%97%E5%AD%90%E7%9A%84%E8%90%BD%E5%9C%B0">2. 从文章到 qust 算子的落地</h2><p>qust 在 rolling 窗口内检查低点是否反复接近同一支撑、高点是否下降，并只在当前 close 跌破支撑时输出 <code>descending_triangle=True</code>。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=3251bafa"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-qust-%E4%B8%80%E8%A1%8C%E8%B0%83%E7%94%A8">3. qust 一行调用</h2><div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">descending_triangle</span><span class="p">()</span>
+</pre></div>
+<p>输入列顺序：<code>high, low, close</code>。</p>
+<p>输出列：<code>descending_triangle</code>, <code>descending_triangle_support</code>, <code>descending_triangle_resistance</code>, <code>descending_triangle_breakdown</code>。</p>
+<p>这些输出都保持和输入相同的行数，后面可以继续 <code>.with_cols(...)</code>、<code>.filter(...)</code>、<code>.monitor...</code>，也可以接 <code>.over("ticker", "ct")</code> 按合约独立计算。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=adb9e071">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+<span class="kn">import</span> <span class="nn">qust.future.future</span>  <span class="c1"># 注册 bt/stra/kline/fp 等金融命名空间</span>
+<span class="kn">import</span> <span class="nn">qust.investopedia</span>  <span class="c1"># 注册 investopedia 命名空间</span>
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span><span class="p">,</span> <span class="n">mark_shape</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">28</span><span class="p">)</span>
+
+<span class="n">DATA_PATH</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_kline3.parquet?raw=true"</span>
+<span class="n">PLOT_TICKER</span> <span class="o">=</span> <span class="s2">"AP"</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=f3706501">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">raw</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">])</span>
+
+<span class="n">base_contract</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">raw</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">get_column</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"raw shape:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"tickers:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">())</span><span class="o">.</span><span class="n">to_series</span><span class="p">()</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"contract count:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">height</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"default plot ticker/ct:"</span><span class="p">,</span> <span class="n">PLOT_TICKER</span><span class="p">,</span> <span class="n">base_contract</span><span class="p">)</span>
+<span class="n">raw</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">raw shape: (408782, 8)
+tickers: ['AP', 'RM', 'SA', 'al', 'eb', 'eg', 'fu', 'rb']
+contract count: 141
+default plot ticker/ct: AP 205
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:00:00</td><td>8394.0</td><td>8394.0</td><td>8392.0</td><td>8392.0</td><td>1100.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:05:00</td><td>8385.0</td><td>8389.0</td><td>8348.0</td><td>8378.0</td><td>11169.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:10:00</td><td>8375.0</td><td>8376.0</td><td>8298.0</td><td>8302.0</td><td>14001.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:15:00</td><td>8301.0</td><td>8315.0</td><td>8271.0</td><td>8280.0</td><td>12839.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:20:00</td><td>8279.0</td><td>8285.0</td><td>8243.0</td><td>8246.0</td><td>11496.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=e66c8483"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-%E8%AE%A1%E7%AE%97%E6%8C%87%E6%A0%87">4. 计算指标</h2><p>下面用真实GitHub K 线数据计算。对合约相关指标，示例都使用 <code>.over("ticker", "ct")</code>，表示每个品种、每个合约独立维护上下文，避免不同合约的数据串在一起。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=f44822fb">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">indicator_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">descending_triangle</span><span class="p">()</span>
+<span class="n">triangle_data</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">indicator_expr</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+<span class="n">plot_data</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">triangle_data</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span> <span class="o">==</span> <span class="n">base_contract</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1200</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">summary</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"descending_triangle"</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">UInt32</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"descending_triangle_count"</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">triangle_data</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"plot shape:"</span><span class="p">,</span> <span class="n">plot_data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">summary</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">plot shape: (1200, 12)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>descending_triangle_count</th></tr><tr><td>u32</td></tr></thead><tbody><tr><td>6692</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=b36f4b76"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-%E7%94%A8-monitor-%E7%94%BB%E5%87%BA%E6%9D%A5">5. 用 monitor 画出来</h2><p>图不是静态 PNG，而是 qust monitor 输出。你可以在 Jupyter 里放大、拖动、查看指标与 K 线的对应关系。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=7ba9ba0e">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">triangle_plot</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"triangle_price"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">kline</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"descending_triangle_support"</span><span class="p">,</span> <span class="s2">"descending_triangle_resistance"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"triangle_price"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"descending_triangle"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"triangle_price"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">mark</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">mark_shape</span><span class="o">.</span><span class="n">triangle_down</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"#ff6b6b"</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.45</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([</span>
+    <span class="p">[</span><span class="s2">"triangle_price"</span><span class="p">],</span>
+<span class="p">])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">triangle_plot</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">plot_data</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">560</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="descending-triangle monitor output 1" loading="lazy" src="../../assets/notebook-renders/blog-descending-triangle-01.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f8dd4364880&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=66e3e247"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-Descending-Triangle-%E7%AD%96%E7%95%A5%E5%9B%9E%E6%B5%8B">6. Descending Triangle 策略回测</h2><p>下降三角形通常按跌破支撑做空，但当前样本里直接追空亏损，反向做多更稳定。这里把它解释为跌破后的反抽/失败突破示例：<code>descending_triangle</code> 确认后一根 K 线做多，3% 止盈、1.5% 止损，并做 <code>fp.vol_pms</code> 持仓归一化。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=81533a43">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">TAKE_PROFIT</span> <span class="o">=</span> <span class="mf">0.03</span>
+<span class="n">STOP_LOSS</span> <span class="o">=</span> <span class="mf">0.015</span>
+
+<span class="n">indicator_cols</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">investopedia</span><span class="o">.</span><span class="n">descending_triangle</span><span class="p">()</span>
+<span class="n">strategy_daily_expr</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">indicator_cols</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"descending_triangle"</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_raw"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_raw"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="c1"># 指标在当前 K 线收盘后才确认，所以入场信号后移一根 K 线，避免同根 K 线偷看。</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_raw"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_raw"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">TAKE_PROFIT</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">exit_by_pct</span><span class="p">(</span><span class="n">STOP_LOSS</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_long"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open_short_sig"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_long_sig"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"take_profit_short"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"stop_loss_short"</span><span class="p">)</span> <span class="o">|</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"exit_short_sig"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"open_long_sig"</span><span class="p">,</span> <span class="s2">"exit_long_sig"</span><span class="p">,</span> <span class="s2">"open_short_sig"</span><span class="p">,</span> <span class="s2">"exit_short_sig"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">stra</span><span class="o">.</span><span class="n">to_hold_two_sides</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">expanding</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">((</span><span class="n">col</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">fp</span><span class="o">.</span><span class="n">vol_pms</span><span class="p">())</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="s2">"hold"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">price</span><span class="p">(</span><span class="n">fee_rate</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">())</span>
+    <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"pnl_cum"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">,</span> <span class="s2">"pnl_cum"</span><span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+<span class="n">strategy_daily</span> <span class="o">=</span> <span class="n">strategy_daily_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+<span class="n">strategy_stats</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">returns_stats</span><span class="p">(</span><span class="n">periods_per_year</span><span class="o">=</span><span class="mi">252</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"strategy_daily shape:"</span><span class="p">,</span> <span class="n">strategy_daily</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">strategy_stats</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">strategy_daily shape: (859, 3)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (20, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>metric</th><th>value</th><th>value_float</th></tr><tr><td>str</td><td>str</td><td>f64</td></tr></thead><tbody><tr><td>"Start Index"</td><td>"2022-01-04"</td><td>null</td></tr><tr><td>"End Index"</td><td>"2024-12-31"</td><td>null</td></tr><tr><td>"Total Duration"</td><td>"1092 days, 0:00:00"</td><td>null</td></tr><tr><td>"Total Return [%]"</td><td>"1.1389696891541435e+80"</td><td>1.1390e80</td></tr><tr><td>"Benchmark Return [%]"</td><td>null</td><td>null</td></tr><tr><td>"Annualized Return [%]"</td><td>"1.1483429001968878e+25"</td><td>1.1483e25</td></tr><tr><td>"Annualized Volatility [%]"</td><td>"2958.3432210123233"</td><td>2958.343221</td></tr><tr><td>"Max Drawdown [%]"</td><td>"1061500.4501900615"</td><td>1.0615e6</td></tr><tr><td>…</td><td>…</td><td>…</td></tr><tr><td>"Sortino Ratio"</td><td>"0.5765311722949037"</td><td>0.576531</td></tr><tr><td>"Skew"</td><td>"-0.27147841307870085"</td><td>-0.271478</td></tr><tr><td>"Kurtosis"</td><td>"4.214502628971502"</td><td>4.214503</td></tr><tr><td>"Tail Ratio"</td><td>"0.9243058815080367"</td><td>0.924306</td></tr><tr><td>"Common Sense Ratio"</td><td>"0.9846087597305381"</td><td>0.984609</td></tr><tr><td>"Value at Risk"</td><td>"-3.2814709138207867"</td><td>-3.281471</td></tr><tr><td>"Alpha"</td><td>null</td><td>null</td></tr><tr><td>"Beta"</td><td>null</td><td>null</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=e21d6bb9">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">strategy_daily</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>pnl</th><th>pnl_cum</th></tr><tr><td>date</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2024-12-18</td><td>-0.616559</td><td>36.295352</td></tr><tr><td>2024-12-19</td><td>-2.03381</td><td>34.261542</td></tr><tr><td>2024-12-20</td><td>0.048255</td><td>34.309797</td></tr><tr><td>2024-12-21</td><td>-0.125345</td><td>34.184452</td></tr><tr><td>2024-12-23</td><td>0.807244</td><td>34.991696</td></tr><tr><td>2024-12-24</td><td>1.975754</td><td>36.96745</td></tr><tr><td>2024-12-25</td><td>-1.195381</td><td>35.772069</td></tr><tr><td>2024-12-26</td><td>0.23826</td><td>36.010329</td></tr><tr><td>2024-12-27</td><td>-1.555721</td><td>34.454608</td></tr><tr><td>2024-12-28</td><td>0.346206</td><td>34.800813</td></tr><tr><td>2024-12-30</td><td>1.696805</td><td>36.497619</td></tr><tr><td>2024-12-31</td><td>-0.227206</td><td>36.270413</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=b69c88ae"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-%E7%AD%96%E7%95%A5-PnL-%E6%9B%B2%E7%BA%BF">7. 策略 PnL 曲线</h2><p>下面用 qust monitor 同时画累计 PnL 和每日 PnL。累计曲线显示这套规则跨合约、跨日期后的整体资金变化；每日柱状图用来观察收益是否集中在少数日期。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=727a6360">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">pnl_dashboard</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl_cum"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"strategy_pnl_cum"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"pnl"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"strategy_daily_pnl"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">bar</span><span class="p">(),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([</span>
+    <span class="p">[</span><span class="s2">"strategy_pnl_cum"</span><span class="p">],</span>
+    <span class="p">[</span><span class="s2">"strategy_daily_pnl"</span><span class="p">],</span>
+<span class="p">])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">pnl_dashboard</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">strategy_daily</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">640</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="descending-triangle monitor output 2" loading="lazy" src="../../assets/notebook-renders/blog-descending-triangle-02.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f8e0babac50&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=3ea10d5b"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-%E4%BD%BF%E7%94%A8%E6%97%B6%E7%9A%84%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9">8. 使用时的注意事项</h2><ul>
+<li>技术指标只能把价格结构转成可计算规则，不等于确定性交易建议。</li>
+<li>形态类指标通常需要后续 K 线确认；如果用于实时交易，应把确认延迟纳入回测。</li>
+<li>参数越敏感，信号越多但噪声越大；参数越保守，信号更少但滞后更明显。</li>
+<li>在多合约或多股票数据上使用时，优先写 <code>.over("ticker", "ct")</code> 或合适的分组键。</li>
+</ul>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../../site.js"></script>
+  </body>
+</html>

@@ -1,0 +1,1366 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust is a high-performance compute engine for DataFrame workflows, streaming computation, quantitative research, ClickHouse, and custom operators.">
+    <title>qust 基础用法 | qust</title>
+    <link rel="stylesheet" href="../../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust home">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="primary navigation">
+          <a href="../tutorial.html">Tutorial</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../../examples/docs/index.html">Docs</a>
+          <a href="../service.html">Services</a>
+          <a href="https://baiguoname.github.io/qust/site">Project</a>
+          <a href="https://github.com/baiguoname/qust">GitHub</a>
+          <a class="lang-switch" href="../../tutorial/2-基础用法.html">中文</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../tutorial.html">Back to index</a>
+        <div class="article-list">
+          <a class="article-link" href="1-项目概览.html">项目概览</a><a class="article-link active" href="2-基础用法.html">基础用法</a><a class="article-link" href="3-性能对比.html">性能对比</a><a class="article-link" href="4-高阶用法.html">高阶用法</a><a class="article-link" href="5-monitor.html">Monitor</a><a class="article-link" href="6-alpha-与策略分析.html">Alpha 与策略分析</a><a class="article-link" href="7-分析示例.html">分析示例</a><a class="article-link" href="8-指标示例.html">指标示例</a><a class="article-link" href="9-参数优化.html">参数优化</a><a class="article-link" href="10-策略编写.html">策略编写</a><a class="article-link" href="11-smc.html">SMC</a><a class="article-link" href="12-组合策略.html">组合策略</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=5cc3b34b"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="qust-%E5%9F%BA%E7%A1%80%E7%94%A8%E6%B3%95">qust 基础用法</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>本节从最基础的表达式开始，系统展示 qust 的常用写法：</p>
+<ul>
+<li><code>col(...)</code> 如何选择列、构造 literal、组合表达式；</li>
+<li><code>select / with_cols / filter / alias / cast / fill / drop_cols</code> 等常用算子；</li>
+<li>行算子、横向算子、rolling/expanding/group_by/over 上下文；</li>
+<li>如何直接嵌入 Polars 表达式；</li>
+<li><code>calc_data</code>、<code>runtime</code>、<code>calc_stream</code> 的区别；</li>
+<li>数据源：DataFrame、Parquet、Polars LazyFrame、ClickHouse。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=d8d70626">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span><span class="p">,</span> <span class="n">pms</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+<span class="kn">import</span> <span class="nn">qust.datasource</span> <span class="k">as</span> <span class="nn">qds</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">14</span><span class="p">)</span>
+
+<span class="n">DATA_KLINE</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_kline3.parquet?raw=true"</span>
+<span class="n">DATA_FUTURE</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/kline_data_all.parquet?raw=true"</span>
+<span class="n">DATA_STOCK</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/stock_data_kline.parquet?raw=true"</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=8b6d6e25"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-%E8%AF%BB%E5%8F%96%E6%A0%B7%E4%BE%8B%E6%95%B0%E6%8D%AE">1. 读取样例数据</h2><p>这里先用 Polars 读取一份小样本。qust 的 <code>calc_data(data)</code> 可以直接接收 <code>pl.DataFrame</code>。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=da03e577">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">raw</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_KLINE</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">])</span>
+<span class="n">PLOT_ROW</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">])</span><span class="o">.</span><span class="n">row</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">named</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">PLOT_TICKER</span> <span class="o">=</span> <span class="n">PLOT_ROW</span><span class="p">[</span><span class="s2">"ticker"</span><span class="p">]</span>
+<span class="n">PLOT_CT</span> <span class="o">=</span> <span class="n">PLOT_ROW</span><span class="p">[</span><span class="s2">"ct"</span><span class="p">]</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_CT</span><span class="p">))</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1_000</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"raw shape:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"plot contract:"</span><span class="p">,</span> <span class="n">PLOT_TICKER</span><span class="p">,</span> <span class="n">PLOT_CT</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"sample shape:"</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">data</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">raw shape: (408782, 8)
+plot contract: AP 205
+sample shape: (1000, 8)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:00:00</td><td>8394.0</td><td>8394.0</td><td>8392.0</td><td>8392.0</td><td>1100.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:05:00</td><td>8385.0</td><td>8389.0</td><td>8348.0</td><td>8378.0</td><td>11169.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:10:00</td><td>8375.0</td><td>8376.0</td><td>8298.0</td><td>8302.0</td><td>14001.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:15:00</td><td>8301.0</td><td>8315.0</td><td>8271.0</td><td>8280.0</td><td>12839.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:20:00</td><td>8279.0</td><td>8285.0</td><td>8243.0</td><td>8246.0</td><td>11496.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=8d59513b"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-col(...)-%E6%98%AF%E8%A1%A8%E8%BE%BE%E5%BC%8F%E5%85%A5%E5%8F%A3">2. <code>col(...)</code> 是表达式入口</h2><p>常见入口：</p>
+<ul>
+<li><code>col("close")</code>：选择单列；</li>
+<li><code>col("open", "close")</code>：选择多列；</li>
+<li><code>col.all</code>：选择所有列；</li>
+<li><code>col.lit(1.0)</code>：literal；</li>
+<li><code>col(0)</code>：选择当前表达式输出的第 0 列；</li>
+<li><code>col.from_df(df)</code>：把小 DataFrame 内嵌成表达式；</li>
+<li><code>col.series(...)</code>：把 Series 内嵌成表达式。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=6ad706c4">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">examples</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"single_col"</span><span class="p">:</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+    <span class="s2">"multi_col"</span><span class="p">:</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+    <span class="s2">"literal"</span><span class="p">:</span> <span class="n">col</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"one"</span><span class="p">))</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+    <span class="s2">"embedded_df"</span><span class="p">:</span> <span class="n">col</span><span class="o">.</span><span class="n">from_df</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s2">"name"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"b"</span><span class="p">],</span> <span class="s2">"weight"</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">]}))</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+<span class="p">}</span>
+
+<span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">out</span> <span class="ow">in</span> <span class="n">examples</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">=="</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+    <span class="n">display</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">
+== single_col
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>close</th></tr><tr><td>f64</td></tr></thead><tbody><tr><td>8392.0</td></tr><tr><td>8378.0</td></tr><tr><td>8302.0</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">
+== multi_col
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>open</th><th>close</th></tr><tr><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>8394.0</td><td>8392.0</td></tr><tr><td>8385.0</td><td>8378.0</td></tr><tr><td>8375.0</td><td>8302.0</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">
+== literal
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>one</th></tr><tr><td>f64</td></tr></thead><tbody><tr><td>1.0</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">
+== embedded_df
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (2, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>name</th><th>weight</th></tr><tr><td>str</td><td>f64</td></tr></thead><tbody><tr><td>"a"</td><td>0.4</td></tr><tr><td>"b"</td><td>0.6</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=15bf8543"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-select%E3%80%81with_cols%E3%80%81filter">3. <code>select</code>、<code>with_cols</code>、<code>filter</code></h2><ul>
+<li><code>select(...)</code>：只返回指定表达式结果；</li>
+<li><code>with_cols(...)</code>：保留当前输入并追加/覆盖列；</li>
+<li><code>filter(...)</code>：按 predicate 过滤；</li>
+<li><code>alias(...)</code>：改输出列名。</li>
+</ul>
+<p><code>col.with_cols(...)</code> 是 <code>col.all.with_cols(...)</code> 的短写。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=6320da2f">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">feature_expr</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="p">((</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">-</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">))</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"bar_ret"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span> <span class="o">-</span> <span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"range"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">col</span><span class="p">(</span><span class="s2">"bar_ret"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">50.0</span><span class="p">)))</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"open"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"bar_ret"</span><span class="p">,</span> <span class="s2">"range"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">feature_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 5)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>open</th><th>close</th><th>bar_ret</th><th>range</th></tr><tr><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2022-01-04 09:25:00</td><td>8243.0</td><td>8267.0</td><td>0.002912</td><td>47.0</td></tr><tr><td>2022-01-04 09:30:00</td><td>8267.0</td><td>8323.0</td><td>0.006774</td><td>73.0</td></tr><tr><td>2022-01-04 09:35:00</td><td>8323.0</td><td>8371.0</td><td>0.005767</td><td>90.0</td></tr><tr><td>2022-01-04 09:40:00</td><td>8374.0</td><td>8385.0</td><td>0.001314</td><td>23.0</td></tr><tr><td>2022-01-04 10:00:00</td><td>8335.0</td><td>8341.0</td><td>0.00072</td><td>38.0</td></tr><tr><td>2022-01-04 10:05:00</td><td>8340.0</td><td>8345.0</td><td>0.0006</td><td>24.0</td></tr><tr><td>2022-01-04 10:55:00</td><td>8234.0</td><td>8256.0</td><td>0.002672</td><td>43.0</td></tr><tr><td>2022-01-04 11:05:00</td><td>8210.0</td><td>8257.0</td><td>0.005725</td><td>55.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=015c91d5"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-%E7%AE%97%E6%9C%AF%E3%80%81%E6%AF%94%E8%BE%83%E3%80%81%E5%B8%83%E5%B0%94%E3%80%81%E7%BC%BA%E5%A4%B1%E5%80%BC%E3%80%81%E7%B1%BB%E5%9E%8B%E8%BD%AC%E6%8D%A2">4. 算术、比较、布尔、缺失值、类型转换</h2><p>qust 表达式支持 Python 运算符：<code>+ - * / **</code>、<code>&gt; &gt;= &lt; &lt;= == !=</code>、<code>&amp; | ~</code>。常用清洗算子包括 <code>fill_null</code>、<code>fill_nan</code>、<code>clip</code>、<code>cast</code>、<code>is_between</code> 等。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=bb1b703b">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">clean_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">)</span> <span class="o">-</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">1.0</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">),</span>
+    <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"is_up"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"volume_f64"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="mf">300.0</span><span class="p">,</span> <span class="mf">500.0</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"close_clip"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">clean_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 5)</small><table border="1" class="dataframe-table"><thead><tr><th>ret</th><th>is_up</th><th>volume_f64</th><th>close_clip</th><th>date</th></tr><tr><td>f64</td><td>bool</td><td>f64</td><td>f64</td><td>date</td></tr></thead><tbody><tr><td>-0.000238</td><td>false</td><td>1100.0</td><td>500.0</td><td>2022-01-04</td></tr><tr><td>-0.000835</td><td>false</td><td>11169.0</td><td>500.0</td><td>2022-01-04</td></tr><tr><td>-0.008716</td><td>false</td><td>14001.0</td><td>500.0</td><td>2022-01-04</td></tr><tr><td>-0.00253</td><td>false</td><td>12839.0</td><td>500.0</td><td>2022-01-04</td></tr><tr><td>-0.003986</td><td>false</td><td>11496.0</td><td>500.0</td><td>2022-01-04</td></tr><tr><td>0.002912</td><td>true</td><td>12307.0</td><td>500.0</td><td>2022-01-04</td></tr><tr><td>0.006774</td><td>true</td><td>10889.0</td><td>500.0</td><td>2022-01-04</td></tr><tr><td>0.005767</td><td>true</td><td>19223.0</td><td>500.0</td><td>2022-01-04</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=8d1ea624"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-%E8%A1%8C%E7%AE%97%E5%AD%90%E4%B8%8E%E6%A8%AA%E5%90%91%E7%AE%97%E5%AD%90">5. 行算子与横向算子</h2><p><code>mean/sum/std/var/min/max/count/rank/first_value/last_value</code> 等在 qust 里是表达式算子。</p>
+<ul>
+<li>单列 + 行算子：沿当前输入行聚合，通常输出标量或上下文结果；</li>
+<li>多列 + <code>axis=1</code>：横向按行聚合。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=4863c349">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">row_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"close_mean"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"close_std"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"last_rank"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ohlc_row_mean"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">row_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1_000, 4)</small><table border="1" class="dataframe-table"><thead><tr><th>close_mean</th><th>close_std</th><th>last_rank</th><th>ohlc_row_mean</th></tr><tr><td>f64</td><td>f64</td><td>u32</td><td>f64</td></tr></thead><tbody><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8393.0</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8375.0</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8337.75</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8291.75</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8263.25</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8249.25</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8291.75</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8353.5</td></tr><tr><td>…</td><td>…</td><td>…</td><td>…</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8982.0</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8965.0</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8960.25</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8941.5</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8941.25</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8935.5</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8935.0</td></tr><tr><td>8670.853</td><td>312.101703</td><td>777</td><td>8932.25</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=cb5ab99e"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-%E4%B8%8A%E4%B8%8B%E6%96%87%EF%BC%9Arolling%E3%80%81expanding%E3%80%81group_by%E3%80%81over">6. 上下文：rolling、expanding、group_by、over</h2><p>上下文改变行算子的执行范围：</p>
+<ul>
+<li><code>.rolling(20)</code>：每行使用最近 20 行窗口；</li>
+<li><code>.expanding()</code>：从开始到当前行的累计窗口；</li>
+<li><code>.group_by("ticker")</code>：按 key 聚合，输出长度通常变成分组数；</li>
+<li><code>.over("ticker", "ct")</code>：按 key 独立维护状态；期货 K 线通常使用 <code>ticker + ct</code> 作为 key，但输出仍对齐原始行。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=672485fd">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">context_expr</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span>
+    <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ma20"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"mean_so_far"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"ma20"</span><span class="p">,</span> <span class="s2">"mean_so_far"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">context_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 6)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>close</th><th>ma20</th><th>mean_so_far</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>205</td><td>2022-02-10 09:10:00</td><td>8970.0</td><td>8996.6</td><td>8668.950655</td></tr><tr><td>"AP"</td><td>205</td><td>2022-02-10 09:15:00</td><td>8971.0</td><td>8995.8</td><td>8669.254527</td></tr><tr><td>"AP"</td><td>205</td><td>2022-02-10 09:20:00</td><td>8940.0</td><td>8992.85</td><td>8669.526633</td></tr><tr><td>"AP"</td><td>205</td><td>2022-02-10 09:25:00</td><td>8937.0</td><td>8990.7</td><td>8669.795181</td></tr><tr><td>"AP"</td><td>205</td><td>2022-02-10 09:30:00</td><td>8941.0</td><td>8988.55</td><td>8670.067202</td></tr><tr><td>"AP"</td><td>205</td><td>2022-02-10 09:35:00</td><td>8934.0</td><td>8985.65</td><td>8670.331663</td></tr><tr><td>"AP"</td><td>205</td><td>2022-02-10 09:40:00</td><td>8934.0</td><td>8983.0</td><td>8670.595596</td></tr><tr><td>"AP"</td><td>205</td><td>2022-02-10 09:45:00</td><td>8928.0</td><td>8980.4</td><td>8670.853</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=5fce5ae9">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">grouped</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">50_000</span><span class="p">))</span>
+<span class="n">grouped</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (2, 3)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>close</th><th>volume</th></tr><tr><td>str</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>8333.45388</td><td>2520.038286</td></tr><tr><td>"RM"</td><td>3264.187236</td><td>6661.973887</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=4d6fda96"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-%E7%9B%B4%E6%8E%A5%E8%B0%83%E7%94%A8-Polars-%E8%A1%A8%E8%BE%BE%E5%BC%8F">7. 直接调用 Polars 表达式</h2><p>如果某个操作 Polars 已经写得很好，可以直接把 <code>pl.Expr</code> 放进 qust：</p>
+<ul>
+<li><code>col(pl.col("close").log().alias("log_close"))</code>；</li>
+<li><code>expr.select(pl.col("x").rank())</code>。</li>
+</ul>
+<p>这种写法适合复用 Polars 生态，但要记住：这是 Polars 表达式语义，不一定有 qust 的流式状态能力。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=723bde97">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">polars_inside</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"log_close"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">rank</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"polars_rank"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">polars_inside</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">8</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>log_close</th><th>polars_rank</th></tr><tr><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>9.035034</td><td>8.0</td></tr><tr><td>9.033365</td><td>7.0</td></tr><tr><td>9.024252</td><td>4.0</td></tr><tr><td>9.021598</td><td>3.0</td></tr><tr><td>9.017484</td><td>1.0</td></tr><tr><td>9.020027</td><td>2.0</td></tr><tr><td>9.026778</td><td>5.0</td></tr><tr><td>9.032529</td><td>6.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=f678b523"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-display()%E3%80%81runtime()%E3%80%81calc_data()">8. <code>display()</code>、<code>runtime()</code>、<code>calc_data()</code></h2><ul>
+<li><code>expr.display()</code>：尽量显示成可复制的 Python 表达式；</li>
+<li><code>expr.calc_data(data)</code>：短写，直接编译并执行；</li>
+<li><code>expr.runtime()</code>：先编译成 runtime，适合重复计算或 <code>plot/calc_stream</code>。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=86d38d17">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">e</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ma20"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">display</span><span class="p">())</span>
+
+<span class="n">rt</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">rt</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">100</span><span class="p">))</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">rt</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">200</span><span class="p">))</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">col("close").mean().rolling(20, 20).alias("ma20")
+shape: (5, 1)
+┌─────────┐
+│ ma20    │
+│ ---     │
+│ f64     │
+╞═════════╡
+│ 8016.55 │
+│ 8020.6  │
+│ 8024.35 │
+│ 8029.45 │
+│ 8035.15 │
+└─────────┘
+shape: (5, 1)
+┌─────────┐
+│ ma20    │
+│ ---     │
+│ f64     │
+╞═════════╡
+│ 8602.9  │
+│ 8603.15 │
+│ 8603.35 │
+│ 8604.6  │
+│ 8605.2  │
+└─────────┘
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=4e029a30"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="9.-%E6%95%B0%E6%8D%AE%E6%BA%90%EF%BC%9AParquet%E3%80%81DataFrame%E3%80%81LazyFrame">9. 数据源：Parquet、DataFrame、LazyFrame</h2><p><code>qds.read_parquet(...)</code> / <code>qds.from_dataframe(...)</code> / <code>qds.from_lazy(...)</code> 都可以作为 runtime 的数据源。</p>
+<ul>
+<li><code>calc_data(source)</code>：bounded final 语义，最终返回完整结果；</li>
+<li><code>calc_stream(source)</code>：显式逐批 update 语义，会保留每个 batch 的输出。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=28773b02">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">parquet_source</span> <span class="o">=</span> <span class="n">qds</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">1_000</span><span class="p">),</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">250</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">parquet_source</span><span class="p">))</span>
+
+<span class="n">lazy_source</span> <span class="o">=</span> <span class="n">qds</span><span class="o">.</span><span class="n">from_lazy</span><span class="p">(</span>
+    <span class="n">raw</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_CT</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">lazy</span><span class="p">(),</span>
+    <span class="n">chunk_size</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">stream_out</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span><span class="o">.</span><span class="n">calc_stream</span><span class="p">(</span><span class="n">lazy_source</span><span class="p">)</span>
+<span class="n">stream_out</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">shape: (1, 1)
+┌──────────┐
+│ close    │
+│ ---      │
+│ f64      │
+╞══════════╡
+│ 8670.853 │
+└──────────┘
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (4, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>close</th></tr><tr><td>f64</td></tr></thead><tbody><tr><td>8305.12</td></tr><tr><td>8256.02</td></tr><tr><td>8198.493333</td></tr><tr><td>8155.59</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=d3839ad7"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="10.-%E4%BB%8E-0-%E7%90%86%E8%A7%A3-stream%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-calc_stream">10. 从 0 理解 stream：为什么需要 <code>calc_stream</code></h2><p>很多人一开始会把 qust 当成“另一个 DataFrame API”：给一整张表，算完返回一整张表。这就是 <code>calc_data(data)</code>。</p>
+<p>但量化里经常不是这样：</p>
+<ul>
+<li>tick 数据一批一批到来，不可能永远等全量数据到了再算；</li>
+<li>rolling/expanding/持仓/订单状态都需要记住历史状态；</li>
+<li>实盘里每来一个 batch，都要立刻更新信号、监控或风控；</li>
+<li>数据很大时，一次全读进内存不现实。</li>
+</ul>
+<p>这就是 <code>stream</code> 的意义：同一个 runtime 保留状态，每来一批数据就 update 一次。</p>
+<p>下面用一个 12 行的小表一步一步看清楚。表达式是：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"v"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"cum_v"</span><span class="p">)</span>
+</pre></div>
+<p>意思是“从开始到当前行的累计和”。如果 runtime 不保留状态，那么每个 batch 都会从 1 重新累计；如果 runtime 保留状态，第二个 batch 会接着第一个 batch 的结果继续累计。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=f2d9d439">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">stream_toy</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">"t"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">12</span><span class="p">)),</span>
+    <span class="s2">"v"</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">13</span><span class="p">)),</span>
+<span class="p">})</span>
+
+<span class="n">cum_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"v"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"cum_v"</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"输入数据："</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">stream_toy</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"一次性 calc_data："</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">cum_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">stream_toy</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">输入数据：
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>t</th><th>v</th></tr><tr><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>0</td><td>1</td></tr><tr><td>1</td><td>2</td></tr><tr><td>2</td><td>3</td></tr><tr><td>3</td><td>4</td></tr><tr><td>4</td><td>5</td></tr><tr><td>5</td><td>6</td></tr><tr><td>6</td><td>7</td></tr><tr><td>7</td><td>8</td></tr><tr><td>8</td><td>9</td></tr><tr><td>9</td><td>10</td></tr><tr><td>10</td><td>11</td></tr><tr><td>11</td><td>12</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">一次性 calc_data：
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>cum_v</th></tr><tr><td>i64</td></tr></thead><tbody><tr><td>1</td></tr><tr><td>3</td></tr><tr><td>6</td></tr><tr><td>10</td></tr><tr><td>15</td></tr><tr><td>21</td></tr><tr><td>28</td></tr><tr><td>36</td></tr><tr><td>45</td></tr><tr><td>55</td></tr><tr><td>66</td></tr><tr><td>78</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=22c4a7fc"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="10.1-%E6%89%8B%E5%8A%A8%E6%A8%A1%E6%8B%9F%EF%BC%9A%E5%90%8C%E4%B8%80%E4%B8%AA-runtime-%E8%BF%9E%E7%BB%AD%E6%8E%A5%E6%94%B6%E5%A4%9A%E4%B8%AA-batch">10.1 手动模拟：同一个 runtime 连续接收多个 batch</h3><p>这里不用 datasource，直接把 DataFrame 切成 3 个 batch。关键是 <code>rt = cum_expr.runtime()</code> 只创建一次。</p>
+<p>观察输出：</p>
+<ul>
+<li>第 1 批 <code>1,2,3,4</code> 输出 <code>1,3,6,10</code>；</li>
+<li>第 2 批从历史状态 <code>10</code> 后继续，输出 <code>15,21,28,36</code>；</li>
+<li>第 3 批继续输出 <code>45,55,66,78</code>。</li>
+</ul>
+<p>这就是“状态保留”。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=94cf9a29">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">rt</span> <span class="o">=</span> <span class="n">cum_expr</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">manual_batches</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="k">for</span> <span class="n">batch_id</span><span class="p">,</span> <span class="n">batch</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">stream_toy</span><span class="o">.</span><span class="n">iter_slices</span><span class="p">(</span><span class="mi">4</span><span class="p">),</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">rt</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+    <span class="n">manual_batches</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">out</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="n">batch_id</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"batch_id"</span><span class="p">)))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">输入 batch </span><span class="si">{</span><span class="n">batch_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">display</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"输出 batch </span><span class="si">{</span><span class="n">batch_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">display</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+
+<span class="n">manual_stream_result</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span><span class="n">manual_batches</span><span class="p">)</span>
+<span class="n">manual_stream_result</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">
+输入 batch 1
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (4, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>t</th><th>v</th></tr><tr><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>0</td><td>1</td></tr><tr><td>1</td><td>2</td></tr><tr><td>2</td><td>3</td></tr><tr><td>3</td><td>4</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">输出 batch 1
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (4, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>cum_v</th></tr><tr><td>i64</td></tr></thead><tbody><tr><td>1</td></tr><tr><td>3</td></tr><tr><td>6</td></tr><tr><td>10</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">
+输入 batch 2
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (4, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>t</th><th>v</th></tr><tr><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>4</td><td>5</td></tr><tr><td>5</td><td>6</td></tr><tr><td>6</td><td>7</td></tr><tr><td>7</td><td>8</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">输出 batch 2
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (4, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>cum_v</th></tr><tr><td>i64</td></tr></thead><tbody><tr><td>15</td></tr><tr><td>21</td></tr><tr><td>28</td></tr><tr><td>36</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">
+输入 batch 3
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (4, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>t</th><th>v</th></tr><tr><td>i64</td><td>i64</td></tr></thead><tbody><tr><td>8</td><td>9</td></tr><tr><td>9</td><td>10</td></tr><tr><td>10</td><td>11</td></tr><tr><td>11</td><td>12</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">输出 batch 3
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (4, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>cum_v</th></tr><tr><td>i64</td></tr></thead><tbody><tr><td>45</td></tr><tr><td>55</td></tr><tr><td>66</td></tr><tr><td>78</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>cum_v</th><th>batch_id</th></tr><tr><td>i64</td><td>i32</td></tr></thead><tbody><tr><td>1</td><td>1</td></tr><tr><td>3</td><td>1</td></tr><tr><td>6</td><td>1</td></tr><tr><td>10</td><td>1</td></tr><tr><td>15</td><td>2</td></tr><tr><td>21</td><td>2</td></tr><tr><td>28</td><td>2</td></tr><tr><td>36</td><td>2</td></tr><tr><td>45</td><td>3</td></tr><tr><td>55</td><td>3</td></tr><tr><td>66</td><td>3</td></tr><tr><td>78</td><td>3</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=cddb114f"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="10.2-datasource-%E7%89%88%E6%9C%AC%EF%BC%9Acalc_stream(qds.from_dataframe(...,-chunk_size=4))">10.2 datasource 版本：<code>calc_stream(qds.from_dataframe(..., chunk_size=4))</code></h3><p>真实使用时通常不会自己写 for loop，而是把数据源交给 qust：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">source</span> <span class="o">=</span> <span class="n">qds</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">runtime</span><span class="o">.</span><span class="n">calc_stream</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+</pre></div>
+<p><code>chunk_size=4</code> 表示每批 4 行。返回结果和上面的手动循环一致，只是数据读取和 batch 分发由 datasource 负责。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=c2f2f00b">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">source</span> <span class="o">=</span> <span class="n">qds</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">stream_toy</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">stream_result</span> <span class="o">=</span> <span class="n">cum_expr</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span><span class="o">.</span><span class="n">calc_stream</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+<span class="n">stream_result</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>cum_v</th></tr><tr><td>i64</td></tr></thead><tbody><tr><td>1</td></tr><tr><td>3</td></tr><tr><td>6</td></tr><tr><td>10</td></tr><tr><td>15</td></tr><tr><td>21</td></tr><tr><td>28</td></tr><tr><td>36</td></tr><tr><td>45</td></tr><tr><td>55</td></tr><tr><td>66</td></tr><tr><td>78</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=34dae212"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="10.3-%E4%BB%80%E4%B9%88%E6%97%B6%E5%80%99%E7%94%A8-calc_data%EF%BC%8C%E4%BB%80%E4%B9%88%E6%97%B6%E5%80%99%E7%94%A8-calc_stream">10.3 什么时候用 <code>calc_data</code>，什么时候用 <code>calc_stream</code></h3><table class="dataframe-table">
+<thead>
+<tr>
+<th>调用</th>
+<th>适合场景</th>
+<th>状态语义</th>
+<th>输出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>expr.calc_data(pl_df)</code></td>
+<td>小数据、离线一次性研究</td>
+<td>单次 bounded 计算</td>
+<td>一张结果表</td>
+</tr>
+<tr>
+<td><code>expr.runtime().calc_data(batch)</code></td>
+<td>自己控制 batch 循环</td>
+<td>runtime 保留状态</td>
+<td>每个 batch 一张输出</td>
+</tr>
+<tr>
+<td><code>expr.runtime().calc_stream(source)</code></td>
+<td>数据源自动分批、实盘/回放</td>
+<td>runtime 保留状态</td>
+<td>所有 batch 输出拼接</td>
+</tr>
+<tr>
+<td><code>qds.read_parquet(..., chunk_size=...)</code> + <code>calc_data</code></td>
+<td>大文件 bounded final</td>
+<td>IO 分批，但最终语义是完整数据</td>
+<td>一张最终结果表</td>
+</tr>
+</tbody>
+</table>
+<p>简化理解：</p>
+<ul>
+<li>想“像 DataFrame 一样算完”：用 <code>calc_data</code>；</li>
+<li>想“数据一批批来，算子记住历史状态”：用 <code>calc_stream</code>。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=5f197ab5"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="11.-ClickHouse-%E6%95%B0%E6%8D%AE%E6%BA%90">11. ClickHouse 数据源</h2><p>ClickHouse 读取走 <code>qust.datasource</code>：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">qust.datasource</span> <span class="k">as</span> <span class="nn">qds</span>
+
+<span class="n">ch</span> <span class="o">=</span> <span class="n">qds</span><span class="o">.</span><span class="n">ChConfig</span><span class="p">(</span><span class="s2">"host:9000"</span><span class="p">,</span> <span class="s2">"username"</span><span class="p">,</span> <span class="s2">"password"</span><span class="p">,</span> <span class="n">arrow_flight</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">source</span> <span class="o">=</span> <span class="n">ch</span><span class="o">.</span><span class="n">as_datasource</span><span class="p">(</span><span class="s2">"database"</span><span class="p">,</span> <span class="s2">"table"</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">100_000</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="mi">1_000_000</span><span class="p">)</span>
+<span class="n">res</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"trading_date"</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="n">date</span><span class="p">))</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="o">...</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+</pre></div>
+<p>也可以直接传 query：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">source</span> <span class="o">=</span> <span class="n">qds</span><span class="o">.</span><span class="n">clickhouse</span><span class="p">(</span>
+    <span class="n">url</span><span class="o">=</span><span class="s2">"host:9000"</span><span class="p">,</span>
+    <span class="n">database</span><span class="o">=</span><span class="s2">"future_market_data"</span><span class="p">,</span>
+    <span class="n">username</span><span class="o">=</span><span class="s2">"bg"</span><span class="p">,</span>
+    <span class="n">password</span><span class="o">=</span><span class="s2">"***"</span><span class="p">,</span>
+    <span class="n">query</span><span class="o">=</span><span class="s2">"select * from gq_tick where trading_date = '2024-02-02'"</span><span class="p">,</span>
+    <span class="n">chunk_size</span><span class="o">=</span><span class="mi">100_000</span><span class="p">,</span>
+    <span class="n">arrow_flight</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+<p>下面的单元格只有在设置了环境变量后才会真实连接：</p>
+<ul>
+<li><code>QUST_CH_URL</code></li>
+<li><code>QUST_CH_USER</code></li>
+<li><code>QUST_CH_PASSWORD</code></li>
+<li><code>QUST_CH_DB</code></li>
+<li><code>QUST_CH_TABLE</code></li>
+<li>可选：<code>QUST_CH_ARROW_FLIGHT=1</code></li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=9e0f175e">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">required</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"QUST_CH_URL"</span><span class="p">,</span> <span class="s2">"QUST_CH_USER"</span><span class="p">,</span> <span class="s2">"QUST_CH_PASSWORD"</span><span class="p">,</span> <span class="s2">"QUST_CH_DB"</span><span class="p">,</span> <span class="s2">"QUST_CH_TABLE"</span><span class="p">]</span>
+<span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">required</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)]</span>
+
+<span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+    <span class="n">display</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"skipped"</span><span class="p">],</span>
+        <span class="s2">"reason"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"missing env: "</span> <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)],</span>
+    <span class="p">}))</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">ch</span> <span class="o">=</span> <span class="n">qds</span><span class="o">.</span><span class="n">ChConfig</span><span class="p">(</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"QUST_CH_URL"</span><span class="p">],</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"QUST_CH_USER"</span><span class="p">],</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"QUST_CH_PASSWORD"</span><span class="p">],</span>
+        <span class="n">arrow_flight</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"QUST_CH_ARROW_FLIGHT"</span><span class="p">,</span> <span class="s2">"0"</span><span class="p">)</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"1"</span><span class="p">,</span> <span class="s2">"true"</span><span class="p">,</span> <span class="s2">"True"</span><span class="p">},</span>
+    <span class="p">)</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">ch</span><span class="o">.</span><span class="n">as_datasource</span><span class="p">(</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"QUST_CH_DB"</span><span class="p">],</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"QUST_CH_TABLE"</span><span class="p">],</span>
+        <span class="n">chunk_size</span><span class="o">=</span><span class="mi">100_000</span><span class="p">,</span>
+        <span class="n">limit</span><span class="o">=</span><span class="mi">10_000</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">display</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">source</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>status</th><th>reason</th></tr><tr><td>str</td><td>str</td></tr></thead><tbody><tr><td>"skipped"</td><td>"missing env: QUST_CH_URL, QUST…</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=b416c244"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="12.-Debug%EF%BC%9A%E8%A1%A8%E8%BE%BE%E5%BC%8F%E6%98%BE%E7%A4%BA%E3%80%81%E7%BB%93%E6%9E%84%E5%9B%BE%E5%92%8C%E9%94%99%E8%AF%AF%E5%AE%9A%E4%BD%8D">12. Debug：表达式显示、结构图和错误定位</h2><p>基础算子学完以后，真正写策略和因子时最常遇到的问题不是“不会写某个函数”，而是：</p>
+<ul>
+<li>表达式链太长，看不清当前到底在算哪一步；</li>
+<li><code>select / with_cols / over / group_by / rolling</code> 嵌套后，错误只说某列不存在，不知道是哪一个子表达式触发；</li>
+<li>想确认一条表达式的数据流方向：先算哪个 child，再进哪个 parent；</li>
+<li>想逐步检查中间结果，而不是只看到最终报错。</li>
+</ul>
+<p>qust 的 debug 工具主要解决这几件事：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>工具</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>expr.display()</code> / <code>repr(expr)</code></td>
+<td>把表达式显示成尽量可复制到 Python 端运行的形式</td>
+</tr>
+<tr>
+<td><code>expr.explain_text()</code></td>
+<td>用文本查看表达式树，适合终端和日志</td>
+</tr>
+<tr>
+<td><code>expr.explain()</code></td>
+<td>用 monitor UI 查看表达式结构图</td>
+</tr>
+<tr>
+<td><code>expr.calc_data_debug(data)</code></td>
+<td>带 debug 上下文执行，报错时附加失败表达式、阶段和 schema</td>
+</tr>
+<tr>
+<td><code>expr.calc_data_debug(data, plot=True)</code></td>
+<td>打开 debug plot UI，按数据流逐步查看执行节点、耗时和失败位置</td>
+</tr>
+</tbody>
+</table>
+<p>下面用一个有 rolling、有 over、有派生列的表达式做示例。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=360d3108"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="12.1-display()%EF%BC%9A%E5%85%88%E6%8A%8A%E8%A1%A8%E8%BE%BE%E5%BC%8F%E7%9C%8B%E6%B8%85%E6%A5%9A">12.1 <code>display()</code>：先把表达式看清楚</h3><p><code>display()</code> 的目标是让表达式尽量像 Python 代码一样可读。复杂表达式不一定 100% 还原你最初写代码时的换行和变量名，但应该能看出：</p>
+<ul>
+<li>输入列是谁；</li>
+<li>哪些地方是 <code>rolling</code> / <code>expanding</code> / <code>over</code>；</li>
+<li>哪些地方做了 alias；</li>
+<li>哪些地方是二元运算或横向组合。</li>
+</ul>
+<p>这个方法适合在交互环境、日志、异常信息里快速确认“我手里的 expr 到底是什么”。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=7665d30b">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">debug_data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span>
+
+<span class="n">debug_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="s2">"ticker"</span><span class="p">,</span>
+    <span class="s2">"ct"</span><span class="p">,</span>
+    <span class="s2">"datetime"</span><span class="p">,</span>
+    <span class="s2">"open"</span><span class="p">,</span>
+    <span class="s2">"close"</span><span class="p">,</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ma20"</span><span class="p">),</span>
+    <span class="p">((</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">))</span> <span class="o">-</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">1.0</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"bar_ret"</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">debug_expr</span><span class="o">.</span><span class="n">display</span><span class="p">())</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">col(col("ticker"), col("ct"), col("datetime"), col("open"), col("close"), col("close").mean().rolling(20, 20).alias("ma20"), (col("close") / col("open")) - col.lit(1.0).alias("bar_ret")).over(col(col("ticker"), col("ct")))
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=7cd948ab"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="12.2-explain_text()-%E5%92%8C-explain()%EF%BC%9A%E7%9C%8B%E8%A1%A8%E8%BE%BE%E5%BC%8F%E6%A0%91">12.2 <code>explain_text()</code> 和 <code>explain()</code>：看表达式树</h3><p><code>explain_text()</code> 是纯文本，适合复制到日志里。每一行大致包含：</p>
+<ul>
+<li>节点 id：例如 <code>[0.1.2]</code>；</li>
+<li>节点表达式；</li>
+<li>节点类型：例如 <code>select</code>、<code>over</code>；</li>
+<li>节点角色：例如 <code>root</code>、<code>group</code>、<code>callback</code>、<code>select[2]</code>。</li>
+</ul>
+<p><code>explain()</code> 会打开 monitor UI 版本的结构图。这个图只解释表达式结构，不执行数据；适合在表达式很长时看数据流方向。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=ec4986e3">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">debug_expr</span><span class="o">.</span><span class="n">explain_text</span><span class="p">()</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()[:</span><span class="mi">14</span><span class="p">]))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">[0] col(col("ticker"), col("ct"), col("datetime"), col("open"), col("close"), col("close").mean().rolling(20, 20).alias("ma20"), (col("close") / col("open")) - col.lit(1.0).alias("bar_ret")).over(col(col("ticker"), col("ct"))) (over) role=root
+  [0.0] col(col("ticker"), col("ct")) (select) role=group
+    [0.0.0] col("ticker") (ExprImpl) role=select[0]
+    [0.0.1] col("ct") (ExprImpl) role=select[1]
+  [0.1] col(col("ticker"), col("ct"), col("datetime"), col("open"), col("close"), col("close").mean().rolling(20, 20).alias("ma20"), (col("close") / col("open")) - col.lit(1.0).alias("bar_ret")) (select) role=callback
+    [0.1.0] col("ticker") (ExprImpl) role=select[0]
+    [0.1.1] col("ct") (ExprImpl) role=select[1]
+    [0.1.2] col("datetime") (ExprImpl) role=select[2]
+    [0.1.3] col("open") (ExprImpl) role=select[3]
+    [0.1.4] col("close") (ExprImpl) role=select[4]
+    [0.1.5] col("close").mean().rolling(20, 20).alias("ma20") (pipe) role=select[5]
+      [0.1.5.0] col("close").mean().rolling(20, 20) (ExprImpl) role=child
+        [0.1.5.0.0] col("close").mean() (pipe) role=child[0]
+          [0.1.5.0.0.0] col("close") (ExprImpl) role=child
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=4892cbd4">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">explain_url</span> <span class="o">=</span> <span class="n">debug_expr</span><span class="o">.</span><span class="n">explain</span><span class="p">(</span><span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">620</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">explain_url</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="2-基础用法 monitor output 1" loading="lazy" src="../../assets/notebook-renders/tutorial-2-qust-basics-01.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">http://127.0.0.1:56715/index.html?config=18c6a77aa91bd6bf-13&amp;v=1785243190611748561
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=fd314cf4"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="12.3-calc_data_debug(data)%EF%BC%9A%E6%AD%A3%E5%B8%B8%E8%AE%A1%E7%AE%97%E6%97%B6%E7%BB%93%E6%9E%9C%E4%B8%8D%E5%8F%98">12.3 <code>calc_data_debug(data)</code>：正常计算时结果不变</h3><p><code>calc_data_debug(data)</code> 会用 debug runtime 执行表达式。成功时，它返回的仍然是普通 <code>pl.DataFrame</code>，和 <code>calc_data(data)</code> 的结果口径一致。</p>
+<p>区别在于：如果中间某个节点失败，debug runtime 会把失败节点、阶段、输入 schema 等信息附加到异常文本里。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=889cc286">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">normal_result</span> <span class="o">=</span> <span class="n">debug_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">debug_data</span><span class="p">)</span>
+<span class="n">debug_result</span> <span class="o">=</span> <span class="n">debug_expr</span><span class="o">.</span><span class="n">calc_data_debug</span><span class="p">(</span><span class="n">debug_data</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"normal shape:"</span><span class="p">,</span> <span class="n">normal_result</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"debug shape:"</span><span class="p">,</span> <span class="n">debug_result</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"结果是否一致:"</span><span class="p">,</span> <span class="n">normal_result</span><span class="o">.</span><span class="n">equals</span><span class="p">(</span><span class="n">debug_result</span><span class="p">))</span>
+<span class="n">debug_result</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">normal shape: (200, 7)
+debug shape: (200, 7)
+结果是否一致: True
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 7)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>open</th><th>close</th><th>ma20</th><th>bar_ret</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:00:00</td><td>8394.0</td><td>8392.0</td><td>null</td><td>-0.000238</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:05:00</td><td>8385.0</td><td>8378.0</td><td>null</td><td>-0.000835</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:10:00</td><td>8375.0</td><td>8302.0</td><td>null</td><td>-0.008716</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:15:00</td><td>8301.0</td><td>8280.0</td><td>null</td><td>-0.00253</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:20:00</td><td>8279.0</td><td>8246.0</td><td>null</td><td>-0.003986</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:25:00</td><td>8243.0</td><td>8267.0</td><td>null</td><td>0.002912</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:30:00</td><td>8267.0</td><td>8323.0</td><td>null</td><td>0.006774</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:35:00</td><td>8323.0</td><td>8371.0</td><td>null</td><td>0.005767</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=e61d7f1c"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="12.4-%E5%A4%B1%E8%B4%A5%E5%AE%9A%E4%BD%8D%EF%BC%9A%E6%89%BE%E5%88%B0%E7%9C%9F%E6%AD%A3%E5%87%BA%E9%94%99%E7%9A%84%E5%AD%90%E8%A1%A8%E8%BE%BE%E5%BC%8F">12.4 失败定位：找到真正出错的子表达式</h3><p>下面故意构造一个错误：输入数据只保留 <code>open/high</code> 两列，但表达式里使用了不存在的 <code>low</code>。</p>
+<p>普通报错往往只能告诉你“找不到 low”。debug 报错会额外给出：</p>
+<ul>
+<li><code>failed expr</code>：最小失败表达式，这里应该定位到 <code>col("low")</code>；</li>
+<li><code>debug stage</code>：失败发生在 schema 推导还是执行阶段；</li>
+<li><code>debug input schema</code>：当前节点看到的输入列；</li>
+<li><code>debug path</code>：失败节点所在路径。</li>
+</ul>
+<p>在长策略里，这比只看到 <code>calc_data step=0</code> 有用得多。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=7b26527d">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">bad_data</span> <span class="o">=</span> <span class="n">debug_data</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">)</span>
+<span class="n">bad_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="s2">"open"</span><span class="p">,</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"high_ma3"</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">)</span> <span class="o">+</span> <span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">bad_expr</span><span class="o">.</span><span class="n">calc_data_debug</span><span class="p">(</span><span class="n">bad_data</span><span class="p">)</span>
+<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+    <span class="n">debug_error_text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
+    <span class="n">interesting</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">debug_error_text</span><span class="o">.</span><span class="n">splitlines</span><span class="p">():</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="s2">"unable to find column"</span> <span class="ow">in</span> <span class="n">line</span>
+            <span class="ow">or</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"failed expr:"</span><span class="p">)</span>
+            <span class="ow">or</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"debug stage:"</span><span class="p">)</span>
+            <span class="ow">or</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"debug input schema:"</span><span class="p">)</span>
+            <span class="ow">or</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"debug path:"</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="n">interesting</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">interesting</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">ColumnNotFound(ErrString("unable to find column \"low\"; valid columns: []\n\nResolved plan until failure:\n\n\t---&gt; FAILED HERE RESOLVING 'select' &lt;---\nDF []; PROJECT */0 COLUMNS"))
+failed expr: col("low")
+debug stage: fw
+debug input schema: [open:Float64, high_ma3:Float64]
+debug path: col("open") + col("low")
+debug stage: fw: pipe.parent
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=f19e6cba"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="12.5-calc_data_debug(plot=True)%EF%BC%9A%E9%80%90%E7%AE%97%E5%AD%90%E6%9F%A5%E7%9C%8B%E6%89%A7%E8%A1%8C%E7%BB%93%E6%9E%9C">12.5 <code>calc_data_debug(plot=True)</code>：逐算子查看执行结果</h3><p><code>plot=True</code> 会打开 debug plot UI。这个 UI 的重点不是画行情图，而是展示表达式图执行过程：</p>
+<ul>
+<li>节点按表达式结构排列；</li>
+<li>每一步有执行状态和耗时；</li>
+<li>点击下一步可以按数据流方向逐步推进；</li>
+<li>如果某个节点失败，对应节点会标红；</li>
+<li>只有点击“保存当前结果”时，才会把当前结果保存到当前工作目录下的 parquet 文件。</li>
+</ul>
+<p>下面对成功表达式打开 debug plot。这个输出是 交互 iframe，不是静态 PNG。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=f4c131e6">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">debug_plot_url</span> <span class="o">=</span> <span class="n">debug_expr</span><span class="o">.</span><span class="n">calc_data_debug</span><span class="p">(</span>
+    <span class="n">debug_data</span><span class="p">,</span>
+    <span class="n">plot</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">height</span><span class="o">=</span><span class="mi">720</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">debug_plot_url</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="2-基础用法 monitor output 2" loading="lazy" src="../../assets/notebook-renders/tutorial-2-qust-basics-02.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">http://127.0.0.1:56715/index.html?config=18c6a77aaaaf76dc-2b&amp;v=1785243190611748561
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=38553f24"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h3 id="12.6-%E8%B0%83%E8%AF%95%E6%97%B6%E7%9A%84%E5%AE%9E%E7%94%A8%E4%B9%A0%E6%83%AF">12.6 调试时的实用习惯</h3><p>建议按这个顺序排查问题：</p>
+<ol>
+<li>先 <code>expr.display()</code>：确认表达式是不是你以为的那个表达式；</li>
+<li>再 <code>expr.explain_text()</code> 或 <code>expr.explain()</code>：确认 <code>select/with_cols/over/group_by</code> 的层级；</li>
+<li>小样本跑 <code>expr.calc_data_debug(data.head(...))</code>：优先定位 schema、列名、类型错误；</li>
+<li>对复杂表达式用 <code>plot=True</code>：按数据流逐步看节点，尤其适合定位长 pipeline 里的局部问题；</li>
+<li>如果是流式问题，用同一个 <code>runtime</code> 手动喂几个 batch，确认状态是否按预期保留。</li>
+</ol>
+<p>debug 工具只改变“怎么报告和展示错误”，不应该改变普通 <code>calc_data</code> 的计算语义。</p>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../../site.js"></script>
+  </body>
+</html>

@@ -1,0 +1,1421 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust is a high-performance compute engine for DataFrame workflows, streaming computation, quantitative research, ClickHouse, and custom operators.">
+    <title>qust 参数与策略参数优化：从 0 到完整曲线对比 | qust</title>
+    <link rel="stylesheet" href="../../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust home">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="primary navigation">
+          <a href="../tutorial.html">Tutorial</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../../examples/docs/index.html">Docs</a>
+          <a href="../service.html">Services</a>
+          <a href="https://baiguoname.github.io/qust/site">Project</a>
+          <a href="https://github.com/baiguoname/qust">GitHub</a>
+          <a class="lang-switch" href="../../tutorial/9-参数优化.html">中文</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../tutorial.html">Back to index</a>
+        <div class="article-list">
+          <a class="article-link" href="1-项目概览.html">项目概览</a><a class="article-link" href="2-基础用法.html">基础用法</a><a class="article-link" href="3-性能对比.html">性能对比</a><a class="article-link" href="4-高阶用法.html">高阶用法</a><a class="article-link" href="5-monitor.html">Monitor</a><a class="article-link" href="6-alpha-与策略分析.html">Alpha 与策略分析</a><a class="article-link" href="7-分析示例.html">分析示例</a><a class="article-link" href="8-指标示例.html">指标示例</a><a class="article-link active" href="9-参数优化.html">参数优化</a><a class="article-link" href="10-策略编写.html">策略编写</a><a class="article-link" href="11-smc.html">SMC</a><a class="article-link" href="12-组合策略.html">组合策略</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=5da0b308"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="qust-%E5%8F%82%E6%95%B0%E4%B8%8E%E7%AD%96%E7%95%A5%E5%8F%82%E6%95%B0%E4%BC%98%E5%8C%96%EF%BC%9A%E4%BB%8E-0-%E5%88%B0%E5%AE%8C%E6%95%B4%E6%9B%B2%E7%BA%BF%E5%AF%B9%E6%AF%94">qust 参数与策略参数优化：从 0 到完整曲线对比</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>本节按真实研究流程说明 qust 参数系统和参数优化，不只给一段 <code>optuna_params</code> 代码：</p>
+<ol>
+<li>先理解什么是 <code>Params</code>，为什么策略参数不要写死；</li>
+<li>用 <code>pms(...)</code> 定义一个带参数的均线策略；</li>
+<li>先跑默认参数，得到默认净值曲线；</li>
+<li>用 <code>opt_params</code> 做完整网格搜索；</li>
+<li>把网格搜索里最好的参数写回新的策略表达式；</li>
+<li>用 <code>optuna_params</code> 做启发式搜索，并说明它返回的是新的 Expr；</li>
+<li>对比默认参数、网格最优、Optuna 最优的收益曲线；</li>
+<li>说明每种优化方法适合什么场景。</li>
+</ol>
+<p>重要：这里的图使用 qust 原生 <code>monitor</code> 输出，不转成 PNG。运行到 plot cell 时，看到的就是 qust 实际 monitor。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=21eb6bff">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">optuna</span>
+
+<span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span><span class="p">,</span> <span class="n">pms</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+
+<span class="n">optuna</span><span class="o">.</span><span class="n">logging</span><span class="o">.</span><span class="n">set_verbosity</span><span class="p">(</span><span class="n">optuna</span><span class="o">.</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">14</span><span class="p">)</span>
+
+<span class="n">DATA_PATH</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_kline3.parquet?raw=true"</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=44ef3c34"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-%E5%87%86%E5%A4%87%E6%95%B0%E6%8D%AE%EF%BC%9A%E5%85%88%E7%94%A8%E4%B8%80%E4%B8%AA%E5%93%81%E7%A7%8D%E7%9A%84%E5%B0%8F%E6%A0%B7%E6%9C%AC">1. 准备数据：先用一个品种的小样本</h2><p>参数优化本质上是“重复跑很多次策略”。如果一开始就用全市场全历史，调试会很慢，也不容易看清每一步。</p>
+<p>所以这里先取一个品种 <code>au</code> 的前 2000 行 K 线。真实研究时只需要把 <code>head(2_000)</code> 去掉或换成更大的范围。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=22331126">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">raw</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">])</span>
+<span class="n">PLOT_ROW</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">])</span><span class="o">.</span><span class="n">row</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">named</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">PLOT_TICKER</span> <span class="o">=</span> <span class="n">PLOT_ROW</span><span class="p">[</span><span class="s2">"ticker"</span><span class="p">]</span>
+<span class="n">PLOT_CT</span> <span class="o">=</span> <span class="n">PLOT_ROW</span><span class="p">[</span><span class="s2">"ct"</span><span class="p">]</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_CT</span><span class="p">))</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">2_000</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"raw shape:"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"optimization contract:"</span><span class="p">,</span> <span class="n">PLOT_TICKER</span><span class="p">,</span> <span class="n">PLOT_CT</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"optimization sample shape:"</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">data</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"open"</span><span class="p">,</span> <span class="s2">"high"</span><span class="p">,</span> <span class="s2">"low"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">raw shape: (610463, 8)
+optimization sample shape: (2000, 8)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 7)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th></tr><tr><td>str</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"au"</td><td>2022-07-02 00:01:00</td><td>390.160004</td><td>390.160004</td><td>390.059998</td><td>390.119995</td><td>81.0</td></tr><tr><td>"au"</td><td>2022-07-02 00:02:00.500</td><td>390.119995</td><td>390.140015</td><td>390.079987</td><td>390.140015</td><td>52.0</td></tr><tr><td>"au"</td><td>2022-07-02 00:03:00</td><td>390.140015</td><td>390.200012</td><td>390.119995</td><td>390.200012</td><td>50.0</td></tr><tr><td>"au"</td><td>2022-07-02 00:04:01</td><td>390.200012</td><td>390.220001</td><td>390.140015</td><td>390.160004</td><td>61.0</td></tr><tr><td>"au"</td><td>2022-07-02 00:05:00.500</td><td>390.140015</td><td>390.140015</td><td>390.079987</td><td>390.100006</td><td>41.0</td></tr><tr><td>"au"</td><td>2022-07-02 00:06:00.500</td><td>390.079987</td><td>390.200012</td><td>390.079987</td><td>390.140015</td><td>73.0</td></tr><tr><td>"au"</td><td>2022-07-02 00:07:00</td><td>390.119995</td><td>390.140015</td><td>389.859985</td><td>389.880005</td><td>172.0</td></tr><tr><td>"au"</td><td>2022-07-02 00:08:03</td><td>389.859985</td><td>389.940002</td><td>389.859985</td><td>389.880005</td><td>118.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=23d6fdbd"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-Params-%E6%98%AF%E4%BB%80%E4%B9%88%EF%BC%9F">2. <code>Params</code> 是什么？</h2><p>普通写法会把策略参数写死：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">fast</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">slow</span> <span class="o">=</span> <span class="mi">60</span>
+<span class="n">fee</span> <span class="o">=</span> <span class="mf">0.0002</span>
+</pre></div>
+<p>这样能跑，但优化器不知道哪些数字应该搜索。qust 用 <code>pms(...)</code> 创建参数对象：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">pms</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"fast"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+<p>含义是：</p>
+<ul>
+<li>搜索空间从 5 到 30；</li>
+<li>参数名是 <code>fast</code>，后面 <code>include=["fast"]</code> 和 Optuna 都靠这个名字识别；</li>
+<li>默认值是 10；</li>
+<li>搜索步长是 5。</li>
+</ul>
+<p>参数类型：</p>
+<ul>
+<li><code>pms(1, 20)</code>：整数参数；</li>
+<li><code>pms(0.0, 1.0)</code>：浮点参数；</li>
+<li><code>pms(["a", "b"], None)</code>：字符串/类别参数；</li>
+<li><code>pms([expr1, expr2], None)</code>：表达式候选池，本质上也是类别参数。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=06924787">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="k">def</span> <span class="nf">param_table</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">params</span><span class="p">()):</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">widget</span><span class="p">()</span>
+        <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
+            <span class="s2">"index"</span><span class="p">:</span> <span class="n">idx</span><span class="p">,</span>
+            <span class="s2">"name"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">widget</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">widget</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">),</span>
+            <span class="s2">"kind"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">widget</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">widget</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">),</span>
+            <span class="s2">"value"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">widget</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">widget</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"value"</span><span class="p">),</span>
+            <span class="s2">"start"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">widget</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">widget</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"start"</span><span class="p">),</span>
+            <span class="s2">"end"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">widget</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">widget</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"end"</span><span class="p">),</span>
+            <span class="s2">"step"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">widget</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">widget</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"step"</span><span class="p">),</span>
+            <span class="s2">"pool"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">widget</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">widget</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"pool"</span><span class="p">),</span>
+        <span class="p">})</span>
+    <span class="k">return</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
+
+<span class="n">fast_demo</span> <span class="o">=</span> <span class="n">pms</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"fast"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">fee_demo</span> <span class="o">=</span> <span class="n">pms</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"fee"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mf">0.0002</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mf">0.0002</span><span class="p">)</span>
+<span class="n">mode_demo</span> <span class="o">=</span> <span class="n">pms</span><span class="p">([</span><span class="s2">"long_only"</span><span class="p">,</span> <span class="s2">"flat"</span><span class="p">],</span> <span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"mode"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="s2">"long_only"</span><span class="p">)</span>
+
+<span class="n">demo_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">fast_demo</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"fast_value"</span><span class="p">),</span>
+    <span class="n">fee_demo</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"fee_value"</span><span class="p">),</span>
+    <span class="n">mode_demo</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"mode_value"</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">param_table</span><span class="p">(</span><span class="n">demo_expr</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>index</th><th>name</th><th>kind</th><th>value</th><th>start</th><th>end</th><th>step</th><th>pool</th></tr><tr><td>i64</td><td>str</td><td>str</td><td>str</td><td>f64</td><td>f64</td><td>f64</td><td>list[str]</td></tr></thead><tbody><tr><td>0</td><td>"fast"</td><td>"usize"</td><td>"10"</td><td>5.0</td><td>30.0</td><td>5.0</td><td>null</td></tr><tr><td>1</td><td>"fee"</td><td>"f64"</td><td>"0.0002"</td><td>0.0</td><td>0.001</td><td>0.0002</td><td>null</td></tr><tr><td>2</td><td>"mode"</td><td>"string"</td><td>"long_only"</td><td>null</td><td>null</td><td>null</td><td>["long_only", "flat"]</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=8a49cef0"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-%E5%AE%9A%E4%B9%89%E4%B8%80%E4%B8%AA%E5%B8%A6%E5%8F%82%E6%95%B0%E7%9A%84%E7%AD%96%E7%95%A5">3. 定义一个带参数的策略</h2><p>策略逻辑非常简单，目的是讲清参数优化流程：</p>
+<ol>
+<li>计算快均线 <code>fast_ma</code>；</li>
+<li>计算慢均线 <code>slow_ma</code>；</li>
+<li>如果 <code>fast_ma &gt; slow_ma</code>，下一根 K 线持有多头；否则空仓；</li>
+<li>每次仓位变化时扣手续费 <code>fee</code>；</li>
+<li>输出逐行收益 <code>ret</code> 和累计净值 <code>equity</code>。</li>
+</ol>
+<p>这里有三个可优化参数：</p>
+<ul>
+<li><code>fast</code>：快均线窗口；</li>
+<li><code>slow</code>：慢均线窗口；</li>
+<li><code>fee</code>：交易成本。</li>
+</ul>
+<p>注意 <code>hold</code> 用了 <code>shift(1).expanding()</code>，表示今天算出的信号下一根 bar 才生效，避免用当前 bar 收盘信号交易当前 bar 的收益。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=40160a5d">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="k">def</span> <span class="nf">make_ma_strategy_curve_expr</span><span class="p">():</span>
+    <span class="n">fast</span> <span class="o">=</span> <span class="n">pms</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"fast"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+    <span class="n">slow</span> <span class="o">=</span> <span class="n">pms</span><span class="p">(</span><span class="mi">40</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"slow"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mi">60</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+    <span class="n">fee</span> <span class="o">=</span> <span class="n">pms</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">)</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">"fee"</span><span class="p">)</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="mf">0.0002</span><span class="p">)</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="mf">0.0002</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">col</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="n">fast</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"fast_ma"</span><span class="p">),</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="n">slow</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"slow_ma"</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"fast_ma"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">col</span><span class="p">(</span><span class="s2">"slow_ma"</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold_raw"</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="n">col</span><span class="p">(</span><span class="s2">"hold_raw"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">expanding</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span>
+            <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">pct</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">0.0</span><span class="p">))</span> <span class="o">*</span> <span class="n">col</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span>
+                <span class="o">-</span> <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span> <span class="o">-</span> <span class="n">col</span><span class="p">(</span><span class="s2">"hold"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">fill_null</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)))</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span>
+                <span class="o">*</span> <span class="n">fee</span><span class="o">.</span><span class="n">as_expr</span><span class="p">()</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">with_cols</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span> <span class="o">+</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">1.0</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"equity"</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="s2">"fast_ma"</span><span class="p">,</span> <span class="s2">"slow_ma"</span><span class="p">,</span> <span class="s2">"hold"</span><span class="p">,</span> <span class="s2">"ret"</span><span class="p">,</span> <span class="s2">"equity"</span><span class="p">)</span>
+    <span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">make_ma_strategy_score_expr</span><span class="p">():</span>
+    <span class="n">curve</span> <span class="o">=</span> <span class="n">make_ma_strategy_curve_expr</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">curve</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()</span> <span class="o">*</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mi">252</span> <span class="o">**</span> <span class="mf">0.5</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"score"</span><span class="p">)</span>
+    <span class="p">)</span>
+
+<span class="n">curve_expr</span> <span class="o">=</span> <span class="n">make_ma_strategy_curve_expr</span><span class="p">()</span>
+<span class="n">score_expr</span> <span class="o">=</span> <span class="n">make_ma_strategy_score_expr</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">curve_expr</span><span class="o">.</span><span class="n">display</span><span class="p">()[:</span><span class="mi">900</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span><span class="p">)</span>
+<span class="n">param_table</span><span class="p">(</span><span class="n">curve_expr</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">col.all.with_cols(col("close").mean().rolling(10, 10).alias("fast_ma"), col("close").mean().rolling(60, 60).alias("slow_ma")).with_cols(col("fast_ma") &gt; col("slow_ma").cast(pl.Float64).fill_null(col.lit(0.0)).alias("hold_raw")).with_cols(col("hold_raw").shift(1).expanding().fill_null(col.lit(0.0)).alias("hold")).with_cols(((col("close") / col("close").shift(1)) - col.lit(1.0).expanding().fill_null(col.lit(0.0)) * col("hold")) - (col("hold") - col("hold").shift(1).expanding().fill_null(col.lit(0.0)).abs() * pms(...).title("fee").value(0.0002)).alias("ret")).with_cols(col("ret").sum().expanding() + col.lit(1.0).alias("equity")).select(col("datetime"), col("close"), col("fast_ma"), col("slow_ma"), col("hold"), col("ret"), col("equity"))...
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>index</th><th>name</th><th>kind</th><th>value</th><th>start</th><th>end</th><th>step</th><th>pool</th></tr><tr><td>i64</td><td>str</td><td>str</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>null</td></tr></thead><tbody><tr><td>0</td><td>"fast"</td><td>"usize"</td><td>10.0</td><td>5.0</td><td>30.0</td><td>5.0</td><td>null</td></tr><tr><td>1</td><td>"slow"</td><td>"usize"</td><td>60.0</td><td>40.0</td><td>100.0</td><td>20.0</td><td>null</td></tr><tr><td>2</td><td>"fee"</td><td>"f64"</td><td>0.0002</td><td>0.0</td><td>0.001</td><td>0.0002</td><td>null</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=6ca56641"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-%E9%BB%98%E8%AE%A4%E5%8F%82%E6%95%B0%E5%85%88%E8%B7%91%E4%B8%80%E9%81%8D">4. 默认参数先跑一遍</h2><p>优化之前必须先知道默认参数表现，否则“优化后好不好”没有参照物。</p>
+<p>下面输出：</p>
+<ul>
+<li>默认参数表；</li>
+<li>默认参数最终几行，包括净值 <code>equity</code>；</li>
+<li>默认参数的评分 <code>score</code>。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=c4ba8957">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">default_curve</span> <span class="o">=</span> <span class="n">curve_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="n">default_score</span> <span class="o">=</span> <span class="n">score_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+<span class="n">display</span><span class="p">(</span><span class="n">param_table</span><span class="p">(</span><span class="n">curve_expr</span><span class="p">))</span>
+<span class="n">display</span><span class="p">(</span><span class="n">default_curve</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">8</span><span class="p">))</span>
+<span class="n">display</span><span class="p">(</span><span class="n">default_score</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>index</th><th>name</th><th>kind</th><th>value</th><th>start</th><th>end</th><th>step</th><th>pool</th></tr><tr><td>i64</td><td>str</td><td>str</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>null</td></tr></thead><tbody><tr><td>0</td><td>"fast"</td><td>"usize"</td><td>10.0</td><td>5.0</td><td>30.0</td><td>5.0</td><td>null</td></tr><tr><td>1</td><td>"slow"</td><td>"usize"</td><td>60.0</td><td>40.0</td><td>100.0</td><td>20.0</td><td>null</td></tr><tr><td>2</td><td>"fee"</td><td>"f64"</td><td>0.0002</td><td>0.0</td><td>0.001</td><td>0.0002</td><td>null</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 7)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>close</th><th>fast_ma</th><th>slow_ma</th><th>hold</th><th>ret</th><th>equity</th></tr><tr><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2022-07-07 14:28:01</td><td>377.660004</td><td>377.582001</td><td>377.597667</td><td>0.0</td><td>-0.0</td><td>0.994648</td></tr><tr><td>2022-07-07 14:29:02</td><td>377.579987</td><td>377.582001</td><td>377.596333</td><td>0.0</td><td>-0.0</td><td>0.994648</td></tr><tr><td>2022-07-07 14:30:01</td><td>377.619995</td><td>377.589999</td><td>377.597333</td><td>0.0</td><td>0.0</td><td>0.994648</td></tr><tr><td>2022-07-07 14:31:01</td><td>377.579987</td><td>377.585999</td><td>377.599333</td><td>0.0</td><td>-0.0</td><td>0.994648</td></tr><tr><td>2022-07-07 14:32:00.500</td><td>377.440002</td><td>377.575998</td><td>377.600333</td><td>0.0</td><td>-0.0</td><td>0.994648</td></tr><tr><td>2022-07-07 14:33:04.500</td><td>377.440002</td><td>377.567999</td><td>377.598333</td><td>0.0</td><td>0.0</td><td>0.994648</td></tr><tr><td>2022-07-07 14:34:03</td><td>377.440002</td><td>377.566</td><td>377.595333</td><td>0.0</td><td>0.0</td><td>0.994648</td></tr><tr><td>2022-07-07 14:35:00</td><td>377.5</td><td>377.556</td><td>377.592667</td><td>0.0</td><td>0.0</td><td>0.994648</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>score</th></tr><tr><td>f64</td></tr></thead><tbody><tr><td>-0.310535</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=c365f596"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-%E7%94%A8-qust-%E7%94%BB%E9%BB%98%E8%AE%A4%E5%8F%82%E6%95%B0%E5%87%80%E5%80%BC%E6%9B%B2%E7%BA%BF">5. 用 qust 画默认参数净值曲线</h2><p>输入给 monitor 的是两列：<code>datetime, equity</code>。</p>
+<p>这张图是后面优化前/后的基准线。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=bc9adfba">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">default_curve_plot</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"equity"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"default_equity"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">default_curve_plot</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">default_curve</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">460</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="9-参数优化 monitor output 1" loading="lazy" src="../../assets/notebook-renders/tutorial-9-optimization-01.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7fb26a81ffd0&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=78fbb183"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-opt_params%EF%BC%9A%E5%AE%8C%E6%95%B4%E7%BD%91%E6%A0%BC%E6%90%9C%E7%B4%A2">6. <code>opt_params</code>：完整网格搜索</h2><p><code>opt_params</code> 会遍历参数空间里的所有组合。这里三个参数组合数量是：</p>
+<ul>
+<li>fast: 5, 10, 15, 20, 25, 30，共 6 个；</li>
+<li>slow: 40, 60, 80, 100，共 4 个；</li>
+<li>fee: 0.0 到 0.001，步长 0.0002，共 6 个；</li>
+<li>总计 6 * 4 * 6 = 144 次回测。</li>
+</ul>
+<p>优点：结果完整，能看到所有组合。</p>
+<p>缺点：参数一多组合数会爆炸。</p>
+<p><code>parallel=False</code> 表示单核跑，最稳、最省内存；如果表达式中间结果不大，可以改成 <code>parallel=True</code> 或指定整数线程数。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=1118e0d6">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">grid</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">score_expr</span>
+    <span class="o">.</span><span class="n">opt_params</span><span class="p">(</span><span class="n">include</span><span class="o">=</span><span class="p">[</span><span class="s2">"fast"</span><span class="p">,</span> <span class="s2">"slow"</span><span class="p">,</span> <span class="s2">"fee"</span><span class="p">],</span> <span class="n">parallel</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+    <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"score"</span><span class="p">,</span> <span class="n">descending</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">grid</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<div style="font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; width: min(720px, 100%);">
+<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+<span id="qust-opt-text-79968d832c274da883fdd7a5da8f02a6">opt_params 0/144 (0.0%)</span>
+<span id="qust-opt-elapsed-faaa1709c7fe467ead3ffd72f6d15d72">elapsed 00:00.000</span>
+<button id="qust-opt-pause-50ad0935fb9749b4ab5b527bd9eaea2e" style="font: inherit; padding: 1px 8px;">Pause</button>
+<button id="qust-opt-stop-647ddd9682254fa998a365fd6f303d1c" style="font: inherit; padding: 1px 8px;">Stop</button>
+</div>
+<progress id="qust-opt-progress-066642142c184436908f499a94755f63" max="144" style="width: 100%; height: 14px;" value="0"></progress>
+<script>
+	    (function() {
+	      var text = document.getElementById("qust-opt-text-79968d832c274da883fdd7a5da8f02a6");
+	      var elapsed = document.getElementById("qust-opt-elapsed-faaa1709c7fe467ead3ffd72f6d15d72");
+	      var progress = document.getElementById("qust-opt-progress-066642142c184436908f499a94755f63");
+	      var pauseBtn = document.getElementById("qust-opt-pause-50ad0935fb9749b4ab5b527bd9eaea2e");
+	      var stopBtn = document.getElementById("qust-opt-stop-647ddd9682254fa998a365fd6f303d1c");
+	      if (!text || !elapsed || !progress || !pauseBtn || !stopBtn || text.__qustPollBound) return;
+	      text.__qustPollBound = true;
+	      var stateUrl = "http://127.0.0.1:34069/control?token=8dc3ce12b3134057af85059d0bd290e3&action=state";
+	      var paused = false;
+	      var timer = null;
+	      var applyState = function(data) {
+	        if (!data || data.ok === false) return;
+	        var total = Math.max(Number(data.total || 0), 0);
+	        var done = Math.max(Number(data.done || 0), 0);
+	        var max = Math.max(total, 1);
+	        var pct = total <= 0 ? 0 : Math.max(0, Math.min(done / total * 100, 100));
+	        paused = !!data.paused;
+	        text.textContent = "opt_params " + done + "/" + total + " (" + pct.toFixed(1) + "%)" + (paused && !data.finished ? " paused" : "");
+	        elapsed.textContent = "elapsed " + (data.elapsed || "00:00.000");
+	        progress.max = max;
+	        progress.value = Math.max(0, Math.min(done, max));
+	        pauseBtn.textContent = paused ? "Restart" : "Pause";
+	        pauseBtn.disabled = !!data.finished || !!data.stopped;
+	        stopBtn.disabled = !!data.finished || !!data.stopped;
+	        if (data.stopped && !data.finished) {
+	          stopBtn.textContent = "Stopping...";
+	        }
+	        if (data.finished && timer !== null) {
+	          clearInterval(timer);
+	          timer = null;
+	        }
+	      };
+	      var poll = function() {
+	        fetch(stateUrl, { method: "GET", mode: "cors", cache: "no-store" })
+	          .then(function(resp) { return resp.json(); })
+	          .then(applyState)
+	          .catch(function() {});
+	      };
+	      timer = setInterval(poll, 250);
+	      poll();
+	    })();
+	    (function() {
+	      var btn = document.getElementById("qust-opt-stop-647ddd9682254fa998a365fd6f303d1c");
+	      if (!btn || btn.__qustStopBound) return;
+	      btn.__qustStopBound = true;
+	      btn.onclick = function() {
+	        btn.disabled = true;
+	        btn.textContent = "Stopping...";
+	        fetch("http://127.0.0.1:34069/control?token=8dc3ce12b3134057af85059d0bd290e3&action=stop", { method: "POST", mode: "cors" }).catch(function() {
+	          if (window.google && google.colab && google.colab.kernel) {
+	            google.colab.kernel.invokeFunction("qust.request_stop", [], {});
+	            return;
+	          }
+	          if (window.Jupyter && Jupyter.notebook && Jupyter.notebook.kernel) {
+	            Jupyter.notebook.kernel.execute("import qust._progress as _q; _q.request_stop()");
+	            return;
+	          }
+	          if (window.IPython && IPython.notebook && IPython.notebook.kernel) {
+	            IPython.notebook.kernel.execute("import qust._progress as _q; _q.request_stop()");
+	          }
+	        });
+	      };
+	    })();
+	    (function() {
+	      var btn = document.getElementById("qust-opt-pause-50ad0935fb9749b4ab5b527bd9eaea2e");
+	      if (!btn || btn.__qustPauseBound) return;
+	      btn.__qustPauseBound = true;
+	      var paused = false;
+	      var pauseUrl = "http://127.0.0.1:34069/control?token=8dc3ce12b3134057af85059d0bd290e3&action=pause";
+	      var resumeUrl = "http://127.0.0.1:34069/control?token=8dc3ce12b3134057af85059d0bd290e3&action=resume";
+	      var setPaused = function(nextPaused) {
+	        paused = !!nextPaused;
+	        btn.textContent = paused ? "Restart" : "Pause";
+	      };
+	      btn.onclick = function() {
+	        var targetPaused = !paused;
+	        btn.disabled = true;
+	        fetch(targetPaused ? pauseUrl : resumeUrl, { method: "POST", mode: "cors" })
+	          .then(function(resp) { return resp.json(); })
+	          .then(function(data) { setPaused(!!data.paused); })
+	          .catch(function() {
+	            setPaused(targetPaused);
+	            if (window.google && google.colab && google.colab.kernel) {
+	              return;
+	            }
+	            if (window.Jupyter && Jupyter.notebook && Jupyter.notebook.kernel) {
+	              Jupyter.notebook.kernel.execute(
+	                targetPaused
+	                  ? "import qust._progress as _q; _q.request_pause()"
+	                  : "import qust._progress as _q; _q.request_resume()"
+	              );
+	              return;
+	            }
+	            if (window.IPython && IPython.notebook && IPython.notebook.kernel) {
+	              IPython.notebook.kernel.execute(
+	                targetPaused
+	                  ? "import qust._progress as _q; _q.request_pause()"
+	                  : "import qust._progress as _q; _q.request_resume()"
+	              );
+	            }
+	          })
+	          .then(function() { btn.disabled = false; });
+	      };
+	    })();
+	  </script>
+</div>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 4)</small><table border="1" class="dataframe-table"><thead><tr><th>score</th><th>fast</th><th>slow</th><th>fee</th></tr><tr><td>f64</td><td>u32</td><td>u32</td><td>f64</td></tr></thead><tbody><tr><td>0.290947</td><td>15</td><td>40</td><td>0.0</td></tr><tr><td>0.260445</td><td>20</td><td>40</td><td>0.0</td></tr><tr><td>0.25435</td><td>15</td><td>60</td><td>0.0</td></tr><tr><td>0.158382</td><td>10</td><td>60</td><td>0.0</td></tr><tr><td>0.124687</td><td>10</td><td>40</td><td>0.0</td></tr><tr><td>0.097922</td><td>5</td><td>80</td><td>0.0</td></tr><tr><td>0.093554</td><td>10</td><td>80</td><td>0.0</td></tr><tr><td>0.082929</td><td>5</td><td>60</td><td>0.0</td></tr><tr><td>0.033894</td><td>25</td><td>40</td><td>0.0</td></tr><tr><td>0.021709</td><td>15</td><td>80</td><td>0.0</td></tr><tr><td>-0.022858</td><td>30</td><td>60</td><td>0.0</td></tr><tr><td>-0.037965</td><td>20</td><td>60</td><td>0.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=4a81284b"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-%E6%8A%8A%E7%BD%91%E6%A0%BC%E6%9C%80%E4%BC%98%E5%8F%82%E6%95%B0%E5%86%99%E5%9B%9E%E6%96%B0%E7%9A%84%E7%AD%96%E7%95%A5%E8%A1%A8%E8%BE%BE%E5%BC%8F">7. 把网格最优参数写回新的策略表达式</h2><p>注意不要在原表达式上乱改。这里重新创建一份策略表达式，然后把 <code>grid</code> 里第一行的最优参数写进去。</p>
+<p>这一步等价于：</p>
+<ol>
+<li><code>best = grid[0]</code>；</li>
+<li>新建一个策略表达式；</li>
+<li>找到同名参数；</li>
+<li><code>set_value_inplace(best_value)</code>；</li>
+<li>再跑一次完整净值曲线。</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=321c35a4">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="k">def</span> <span class="nf">apply_param_values</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">params</span><span class="p">():</span>
+        <span class="n">widget</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">widget</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">widget</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">widget</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">values</span><span class="p">:</span>
+            <span class="n">param</span><span class="o">.</span><span class="n">set_value_inplace</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">expr</span>
+
+<span class="n">best_grid_values</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"fast"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="s2">"fast"</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span>
+    <span class="s2">"slow"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="s2">"slow"</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span>
+    <span class="s2">"fee"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">grid</span><span class="p">[</span><span class="s2">"fee"</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span>
+<span class="p">}</span>
+
+<span class="n">grid_best_curve_expr</span> <span class="o">=</span> <span class="n">apply_param_values</span><span class="p">(</span><span class="n">make_ma_strategy_curve_expr</span><span class="p">(),</span> <span class="n">best_grid_values</span><span class="p">)</span>
+<span class="n">grid_best_score_expr</span> <span class="o">=</span> <span class="n">apply_param_values</span><span class="p">(</span><span class="n">make_ma_strategy_score_expr</span><span class="p">(),</span> <span class="n">best_grid_values</span><span class="p">)</span>
+
+<span class="n">grid_best_curve</span> <span class="o">=</span> <span class="n">grid_best_curve_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="n">grid_best_score</span> <span class="o">=</span> <span class="n">grid_best_score_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"best_grid_values ="</span><span class="p">,</span> <span class="n">best_grid_values</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">param_table</span><span class="p">(</span><span class="n">grid_best_curve_expr</span><span class="p">))</span>
+<span class="n">display</span><span class="p">(</span><span class="n">grid_best_score</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">grid_best_curve</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">8</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">best_grid_values = {'fast': 15, 'slow': 40, 'fee': 0.0}
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>index</th><th>name</th><th>kind</th><th>value</th><th>start</th><th>end</th><th>step</th><th>pool</th></tr><tr><td>i64</td><td>str</td><td>str</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>null</td></tr></thead><tbody><tr><td>0</td><td>"fast"</td><td>"usize"</td><td>15.0</td><td>5.0</td><td>30.0</td><td>5.0</td><td>null</td></tr><tr><td>1</td><td>"slow"</td><td>"usize"</td><td>40.0</td><td>40.0</td><td>100.0</td><td>20.0</td><td>null</td></tr><tr><td>2</td><td>"fee"</td><td>"f64"</td><td>0.0</td><td>0.0</td><td>0.001</td><td>0.0002</td><td>null</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>score</th></tr><tr><td>f64</td></tr></thead><tbody><tr><td>0.290947</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 7)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>close</th><th>fast_ma</th><th>slow_ma</th><th>hold</th><th>ret</th><th>equity</th></tr><tr><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2022-07-07 14:28:01</td><td>377.660004</td><td>377.594668</td><td>377.5585</td><td>1.0</td><td>-0.000106</td><td>1.005415</td></tr><tr><td>2022-07-07 14:29:02</td><td>377.579987</td><td>377.596</td><td>377.556</td><td>1.0</td><td>-0.000212</td><td>1.005203</td></tr><tr><td>2022-07-07 14:30:01</td><td>377.619995</td><td>377.593333</td><td>377.553</td><td>1.0</td><td>0.000106</td><td>1.005309</td></tr><tr><td>2022-07-07 14:31:01</td><td>377.579987</td><td>377.586666</td><td>377.548499</td><td>1.0</td><td>-0.000106</td><td>1.005203</td></tr><tr><td>2022-07-07 14:32:00.500</td><td>377.440002</td><td>377.573332</td><td>377.541</td><td>1.0</td><td>-0.000371</td><td>1.004832</td></tr><tr><td>2022-07-07 14:33:04.500</td><td>377.440002</td><td>377.565332</td><td>377.532</td><td>1.0</td><td>0.0</td><td>1.004832</td></tr><tr><td>2022-07-07 14:34:03</td><td>377.440002</td><td>377.556</td><td>377.524</td><td>1.0</td><td>0.0</td><td>1.004832</td></tr><tr><td>2022-07-07 14:35:00</td><td>377.5</td><td>377.553333</td><td>377.5195</td><td>1.0</td><td>0.000159</td><td>1.004991</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=41b44a0c"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-optuna_params%EF%BC%9A%E5%90%AF%E5%8F%91%E5%BC%8F%E6%90%9C%E7%B4%A2">8. <code>optuna_params</code>：启发式搜索</h2><p><code>optuna_params</code> 不遍历全部组合，而是让 Optuna 根据历史 trial 继续建议参数。</p>
+<p>关键点：</p>
+<ul>
+<li><code>score_fn=None</code> 时，默认取结果第一列第一行作为目标值，所以我们的 <code>score_expr</code> 可以直接优化；</li>
+<li><code>optuna_params</code> 返回的是新的 Expr，不会修改原来的 <code>score_expr</code>；</li>
+<li>当前实现会把默认参数作为 warm-start trial，所以默认参数本身也会被纳入比较。</li>
+</ul>
+<p>下面用 40 次 trial 搜索。为了演示可重复，指定一个 fixed seed 的 sampler。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=7ba793b2">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">study</span> <span class="o">=</span> <span class="n">optuna</span><span class="o">.</span><span class="n">create_study</span><span class="p">(</span>
+    <span class="n">direction</span><span class="o">=</span><span class="s2">"maximize"</span><span class="p">,</span>
+    <span class="n">sampler</span><span class="o">=</span><span class="n">optuna</span><span class="o">.</span><span class="n">samplers</span><span class="o">.</span><span class="n">TPESampler</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">7</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">optuna_best_score_expr</span> <span class="o">=</span> <span class="n">score_expr</span><span class="o">.</span><span class="n">optuna_params</span><span class="p">(</span>
+    <span class="n">data</span><span class="p">,</span>
+    <span class="n">n_trials</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span>
+    <span class="n">study</span><span class="o">=</span><span class="n">study</span><span class="p">,</span>
+    <span class="n">show_progress_bar</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">trial_rows</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">trial</span> <span class="ow">in</span> <span class="n">study</span><span class="o">.</span><span class="n">trials</span><span class="p">:</span>
+    <span class="n">row</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"trial"</span><span class="p">:</span> <span class="n">trial</span><span class="o">.</span><span class="n">number</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">:</span> <span class="n">trial</span><span class="o">.</span><span class="n">value</span><span class="p">}</span>
+    <span class="n">row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="sa">f</span><span class="s2">"param_</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">"</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">trial</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
+    <span class="n">trial_rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+
+<span class="n">trials</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">trial_rows</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"value"</span><span class="p">,</span> <span class="n">descending</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="n">display</span><span class="p">(</span><span class="n">param_table</span><span class="p">(</span><span class="n">score_expr</span><span class="p">)</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"original score expr"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"expr"</span><span class="p">)))</span>
+<span class="n">display</span><span class="p">(</span><span class="n">param_table</span><span class="p">(</span><span class="n">optuna_best_score_expr</span><span class="p">)</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"optuna best score expr"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"expr"</span><span class="p">)))</span>
+<span class="n">display</span><span class="p">(</span><span class="n">trials</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">12</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,550]</span> Trial 1 failed with parameters: {'fast': 5, 'slow': 60, 'fee': 0.0002} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,551]</span> Trial 1 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,569]</span> Trial 4 failed with parameters: {'fast': 10, 'slow': 40, 'fee': 0.0002} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,569]</span> Trial 4 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,608]</span> Trial 10 failed with parameters: {'fast': 5, 'slow': 100, 'fee': 0.0004} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,608]</span> Trial 10 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,621]</span> Trial 12 failed with parameters: {'fast': 20, 'slow': 40, 'fee': 0.0002} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,622]</span> Trial 12 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,636]</span> Trial 14 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,637]</span> Trial 14 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,645]</span> Trial 15 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,646]</span> Trial 15 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,655]</span> Trial 16 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,656]</span> Trial 16 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,665]</span> Trial 17 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,665]</span> Trial 17 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,674]</span> Trial 18 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,675]</span> Trial 18 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,684]</span> Trial 19 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,684]</span> Trial 19 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,693]</span> Trial 20 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,694]</span> Trial 20 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,703]</span> Trial 21 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,703]</span> Trial 21 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,713]</span> Trial 22 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,713]</span> Trial 22 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,723]</span> Trial 23 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,723]</span> Trial 23 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,733]</span> Trial 24 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,733]</span> Trial 24 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,742]</span> Trial 25 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,743]</span> Trial 25 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,751]</span> Trial 26 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,751]</span> Trial 26 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,760]</span> Trial 27 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,761]</span> Trial 27 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,770]</span> Trial 28 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,770]</span> Trial 28 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,780]</span> Trial 29 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,780]</span> Trial 29 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,789]</span> Trial 30 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,790]</span> Trial 30 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,799]</span> Trial 31 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,799]</span> Trial 31 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,808]</span> Trial 32 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,809]</span> Trial 32 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,818]</span> Trial 33 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,818]</span> Trial 33 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,828]</span> Trial 34 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,828]</span> Trial 34 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,837]</span> Trial 35 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,838]</span> Trial 35 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,847]</span> Trial 36 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,847]</span> Trial 36 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,857]</span> Trial 37 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,857]</span> Trial 37 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,866]</span> Trial 38 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,866]</span> Trial 38 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,875]</span> Trial 39 failed with parameters: {'fast': 30, 'slow': 40, 'fee': 0.001} because of the following error: The value nan is not acceptable.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stderr output_text">
+<pre class="code-block"><span class="ansi-yellow-fg">[W 2026-07-29 18:12:42,876]</span> Trial 39 failed with value nan.
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 9)</small><table border="1" class="dataframe-table"><thead><tr><th>index</th><th>name</th><th>kind</th><th>value</th><th>start</th><th>end</th><th>step</th><th>pool</th><th>expr</th></tr><tr><td>i64</td><td>str</td><td>str</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>null</td><td>str</td></tr></thead><tbody><tr><td>0</td><td>"fast"</td><td>"usize"</td><td>10.0</td><td>5.0</td><td>30.0</td><td>5.0</td><td>null</td><td>"original score expr"</td></tr><tr><td>1</td><td>"slow"</td><td>"usize"</td><td>60.0</td><td>40.0</td><td>100.0</td><td>20.0</td><td>null</td><td>"original score expr"</td></tr><tr><td>2</td><td>"fee"</td><td>"f64"</td><td>0.0002</td><td>0.0</td><td>0.001</td><td>0.0002</td><td>null</td><td>"original score expr"</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 9)</small><table border="1" class="dataframe-table"><thead><tr><th>index</th><th>name</th><th>kind</th><th>value</th><th>start</th><th>end</th><th>step</th><th>pool</th><th>expr</th></tr><tr><td>i64</td><td>str</td><td>str</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>null</td><td>str</td></tr></thead><tbody><tr><td>0</td><td>"fast"</td><td>"usize"</td><td>10.0</td><td>5.0</td><td>30.0</td><td>5.0</td><td>null</td><td>"optuna best score expr"</td></tr><tr><td>1</td><td>"slow"</td><td>"usize"</td><td>60.0</td><td>40.0</td><td>100.0</td><td>20.0</td><td>null</td><td>"optuna best score expr"</td></tr><tr><td>2</td><td>"fee"</td><td>"f64"</td><td>0.0</td><td>0.0</td><td>0.001</td><td>0.0002</td><td>null</td><td>"optuna best score expr"</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 5)</small><table border="1" class="dataframe-table"><thead><tr><th>trial</th><th>value</th><th>param_fast</th><th>param_slow</th><th>param_fee</th></tr><tr><td>i64</td><td>f64</td><td>i64</td><td>i64</td><td>f64</td></tr></thead><tbody><tr><td>1</td><td>null</td><td>5</td><td>60</td><td>0.0002</td></tr><tr><td>4</td><td>null</td><td>10</td><td>40</td><td>0.0002</td></tr><tr><td>10</td><td>null</td><td>5</td><td>100</td><td>0.0004</td></tr><tr><td>12</td><td>null</td><td>20</td><td>40</td><td>0.0002</td></tr><tr><td>14</td><td>null</td><td>30</td><td>40</td><td>0.001</td></tr><tr><td>15</td><td>null</td><td>30</td><td>40</td><td>0.001</td></tr><tr><td>16</td><td>null</td><td>30</td><td>40</td><td>0.001</td></tr><tr><td>17</td><td>null</td><td>30</td><td>40</td><td>0.001</td></tr><tr><td>18</td><td>null</td><td>30</td><td>40</td><td>0.001</td></tr><tr><td>19</td><td>null</td><td>30</td><td>40</td><td>0.001</td></tr><tr><td>20</td><td>null</td><td>30</td><td>40</td><td>0.001</td></tr><tr><td>21</td><td>null</td><td>30</td><td>40</td><td>0.001</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=8690a1bf"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="9.-%E7%94%A8-Optuna-%E6%9C%80%E4%BC%98%E5%8F%82%E6%95%B0%E7%94%9F%E6%88%90%E7%AD%96%E7%95%A5%E6%9B%B2%E7%BA%BF">9. 用 Optuna 最优参数生成策略曲线</h2><p><code>optuna_params</code> 返回的是“优化后的 score 表达式”。为了画策略曲线，我们把它的参数值读出来，再写到一份新的 curve 表达式里。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=f8d11d5d">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">optuna_values</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">optuna_best_score_expr</span><span class="o">.</span><span class="n">params</span><span class="p">():</span>
+    <span class="n">widget</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">widget</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">widget</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">optuna_values</span><span class="p">[</span><span class="n">widget</span><span class="p">[</span><span class="s2">"title"</span><span class="p">]]</span> <span class="o">=</span> <span class="n">widget</span><span class="p">[</span><span class="s2">"value"</span><span class="p">]</span>
+
+<span class="n">optuna_best_curve_expr</span> <span class="o">=</span> <span class="n">apply_param_values</span><span class="p">(</span><span class="n">make_ma_strategy_curve_expr</span><span class="p">(),</span> <span class="n">optuna_values</span><span class="p">)</span>
+<span class="n">optuna_best_curve</span> <span class="o">=</span> <span class="n">optuna_best_curve_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="n">optuna_best_score</span> <span class="o">=</span> <span class="n">optuna_best_score_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"optuna_values ="</span><span class="p">,</span> <span class="n">optuna_values</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">optuna_best_score</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">optuna_best_curve</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">8</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">optuna_values = {'fast': 10, 'slow': 60, 'fee': 0.0}
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (1, 1)</small><table border="1" class="dataframe-table"><thead><tr><th>score</th></tr><tr><td>f64</td></tr></thead><tbody><tr><td>0.158382</td></tr></tbody></table></div></div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 7)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>close</th><th>fast_ma</th><th>slow_ma</th><th>hold</th><th>ret</th><th>equity</th></tr><tr><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2022-07-07 14:28:01</td><td>377.660004</td><td>377.582001</td><td>377.597667</td><td>0.0</td><td>-0.0</td><td>1.002648</td></tr><tr><td>2022-07-07 14:29:02</td><td>377.579987</td><td>377.582001</td><td>377.596333</td><td>0.0</td><td>-0.0</td><td>1.002648</td></tr><tr><td>2022-07-07 14:30:01</td><td>377.619995</td><td>377.589999</td><td>377.597333</td><td>0.0</td><td>0.0</td><td>1.002648</td></tr><tr><td>2022-07-07 14:31:01</td><td>377.579987</td><td>377.585999</td><td>377.599333</td><td>0.0</td><td>-0.0</td><td>1.002648</td></tr><tr><td>2022-07-07 14:32:00.500</td><td>377.440002</td><td>377.575998</td><td>377.600333</td><td>0.0</td><td>-0.0</td><td>1.002648</td></tr><tr><td>2022-07-07 14:33:04.500</td><td>377.440002</td><td>377.567999</td><td>377.598333</td><td>0.0</td><td>0.0</td><td>1.002648</td></tr><tr><td>2022-07-07 14:34:03</td><td>377.440002</td><td>377.566</td><td>377.595333</td><td>0.0</td><td>0.0</td><td>1.002648</td></tr><tr><td>2022-07-07 14:35:00</td><td>377.5</td><td>377.556</td><td>377.592667</td><td>0.0</td><td>0.0</td><td>1.002648</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=b4760082"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="10.-%E4%BC%98%E5%8C%96%E5%89%8D-vs-%E7%BD%91%E6%A0%BC%E6%9C%80%E4%BC%98-vs-Optuna-%E6%9C%80%E4%BC%98%EF%BC%9A%E5%87%80%E5%80%BC%E6%9B%B2%E7%BA%BF%E5%AF%B9%E6%AF%94">10. 优化前 vs 网格最优 vs Optuna 最优：净值曲线对比</h2><p>现在把三条曲线拼到同一张表：</p>
+<ul>
+<li><code>default_equity</code>：默认参数；</li>
+<li><code>grid_best_equity</code>：网格搜索最优参数；</li>
+<li><code>optuna_best_equity</code>：Optuna 搜索最优参数。</li>
+</ul>
+<p>这一步最重要：优化不能只看参数表，必须看收益曲线是否合理。比如曲线是否来自少数几笔极端收益、是否回撤过大、是否只是手续费设成 0 后变好。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=cf055cb1">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">compare_curve</span> <span class="o">=</span> <span class="n">default_curve</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="s2">"datetime"</span><span class="p">,</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"equity"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"default_equity"</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+    <span class="n">grid_best_curve</span><span class="p">[</span><span class="s2">"equity"</span><span class="p">]</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"grid_best_equity"</span><span class="p">),</span>
+    <span class="n">optuna_best_curve</span><span class="p">[</span><span class="s2">"equity"</span><span class="p">]</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"optuna_best_equity"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">compare_curve</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 4)</small><table border="1" class="dataframe-table"><thead><tr><th>datetime</th><th>default_equity</th><th>grid_best_equity</th><th>optuna_best_equity</th></tr><tr><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2022-07-07 14:28:01</td><td>0.994648</td><td>1.005415</td><td>1.002648</td></tr><tr><td>2022-07-07 14:29:02</td><td>0.994648</td><td>1.005203</td><td>1.002648</td></tr><tr><td>2022-07-07 14:30:01</td><td>0.994648</td><td>1.005309</td><td>1.002648</td></tr><tr><td>2022-07-07 14:31:01</td><td>0.994648</td><td>1.005203</td><td>1.002648</td></tr><tr><td>2022-07-07 14:32:00.500</td><td>0.994648</td><td>1.004832</td><td>1.002648</td></tr><tr><td>2022-07-07 14:33:04.500</td><td>0.994648</td><td>1.004832</td><td>1.002648</td></tr><tr><td>2022-07-07 14:34:03</td><td>0.994648</td><td>1.004832</td><td>1.002648</td></tr><tr><td>2022-07-07 14:35:00</td><td>0.994648</td><td>1.004991</td><td>1.002648</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=6f1727ef">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">compare_plot</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"default_equity"</span><span class="p">,</span> <span class="s2">"grid_best_equity"</span><span class="p">,</span> <span class="s2">"optuna_best_equity"</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"equity_compare"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">line</span><span class="p">(),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">make_monitor</span><span class="p">(</span><span class="s2">"black"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">add_grid</span><span class="p">([[</span><span class="s2">"equity_compare"</span><span class="p">]])</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+
+<span class="n">compare_plot</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">compare_curve</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">560</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="9-参数优化 monitor output 2" loading="lazy" src="../../assets/notebook-renders/tutorial-9-optimization-02.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7fb26a8ef970&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=4e5e50eb"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="11.-%E5%AF%B9%E6%AF%94%E7%BB%9F%E8%AE%A1%E8%A1%A8">11. 对比统计表</h2><p>曲线看形状，统计表看数字。这里用 qust 表达式从每条曲线里提取最后净值和最大回撤。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=cfe4d578">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="k">def</span> <span class="nf">summarize_curve</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">equity_col</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">col</span><span class="p">(</span>
+        <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"name"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="n">equity_col</span><span class="p">)</span><span class="o">.</span><span class="n">last_value</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"final_equity"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="n">equity_col</span><span class="p">)</span><span class="o">.</span><span class="n">last_value</span><span class="p">()</span> <span class="o">-</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">1.0</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"total_return"</span><span class="p">),</span>
+        <span class="n">col</span><span class="p">(</span><span class="n">equity_col</span><span class="p">)</span><span class="o">.</span><span class="n">bt</span><span class="o">.</span><span class="n">drawdown</span><span class="p">()</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"max_drawdown"</span><span class="p">),</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+
+<span class="n">summary</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span>
+    <span class="n">summarize_curve</span><span class="p">(</span><span class="n">compare_curve</span><span class="p">,</span> <span class="s2">"default"</span><span class="p">,</span> <span class="s2">"default_equity"</span><span class="p">),</span>
+    <span class="n">summarize_curve</span><span class="p">(</span><span class="n">compare_curve</span><span class="p">,</span> <span class="s2">"grid_best"</span><span class="p">,</span> <span class="s2">"grid_best_equity"</span><span class="p">),</span>
+    <span class="n">summarize_curve</span><span class="p">(</span><span class="n">compare_curve</span><span class="p">,</span> <span class="s2">"optuna_best"</span><span class="p">,</span> <span class="s2">"optuna_best_equity"</span><span class="p">),</span>
+<span class="p">])</span>
+
+<span class="n">summary</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (3, 4)</small><table border="1" class="dataframe-table"><thead><tr><th>name</th><th>final_equity</th><th>total_return</th><th>max_drawdown</th></tr><tr><td>str</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"default"</td><td>0.994648</td><td>-0.005352</td><td>-0.010914</td></tr><tr><td>"grid_best"</td><td>1.004991</td><td>0.004991</td><td>-0.003954</td></tr><tr><td>"optuna_best"</td><td>1.002648</td><td>0.002648</td><td>-0.005082</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=eafa79b1"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="12.-%E9%80%89%E6%8B%A9%E5%93%AA%E7%A7%8D%E4%BC%98%E5%8C%96%E6%96%B9%E6%B3%95%EF%BC%9F">12. 选择哪种优化方法？</h2><table class="dataframe-table">
+<thead>
+<tr>
+<th>方法</th>
+<th>适合场景</th>
+<th>优点</th>
+<th>风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>手动 <code>.value(...)</code></td>
+<td>先跑通策略、复现实验</td>
+<td>最可控</td>
+<td>不能系统搜索</td>
+</tr>
+<tr>
+<td><code>opt_params</code></td>
+<td>参数少、离散网格、想看完整平面</td>
+<td>不漏组合，结果可解释</td>
+<td>组合数爆炸，内存和时间压力大</td>
+</tr>
+<tr>
+<td><code>optuna_params</code></td>
+<td>参数多、连续空间、先找方向</td>
+<td>trial 少时也能探索</td>
+<td>不保证找到全局最优，需要设置 seed/study 保存记录</td>
+</tr>
+<tr>
+<td><code>include=[...]</code></td>
+<td>只优化部分参数</td>
+<td>避免把所有参数同时放开</td>
+<td>忽略参数交互</td>
+</tr>
+<tr>
+<td>自定义 <code>score_fn</code></td>
+<td>多指标/风险惩罚</td>
+<td>可以把回撤、交易次数等纳入目标</td>
+<td>score 写错会优化错方向</td>
+</tr>
+</tbody>
+</table>
+<p>实盘或严肃研究里还应该做：</p>
+<ol>
+<li>训练集/验证集拆分；</li>
+<li>交易成本和滑点敏感性测试；</li>
+<li>参数稳定性分析，不只看最优点；</li>
+<li>避免只优化夏普，不看交易次数和容量；</li>
+<li>用更长样本和更多品种复核。</li>
+</ol>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../../site.js"></script>
+  </body>
+</html>

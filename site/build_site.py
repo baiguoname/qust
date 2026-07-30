@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import base64
+import copy
+import hashlib
 import html
 import json
 import mimetypes
+import os
 import re
 import shutil
 import subprocess
@@ -23,9 +26,38 @@ PROJECT = ROOT.parent
 TUTORIAL_DIR = PROJECT / "examples" / "notebooks" / "tutorial"
 BLOG_DIR = PROJECT / "examples" / "notebooks" / "blog"
 NOTEBOOK_MD_DIR = PROJECT / "examples" / "notebooks_md"
+NOTEBOOK_I18N_DIR = PROJECT / "examples" / "notebooks_i18n"
 STATIC_RENDER_DIR = ROOT / "assets" / "notebook-renders"
 PROJECT_URL = "https://baiguoname.github.io/qust/site"
 GIT_URL = "https://github.com/baiguoname/qust"
+
+
+@dataclass(frozen=True)
+class SiteLang:
+    code: str
+    html_lang: str
+    root_dir: Path
+    md_dir: Path
+    nav_tutorial: str
+    nav_blog: str
+    nav_doc: str
+    nav_service: str
+    nav_project: str
+    nav_git: str
+    nav_alt: str
+    home_aria: str
+    meta_description: str
+    default_description: str
+    back_label: str
+    monitor_caption: str
+    monitor_missing_title: str
+    monitor_missing_text: str
+    monitor_missing_link: str
+    monitor_markdown_alt: str
+    monitor_markdown_missing: str
+    cells_label: str
+    outputs_label: str
+    monitors_label: str
 
 
 @dataclass(frozen=True)
@@ -39,6 +71,89 @@ class NotebookPage:
     cells: int
     outputs: int
     iframes: int
+
+
+ZH = SiteLang(
+    code="zh",
+    html_lang="zh-CN",
+    root_dir=ROOT,
+    md_dir=NOTEBOOK_MD_DIR,
+    nav_tutorial="使用教程",
+    nav_blog="Blog",
+    nav_doc="Doc",
+    nav_service="服务",
+    nav_project="项目地址",
+    nav_git="git地址",
+    nav_alt="English",
+    home_aria="qust 首页",
+    meta_description="qust 高性能计算引擎：DataFrame、流计算、量化研究、ClickHouse 与高性能算子。",
+    default_description="从 notebook 转换而来的网页版本，保留正文、代码和当前保存的输出。",
+    back_label="返回目录",
+    monitor_caption="notebook 输出：monitor 静态图",
+    monitor_missing_title="此 monitor 输出没有静态截图",
+    monitor_missing_text="需要重新执行对应 notebook 后，再运行站点构建脚本生成静态图。",
+    monitor_missing_link="查看原始 monitor 输出",
+    monitor_markdown_alt="monitor 输出",
+    monitor_markdown_missing="此 monitor 输出没有静态截图。重新执行 notebook 后，再运行站点构建脚本生成静态图。",
+    cells_label="cells",
+    outputs_label="outputs",
+    monitors_label="monitors",
+)
+
+EN = SiteLang(
+    code="en",
+    html_lang="en",
+    root_dir=ROOT / "en",
+    md_dir=NOTEBOOK_MD_DIR / "en",
+    nav_tutorial="Tutorial",
+    nav_blog="Blog",
+    nav_doc="Docs",
+    nav_service="Services",
+    nav_project="Project",
+    nav_git="GitHub",
+    nav_alt="中文",
+    home_aria="qust home",
+    meta_description="qust is a high-performance compute engine for DataFrame workflows, streaming computation, quantitative research, ClickHouse, and custom operators.",
+    default_description="A web version converted from the notebook, preserving prose, code, and saved outputs.",
+    back_label="Back to index",
+    monitor_caption="Notebook output: static monitor image",
+    monitor_missing_title="This monitor output has no static screenshot",
+    monitor_missing_text="Re-run the corresponding notebook, then rebuild the site to generate the static image.",
+    monitor_missing_link="Open original monitor output",
+    monitor_markdown_alt="monitor output",
+    monitor_markdown_missing="This monitor output has no static screenshot. Re-run the corresponding notebook, then rebuild the site to generate the static image.",
+    cells_label="cells",
+    outputs_label="outputs",
+    monitors_label="monitors",
+)
+
+LANGS = (ZH, EN)
+I18N_MISSING: set[str] = set()
+
+
+def other_lang(lang: SiteLang) -> SiteLang:
+    return EN if lang.code == "zh" else ZH
+
+
+def rel_href(from_file: Path, target: Path) -> str:
+    return os.path.relpath(target, from_file.parent).replace(os.sep, "/")
+
+
+def write_html(lang: SiteLang, rel_path: str, title: str, body: str, *, page_class: str = "") -> None:
+    out_path = lang.root_dir / rel_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    alt_path = other_lang(lang).root_dir / rel_path
+    out_path.write_text(
+        html_shell(
+            title,
+            body,
+            out_path=out_path,
+            lang=lang,
+            alt_href=rel_href(out_path, alt_path),
+            page_class=page_class,
+        ),
+        encoding="utf-8",
+    )
 
 
 def slugify(path: Path) -> str:
@@ -72,7 +187,7 @@ def notebook_title(nb: nbformat.NotebookNode, fallback: str) -> str:
     return fallback
 
 
-def notebook_description(nb: nbformat.NotebookNode) -> str:
+def notebook_description(nb: nbformat.NotebookNode, lang: SiteLang) -> str:
     for cell in nb.cells:
         if cell.cell_type != "markdown":
             continue
@@ -82,7 +197,7 @@ def notebook_description(nb: nbformat.NotebookNode) -> str:
             text = re.sub(r"\*\*|`", "", text)
             if text and not text.startswith("#"):
                 return text[:96]
-    return "从 notebook 转换而来的网页版本，保留正文、代码和当前保存的输出。"
+    return lang.default_description
 
 
 def notebook_stats(nb: nbformat.NotebookNode) -> tuple[int, int, int]:
@@ -99,10 +214,117 @@ def notebook_stats(nb: nbformat.NotebookNode) -> tuple[int, int, int]:
     return len(nb.cells), outputs, iframes
 
 
-def load_pages(kind: str, source_dir: Path) -> list[NotebookPage]:
+def markdown_text(source: object) -> str:
+    if isinstance(source, list):
+        return "".join(str(part) for part in source)
+    return str(source)
+
+
+def markdown_hash(source: str) -> str:
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
+def i18n_cache_path(lang: SiteLang, collection: str, source: Path) -> Path:
+    return NOTEBOOK_I18N_DIR / lang.code / collection / f"{source.stem}.json"
+
+
+def load_i18n_cache(lang: SiteLang, collection: str, source: Path) -> dict[str, object]:
+    if lang.code == "zh":
+        return {}
+    path = i18n_cache_path(lang, collection, source)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid notebook i18n cache: {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"invalid notebook i18n cache: {path}: root must be an object")
+    return payload
+
+
+def cache_translation(cache: dict[str, object], source: str) -> str | None:
+    cells = cache.get("cells", {})
+    if not isinstance(cells, dict):
+        return None
+    entry = cells.get(markdown_hash(source))
+    if isinstance(entry, str):
+        return entry or None
+    if isinstance(entry, dict):
+        value = entry.get("source") or entry.get("translation") or entry.get("text")
+        if isinstance(value, list):
+            return "".join(str(part) for part in value)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def write_missing_i18n_entry(
+    cache: dict[str, object],
+    source: str,
+    *,
+    cell_index: int,
+) -> bool:
+    cells = cache.setdefault("cells", {})
+    if not isinstance(cells, dict):
+        return False
+    key = markdown_hash(source)
+    if key in cells:
+        return False
+    cells[key] = {
+        "source": "",
+        "source_zh": source,
+        "translated": False,
+        "cell_index": cell_index,
+    }
+    return True
+
+
+def translated_notebook(
+    source_path: Path,
+    collection: str,
+    lang: SiteLang,
+    *,
+    write_missing_i18n: bool = False,
+) -> nbformat.NotebookNode:
+    nb = nbformat.read(source_path, as_version=4)
+    if lang.code == "zh":
+        return nb
+
+    translated = copy.deepcopy(nb)
+    cache = load_i18n_cache(lang, collection, source_path)
+    dirty = False
+    cache_path = i18n_cache_path(lang, collection, source_path)
+
+    for cell_index, cell in enumerate(translated.cells):
+        if cell.cell_type != "markdown":
+            continue
+        source = markdown_text(cell.source)
+        target = cache_translation(cache, source)
+        if target is not None:
+            cell.source = target
+            continue
+        I18N_MISSING.add(f"{lang.code}/{collection}/{source_path.name}#{markdown_hash(source)[:12]}")
+        if write_missing_i18n:
+            dirty = write_missing_i18n_entry(cache, source, cell_index=cell_index) or dirty
+
+    if dirty:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"version": 1, **cache}
+        cache_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return translated
+
+
+def load_pages(
+    kind: str,
+    source_dir: Path,
+    lang: SiteLang,
+    *,
+    write_missing_i18n: bool = False,
+) -> list[NotebookPage]:
     pages: list[NotebookPage] = []
     for path in sorted(source_dir.glob("*.ipynb"), key=natural_key):
-        nb = nbformat.read(path, as_version=4)
+        nb = translated_notebook(path, kind, lang, write_missing_i18n=write_missing_i18n)
         title = notebook_title(nb, path.stem)
         cells, outputs, iframes = notebook_stats(nb)
         slug = slugify(path)
@@ -111,7 +333,7 @@ def load_pages(kind: str, source_dir: Path) -> list[NotebookPage]:
                 source=path,
                 title=title,
                 short_title=compact_title(title, path),
-                description=notebook_description(nb),
+                description=notebook_description(nb, lang),
                 slug=slug,
                 href=f"{kind}/{slug}",
                 cells=cells,
@@ -122,49 +344,63 @@ def load_pages(kind: str, source_dir: Path) -> list[NotebookPage]:
     return pages
 
 
-def nav(depth: int = 0) -> str:
-    prefix = "../" * depth
-    docs = f"{prefix}../examples/docs/index.html" if depth == 0 else f"{prefix}../examples/docs/index.html"
+def nav(lang: SiteLang, out_path: Path, alt_href: str) -> str:
+    home_href = rel_href(out_path, lang.root_dir / "index.html")
+    tutorial_href = rel_href(out_path, lang.root_dir / "tutorial.html")
+    blog_href = rel_href(out_path, lang.root_dir / "blog.html")
+    service_href = rel_href(out_path, lang.root_dir / "service.html")
+    docs = rel_href(out_path, PROJECT / "examples" / "docs" / "index.html")
+    nav_label = "primary navigation" if lang.code == "en" else "主导航"
     return f"""
       <header class="topbar">
-        <a class="brand" href="{prefix}index.html" aria-label="qust 首页">
+        <a class="brand" href="{html.escape(home_href)}" aria-label="{html.escape(lang.home_aria)}">
           <span class="brand-mark">q</span>
           <span class="brand-text">qust</span>
         </a>
-        <nav class="nav" aria-label="主导航">
-          <a href="{prefix}tutorial.html">使用教程</a>
-          <a href="{prefix}blog.html">Blog</a>
-          <a href="{docs}">Doc</a>
-          <a href="{prefix}service.html">服务</a>
-          <a href="{PROJECT_URL}">项目地址</a>
-          <a href="{GIT_URL}">git地址</a>
+        <nav class="nav" aria-label="{html.escape(nav_label)}">
+          <a href="{html.escape(tutorial_href)}">{html.escape(lang.nav_tutorial)}</a>
+          <a href="{html.escape(blog_href)}">{html.escape(lang.nav_blog)}</a>
+          <a href="{html.escape(docs)}">{html.escape(lang.nav_doc)}</a>
+          <a href="{html.escape(service_href)}">{html.escape(lang.nav_service)}</a>
+          <a href="{PROJECT_URL}">{html.escape(lang.nav_project)}</a>
+          <a href="{GIT_URL}">{html.escape(lang.nav_git)}</a>
+          <a class="lang-switch" href="{html.escape(alt_href)}">{html.escape(lang.nav_alt)}</a>
         </nav>
       </header>
     """
 
 
-def html_shell(title: str, body: str, *, depth: int = 0, page_class: str = "") -> str:
-    prefix = "../" * depth
+def html_shell(
+    title: str,
+    body: str,
+    *,
+    out_path: Path,
+    lang: SiteLang,
+    alt_href: str,
+    page_class: str = "",
+) -> str:
+    stylesheet = rel_href(out_path, ROOT / "styles.css")
+    script = rel_href(out_path, ROOT / "site.js")
     return f"""<!doctype html>
-<html lang="zh-CN">
+<html lang="{html.escape(lang.html_lang)}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="qust 高性能计算引擎：DataFrame、流计算、量化研究、ClickHouse 与高性能算子。">
+    <meta name="description" content="{html.escape(lang.meta_description)}">
     <title>{html.escape(title)}</title>
-    <link rel="stylesheet" href="{prefix}styles.css">
+    <link rel="stylesheet" href="{html.escape(stylesheet)}">
   </head>
   <body class="{page_class}">
     <canvas class="market-canvas" aria-hidden="true"></canvas>
-{nav(depth)}
+{nav(lang, out_path, alt_href)}
 {body}
-    <script src="{prefix}site.js"></script>
+    <script src="{html.escape(script)}"></script>
   </body>
 </html>
 """
 
 
-def card_grid(pages: list[NotebookPage], kind_title: str, intro: str, href_prefix: str) -> str:
+def card_grid(pages: list[NotebookPage], kind_title: str, intro: str, href_prefix: str, lang: SiteLang) -> str:
     cards = []
     for page in pages:
         cards.append(
@@ -174,9 +410,9 @@ def card_grid(pages: list[NotebookPage], kind_title: str, intro: str, href_prefi
             <h2 title="{html.escape(page.title)}">{html.escape(page.short_title)}</h2>
             <p>{html.escape(page.description)}</p>
             <div class="doc-meta">
-              <b>{page.cells} cells</b>
-              <b>{page.outputs} outputs</b>
-              <b>{page.iframes} monitors</b>
+              <b>{page.cells} {html.escape(lang.cells_label)}</b>
+              <b>{page.outputs} {html.escape(lang.outputs_label)}</b>
+              <b>{page.iframes} {html.escape(lang.monitors_label)}</b>
             </div>
           </a>
             """
@@ -226,7 +462,7 @@ def iframe_height(iframe) -> int:
     return max(360, min(int(match.group(1)), 1200))
 
 
-def clean_notebook_html(body: str, collection: str, slug: str) -> str:
+def clean_notebook_html(body: str, collection: str, slug: str, out_path: Path, lang: SiteLang) -> str:
     soup = BeautifulSoup(body, "html.parser")
     for tag in soup.select(".prompt, .anchor-link"):
         tag.decompose()
@@ -238,40 +474,48 @@ def clean_notebook_html(body: str, collection: str, slug: str) -> str:
         pre["class"] = sorted(classes)
     for idx, iframe in enumerate(soup.find_all("iframe")):
         image_path = resolve_static_render_path(collection, slug, idx)
-        filename = image_path.name
         src = iframe.get("src", "")
         figure = soup.new_tag("figure")
         figure["class"] = "monitor-static"
         if image_path.exists():
             image = soup.new_tag("img")
-            image["src"] = f"../assets/notebook-renders/{filename}"
+            image["src"] = rel_href(out_path, image_path)
             image["alt"] = f"{Path(slug).stem} monitor output {idx + 1}"
             image["loading"] = "lazy"
             figure.append(image)
             caption = soup.new_tag("figcaption")
-            caption.string = "notebook 输出：monitor 静态图"
+            caption.string = lang.monitor_caption
             figure.append(caption)
         else:
             figure["class"] = "monitor-static missing"
             title = soup.new_tag("strong")
-            title.string = "此 monitor 输出没有静态截图"
+            title.string = lang.monitor_missing_title
             figure.append(title)
             text = soup.new_tag("p")
-            text.string = "需要重新执行对应 notebook 后，再运行站点构建脚本生成静态图。"
+            text.string = lang.monitor_missing_text
             figure.append(text)
             if src:
                 link = soup.new_tag("a", href=src)
-                link.string = "查看原始 monitor 输出"
+                link.string = lang.monitor_missing_link
                 figure.append(link)
         iframe.replace_with(figure)
     return str(soup)
 
 
-def write_notebook_page(page: NotebookPage, collection: str, all_pages: list[NotebookPage]) -> None:
-    nb = nbformat.read(page.source, as_version=4)
+def write_notebook_page(
+    page: NotebookPage,
+    collection: str,
+    all_pages: list[NotebookPage],
+    lang: SiteLang,
+    *,
+    write_missing_i18n: bool = False,
+) -> None:
+    nb = translated_notebook(page.source, collection, lang, write_missing_i18n=write_missing_i18n)
     exporter = HTMLExporter(template_name="basic")
     raw_body, _ = exporter.from_notebook_node(nb)
-    article = clean_notebook_html(raw_body, collection, page.slug)
+    rel_path = f"{collection}/{page.slug}"
+    out_path = lang.root_dir / rel_path
+    article = clean_notebook_html(raw_body, collection, page.slug, out_path, lang)
     links = []
     for item in all_pages:
         active = " active" if item.slug == page.slug else ""
@@ -279,7 +523,7 @@ def write_notebook_page(page: NotebookPage, collection: str, all_pages: list[Not
     body = f"""
     <main class="article-layout">
       <aside class="article-sidebar">
-        <a class="back-link" href="../{collection}.html">返回目录</a>
+        <a class="back-link" href="../{collection}.html">{html.escape(lang.back_label)}</a>
         <div class="article-list">
           {''.join(links)}
         </div>
@@ -289,12 +533,7 @@ def write_notebook_page(page: NotebookPage, collection: str, all_pages: list[Not
       </article>
     </main>
     """
-    out_dir = ROOT / collection
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / page.slug).write_text(
-        html_shell(f"{page.title} | qust", body, depth=1, page_class="article-page"),
-        encoding="utf-8",
-    )
+    write_html(lang, rel_path, f"{page.title} | qust", body, page_class="article-page")
 
 
 def bytes_to_data_uri(data: bytes, filename: str) -> str:
@@ -309,7 +548,7 @@ def image_path_to_data_uri(path: Path) -> str:
     return bytes_to_data_uri(path.read_bytes(), path.name)
 
 
-def clean_markdown_monitor_outputs(body: str, collection: str, slug: str) -> str:
+def clean_markdown_monitor_outputs(body: str, collection: str, slug: str, lang: SiteLang) -> str:
     iframe_index = 0
 
     def replace_iframe(match: re.Match[str]) -> str:
@@ -317,8 +556,8 @@ def clean_markdown_monitor_outputs(body: str, collection: str, slug: str) -> str
         image_path = resolve_static_render_path(collection, slug, iframe_index)
         iframe_index += 1
         if image_path.exists():
-            return f"\n\n![monitor 输出]({image_path_to_data_uri(image_path)})\n\n"
-        return "\n\n> 此 monitor 输出没有静态截图。重新执行 notebook 后，再运行站点构建脚本生成静态图。\n\n"
+            return f"\n\n![{lang.monitor_markdown_alt}]({image_path_to_data_uri(image_path)})\n\n"
+        return f"\n\n> {lang.monitor_markdown_missing}\n\n"
 
     return re.sub(r"<iframe\b.*?</iframe>", replace_iframe, body, flags=re.I | re.S)
 
@@ -347,18 +586,24 @@ def inline_markdown_output_images(body: str, outputs: dict[str, object]) -> str:
     return re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", replace_image, body)
 
 
-def write_notebook_markdown(page: NotebookPage, collection: str) -> None:
-    nb = nbformat.read(page.source, as_version=4)
+def write_notebook_markdown(
+    page: NotebookPage,
+    collection: str,
+    lang: SiteLang,
+    *,
+    write_missing_i18n: bool = False,
+) -> None:
+    nb = translated_notebook(page.source, collection, lang, write_missing_i18n=write_missing_i18n)
     output_files_dir = f"{page.source.stem}_files"
     exporter = MarkdownExporter()
     body, resources = exporter.from_notebook_node(
         nb,
         resources={"output_files_dir": output_files_dir},
     )
-    body = clean_markdown_monitor_outputs(body, collection, page.slug)
+    body = clean_markdown_monitor_outputs(body, collection, page.slug, lang)
     body = inline_markdown_output_images(body, resources.get("outputs", {}))
 
-    out_dir = NOTEBOOK_MD_DIR / collection
+    out_dir = lang.md_dir / collection
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{page.source.stem}.md").write_text(body, encoding="utf-8")
 
@@ -460,21 +705,41 @@ const jobs = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
             print(f"- {item.get('url')}: {item.get('error')}")
 
 
-def write_index() -> None:
-    bubbles = [
-        ("Polars", "表达式互操作"),
-        ("流计算", "状态持续推进"),
-        ("DuckDB", "分析型 SQL"),
-        ("ClickHouse", "远程列式数据"),
-        ("DataFrame", "批量 / 流式同源"),
-        ("Arrow", "零拷贝列式内存"),
-        ("Rust", "高性能执行器"),
-        ("Python", "研究端表达式"),
-        ("Monitor", "交互图表输出"),
-        ("Optuna", "参数寻优"),
-        ("Batch", "批处理算子"),
-        ("QMT", "实盘联调"),
-    ]
+def write_index(lang: SiteLang) -> None:
+    if lang.code == "en":
+        bubbles = [
+            ("Polars", "expression interop"),
+            ("Streaming", "stateful batches"),
+            ("DuckDB", "analytical SQL"),
+            ("ClickHouse", "remote columnar data"),
+            ("DataFrame", "batch and stream"),
+            ("Arrow", "columnar memory"),
+            ("Rust", "native executors"),
+            ("Python", "research expressions"),
+            ("Monitor", "interactive charts"),
+            ("Optuna", "parameter search"),
+            ("Batch", "batch operators"),
+            ("QMT", "trading integration"),
+        ]
+        hero_text = "A high-performance compute engine for DataFrame workflows, streaming computation, and quantitative research."
+        title = "qust | High-performance Compute Engine"
+    else:
+        bubbles = [
+            ("Polars", "表达式互操作"),
+            ("流计算", "状态持续推进"),
+            ("DuckDB", "分析型 SQL"),
+            ("ClickHouse", "远程列式数据"),
+            ("DataFrame", "批量 / 流式同源"),
+            ("Arrow", "零拷贝列式内存"),
+            ("Rust", "高性能执行器"),
+            ("Python", "研究端表达式"),
+            ("Monitor", "交互图表输出"),
+            ("Optuna", "参数寻优"),
+            ("Batch", "批处理算子"),
+            ("QMT", "实盘联调"),
+        ]
+        hero_text = "面向 DataFrame、流计算与量化研究的高性能计算引擎。"
+        title = "qust | 高性能计算引擎"
     bubble_html = "\n".join(
         f'<span class="bubble" style="--i:{i};"><b>{html.escape(name)}</b><em>{html.escape(desc)}</em></span>'
         for i, (name, desc) in enumerate(bubbles)
@@ -487,15 +752,121 @@ def write_index() -> None:
         </div>
         <div class="home-copy">
           <h1>qust</h1>
-          <p>面向 DataFrame、流计算与量化研究的高性能计算引擎。</p>
+          <p>{html.escape(hero_text)}</p>
         </div>
       </section>
     </main>
     """
-    (ROOT / "index.html").write_text(html_shell("qust | 高性能计算引擎", body, page_class="home-page"), encoding="utf-8")
+    write_html(lang, "index.html", title, body, page_class="home-page")
 
 
 def write_service() -> None:
+    write_service_page(ZH)
+    write_service_page(EN)
+
+
+def write_service_page(lang: SiteLang) -> None:
+    if lang.code == "en":
+        body = """
+    <main class="page-shell service-page">
+      <section class="service-hero">
+        <div>
+          <p class="eyebrow">SERVICE</p>
+          <h1>qust Services and Source Delivery</h1>
+          <p>Services around high-performance operator development, quantitative platform engineering, source-code delivery, private deployment, data-source integration, and trading-system integration.</p>
+        </div>
+        <div class="service-focus">
+          <strong>Core Services</strong>
+          <span>High-performance operator development</span>
+          <span>Quantitative platform engineering</span>
+          <span>Source delivery and private deployment</span>
+        </div>
+      </section>
+
+      <section class="service-grid">
+        <article>
+          <span>01</span>
+          <h2>High-performance operators</h2>
+          <p>Move Python research logic into Rust/Arrow execution paths for rolling, rank, group, over, tick/kline, backtesting, risk-control, and trading-state workloads.</p>
+          <ul>
+            <li>Define input/output schema, null behavior, and streaming semantics.</li>
+            <li>Implement Rust native executors, Python namespaces, and examples.</li>
+            <li>Add focused tests for small samples, batches, streaming, and performance.</li>
+          </ul>
+        </article>
+        <article>
+          <span>02</span>
+          <h2>Quant platform engineering</h2>
+          <p>Build a unified workflow around market data, factors, strategies, backtests, parameters, monitoring, and reports.</p>
+          <ul>
+            <li>Design data ingestion, caching, chunked execution, and result archives.</li>
+            <li>Establish strategy templates, indicator libraries, evaluation, and portfolio analysis.</li>
+            <li>Organize notebooks, scripts, services, and monitoring pages into one workflow.</li>
+          </ul>
+        </article>
+        <article>
+          <span>03</span>
+          <h2>Source and private deployment</h2>
+          <p>Deliver source code, build scripts, deployment notes, and extension conventions for private long-term maintenance.</p>
+          <ul>
+            <li>Support closed-source delivery, version upgrades, and stable interfaces.</li>
+            <li>Provide Python/Rust build, wheel, Docker, and CI guidance.</li>
+            <li>Adapt deployment to team permissions, data security, and operations.</li>
+          </ul>
+        </article>
+        <article>
+          <span>04</span>
+          <h2>Data sources and remote compute</h2>
+          <p>Connect Parquet, ClickHouse, LazyFrame, streaming data, and custom datasources with fewer IO branches in research code.</p>
+          <ul>
+            <li>ClickHouse schema, Date/DateTime, string, and Arrow type adaptation.</li>
+            <li>Large-data chunked reads, predicate pushdown, and streaming execution chains.</li>
+            <li>Data-quality checks, sampling validation, and error localization.</li>
+          </ul>
+        </article>
+        <article>
+          <span>05</span>
+          <h2>Monitor and research UI</h2>
+          <p>Turn price, signals, PnL, distributions, parameters, debug traces, and callbacks into pages researchers can use directly.</p>
+          <ul>
+            <li>Customize charts, linked selection, parameter panels, and debug views.</li>
+            <li>Turn notebook outputs into stable research dashboards.</li>
+            <li>Keep expression logic connected to the visualization layer.</li>
+          </ul>
+        </article>
+        <article>
+          <span>06</span>
+          <h2>Trading integration</h2>
+          <p>Connect offline expressions to simulated or live trading APIs, with attention to signal timing, positions, risk controls, and replayable logs.</p>
+          <ul>
+            <li>Keep research expressions, backtests, simulations, and live calls aligned.</li>
+            <li>Integrate trading APIs such as QMT with separate API and strategy layers.</li>
+            <li>Provide runbooks, logs, pause/stop, and recovery mechanisms.</li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="service-process">
+        <h2>Workflow</h2>
+        <div>
+          <article><b>1</b><span>Clarify the scenario</span><p>Define data, operators, performance, deployment, and strategy runtime needs.</p></article>
+          <article><b>2</b><span>Build a runnable core</span><p>Run the core expression, output, and acceptance sample first.</p></article>
+          <article><b>3</b><span>Extend the engineering path</span><p>Add tests, docs, monitoring, deployment, and team extension interfaces.</p></article>
+          <article><b>4</b><span>Maintain and upgrade</span><p>Handle operator expansion, bottlenecks, data-source changes, and version upgrades.</p></article>
+        </div>
+      </section>
+
+      <section class="contact-panel">
+        <p class="eyebrow">CONTACT</p>
+        <h2>Service Support</h2>
+        <p>Good topics to discuss: operator development, source delivery, ClickHouse integration, quant platforms, trading integration, Monitor pages, and strategy research workflows.</p>
+        <strong>WeChat: aruster</strong>
+      </section>
+    </main>
+    """
+        write_html(lang, "service.html", "Services | qust", body, page_class="service")
+        return
+
     body = """
     <main class="page-shell service-page">
       <section class="service-hero">
@@ -593,7 +964,7 @@ def write_service() -> None:
       </section>
     </main>
     """
-    (ROOT / "service.html").write_text(html_shell("服务 | qust", body, page_class="service"), encoding="utf-8")
+    write_html(lang, "service.html", "服务 | qust", body, page_class="service")
 
 
 def write_css() -> None:
@@ -1287,9 +1658,44 @@ window.addEventListener("resize", resizeCanvas);
 
 
 def clean_generated_dirs() -> None:
-    for path in (ROOT / "tutorial", ROOT / "blog", NOTEBOOK_MD_DIR):
+    for path in (ROOT / "tutorial", ROOT / "blog", ROOT / "en", NOTEBOOK_MD_DIR):
         if path.exists():
             shutil.rmtree(path)
+
+
+def write_listing_pages(lang: SiteLang, tutorial: list[NotebookPage], blog: list[NotebookPage]) -> None:
+    if lang.code == "en":
+        tutorial_title = "Tutorial"
+        tutorial_intro = (
+            "A practical path through installation, core expressions, contexts, performance, "
+            "Monitor, strategy analysis, indicators, parameter optimization, and portfolios, "
+            "with saved notebook outputs preserved."
+        )
+        blog_title = "Blog"
+        blog_intro = (
+            "Notebook-based articles around Investopedia technical analysis topics, indicator usage, "
+            "and full strategy backtests, preserving prose, code, tables, and monitor outputs."
+        )
+    else:
+        tutorial_title = "使用教程"
+        tutorial_intro = "从安装、基础表达式、上下文、性能、monitor、策略分析、指标、参数优化到组合策略，系统展示 qust 的主要用法，并保留当前保存的输出。"
+        blog_title = "Blog"
+        blog_intro = "围绕 Investopedia 技术分析文章、指标实现和完整策略回测的 notebook 网页版本，保留正文、代码、表格和 monitor 输出。"
+
+    write_html(
+        lang,
+        "tutorial.html",
+        f"{tutorial_title} | qust",
+        card_grid(tutorial, tutorial_title, tutorial_intro, "tutorial", lang),
+        page_class="listing",
+    )
+    write_html(
+        lang,
+        "blog.html",
+        f"{blog_title} | qust",
+        card_grid(blog, blog_title, blog_intro, "blog", lang),
+        page_class="listing",
+    )
 
 
 def main() -> None:
@@ -1304,51 +1710,45 @@ def main() -> None:
         action="store_true",
         help="Re-render monitor PNG files even when cached images already exist.",
     )
+    parser.add_argument(
+        "--write-missing-i18n",
+        action="store_true",
+        help="Write missing English markdown-cell translation placeholders into examples/notebooks_i18n.",
+    )
     args = parser.parse_args()
     clean_generated_dirs()
-    tutorial = load_pages("tutorial", TUTORIAL_DIR)
-    blog = load_pages("blog", BLOG_DIR)
+    tutorial_zh = load_pages("tutorial", TUTORIAL_DIR, ZH)
+    blog_zh = load_pages("blog", BLOG_DIR, ZH)
     if args.capture_monitor:
-        capture_static_monitor_images(tutorial, blog, force=args.force_capture)
-    write_index()
+        capture_static_monitor_images(tutorial_zh, blog_zh, force=args.force_capture)
     write_service()
     write_css()
     write_js()
-    (ROOT / "tutorial.html").write_text(
-        html_shell(
-            "使用教程 | qust",
-            card_grid(
-                tutorial,
-                "使用教程",
-                "从安装、基础表达式、上下文、性能、monitor、策略分析、指标、参数优化到组合策略，系统展示 qust 的主要用法，并保留当前保存的输出。",
-                "tutorial",
-            ),
-            page_class="listing",
+    pages_by_lang: dict[str, tuple[list[NotebookPage], list[NotebookPage]]] = {
+        ZH.code: (tutorial_zh, blog_zh),
+        EN.code: (
+            load_pages("tutorial", TUTORIAL_DIR, EN, write_missing_i18n=args.write_missing_i18n),
+            load_pages("blog", BLOG_DIR, EN, write_missing_i18n=args.write_missing_i18n),
         ),
-        encoding="utf-8",
-    )
-    (ROOT / "blog.html").write_text(
-        html_shell(
-            "Blog | qust",
-            card_grid(
-                blog,
-                "Blog",
-                "围绕 Investopedia 技术分析文章、指标实现和完整策略回测的 notebook 网页版本，保留正文、代码、表格和 monitor 输出。",
-                "blog",
-            ),
-            page_class="listing",
-        ),
-        encoding="utf-8",
-    )
-    for page in tutorial:
-        write_notebook_page(page, "tutorial", tutorial)
-        write_notebook_markdown(page, "tutorial")
-    for page in blog:
-        write_notebook_page(page, "blog", blog)
-        write_notebook_markdown(page, "blog")
+    }
+    for lang in LANGS:
+        tutorial, blog = pages_by_lang[lang.code]
+        write_index(lang)
+        write_listing_pages(lang, tutorial, blog)
+        for page in tutorial:
+            write_notebook_page(page, "tutorial", tutorial, lang, write_missing_i18n=args.write_missing_i18n)
+            write_notebook_markdown(page, "tutorial", lang, write_missing_i18n=args.write_missing_i18n)
+        for page in blog:
+            write_notebook_page(page, "blog", blog, lang, write_missing_i18n=args.write_missing_i18n)
+            write_notebook_markdown(page, "blog", lang, write_missing_i18n=args.write_missing_i18n)
+
+    if I18N_MISSING:
+        print(f"missing English notebook markdown translations: {len(I18N_MISSING)}")
+        if not args.write_missing_i18n:
+            print("run with --write-missing-i18n to create editable cache placeholders")
     print(
-        f"generated {len(tutorial)} tutorial pages, "
-        f"{len(blog)} blog pages, and markdown copies in {NOTEBOOK_MD_DIR}"
+        f"generated zh/en site pages for {len(tutorial_zh)} tutorial notebooks, "
+        f"{len(blog_zh)} blog notebooks, and markdown copies in {NOTEBOOK_MD_DIR}"
     )
 
 

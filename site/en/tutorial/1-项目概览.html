@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust is a high-performance compute engine for DataFrame workflows, streaming computation, quantitative research, ClickHouse, and custom operators.">
+    <title>qust Overview：从安装到核心思路 | qust</title>
+    <link rel="stylesheet" href="../../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust home">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="primary navigation">
+          <a href="../tutorial.html">Tutorial</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../../examples/docs/index.html">Docs</a>
+          <a href="../service.html">Services</a>
+          <a href="https://baiguoname.github.io/qust/site">Project</a>
+          <a href="https://github.com/baiguoname/qust">GitHub</a>
+          <a class="lang-switch" href="../../tutorial/1-项目概览.html">中文</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../tutorial.html">Back to index</a>
+        <div class="article-list">
+          <a class="article-link active" href="1-项目概览.html">项目概览</a><a class="article-link" href="2-基础用法.html">基础用法</a><a class="article-link" href="3-性能对比.html">性能对比</a><a class="article-link" href="4-高阶用法.html">高阶用法</a><a class="article-link" href="5-monitor.html">Monitor</a><a class="article-link" href="6-alpha-与策略分析.html">Alpha 与策略分析</a><a class="article-link" href="7-分析示例.html">分析示例</a><a class="article-link" href="8-指标示例.html">指标示例</a><a class="article-link" href="9-参数优化.html">参数优化</a><a class="article-link" href="10-策略编写.html">策略编写</a><a class="article-link" href="11-smc.html">SMC</a><a class="article-link" href="12-组合策略.html">组合策略</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=21437d9c"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="qust-Overview%EF%BC%9A%E4%BB%8E%E5%AE%89%E8%A3%85%E5%88%B0%E6%A0%B8%E5%BF%83%E6%80%9D%E8%B7%AF">qust Overview：从安装到核心思路</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>本节从安装、核心对象和常见工作流开始，系统说明 qust 的使用方式：</p>
+<ol>
+<li>怎么安装和启动；</li>
+<li>qust 里的 <code>Expr</code>、数据、上下文、runtime 分别是什么；</li>
+<li>为什么它适合量化研究、回测和实时计算；</li>
+<li>常见算子怎么写；</li>
+<li>什么时候用 <code>calc_data</code>，什么时候用流式 <code>runtime().calc_stream(...)</code>；</li>
+<li>monitor 图表怎么在 Jupyter 里直接显示。</li>
+</ol>
+<p>你可以把 qust 理解成一个“Python 写表达式、Rust 执行计算、金融场景有现成积木”的量化研究框架。Python 端负责让策略和因子写起来像公式；底层执行器负责把这些公式编译成高性能计算流程。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=8a74a0d9"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-%E5%AE%89%E8%A3%85">1. 安装</h2><p>最常见的安装方式：</p>
+<div class="highlight"><pre class="code-block"><span></span>pip<span class="w"> </span>install<span class="w"> </span>qust
+</pre></div>
+<p>如果你需要做参数优化，通常还会用到 Optuna：</p>
+<div class="highlight"><pre class="code-block"><span></span>pip<span class="w"> </span>install<span class="w"> </span>optuna
+</pre></div>
+<p>如果你要连接 ClickHouse，需要确认服务器已经开启对应端口，并在 Python 端配置 datasource。qust 自身提供 <code>qds.clickhouse(...)</code> / <code>ChConfig(...).as_datasource(...)</code> 这类入口；真实连接示例会在后面用代码块说明，但本节不依赖外部数据库，保证直接运行。</p>
+<p>示例代码直接使用已安装的 <code>qust</code> 包；运行前请先执行 <code>pip install qust</code>。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=0c5822a7">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+<span class="kn">import</span> <span class="nn">qust.datasource</span> <span class="k">as</span> <span class="nn">qds</span>
+<span class="kn">import</span> <span class="nn">qust.future.future</span>  <span class="c1"># 注册 future / ta / bt / stra 等命名空间</span>
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span>
+<span class="kn">from</span> <span class="nn">qust._polars</span> <span class="kn">import</span> <span class="n">pl</span>
+
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_rows</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+<span class="n">pl</span><span class="o">.</span><span class="n">Config</span><span class="o">.</span><span class="n">set_tbl_cols</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+
+<span class="n">KLINE_PATH</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_kline3.parquet?raw=true"</span>
+<span class="n">TICK_PATH</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/data_tick.parquet?raw=true"</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=42a14192"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-qust-%E7%9A%84%E6%A0%B8%E5%BF%83%E5%BF%83%E6%99%BA%E6%A8%A1%E5%9E%8B">2. qust 的核心心智模型</h2><p>qust 的核心对象是 <code>Expr</code>。<code>Expr</code> 只描述“怎么算”，不直接保存数据。数据可以来自：</p>
+<ul>
+<li><code>polars.DataFrame</code>：研究阶段最常见；</li>
+<li>parquet/csv/lazy 数据源：适合分批读取；</li>
+<li>ClickHouse：适合连接已有行情库或因子库；</li>
+<li>Python UDF：当某些逻辑暂时没有原生算子时，用 UDF 补上。</li>
+</ul>
+<p>一条计算通常长这样：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</pre></div>
+<p>这行表达的是：对每个 <code>ticker + ct</code> 合约独立维护状态，在每个合约内部计算 <code>close</code> 的 20 窗口均值。</p>
+<p>更完整的流程可以写成：</p>
+<div class="highlight"><pre class="code-block"><span></span>数据源 -&gt; Expr 编译 -&gt; Exec 执行器 -&gt; DataFrame / Stream / Monitor
+</pre></div>
+<p>这也是 qust 和直接写循环最大的差别：你写的是表达式图，qust 决定怎么执行、怎么复用状态、怎么在 group/rolling/stream 下维护上下文。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=9e8ac55f"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-%E8%AF%BB%E5%8F%96-GitHub-%E6%A0%B7%E4%BE%8B%E6%95%B0%E6%8D%AE">3. 读取 GitHub 样例数据</h2><p>这里从 GitHub 样例数据读取 K 线文件。字段含义：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ticker</code></td>
+<td>品种代码</td>
+</tr>
+<tr>
+<td><code>datetime</code></td>
+<td>K 线时间</td>
+</tr>
+<tr>
+<td><code>open/high/low/close</code></td>
+<td>OHLC 价格</td>
+</tr>
+<tr>
+<td><code>volume</code></td>
+<td>成交量</td>
+</tr>
+<tr>
+<td><code>is_finished</code></td>
+<td>当前 K 线是否完成</td>
+</tr>
+</tbody>
+</table>
+<p>这个数据集有 60 多万行，足够展示普通 DataFrame 计算、分组计算、流式计算和画图。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=d89151fe">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">data_kline</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">KLINE_PATH</span><span class="p">)</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">])</span>
+<span class="n">PLOT_ROW</span> <span class="o">=</span> <span class="n">data_kline</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">])</span><span class="o">.</span><span class="n">row</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">named</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">PLOT_TICKER</span> <span class="o">=</span> <span class="n">PLOT_ROW</span><span class="p">[</span><span class="s2">"ticker"</span><span class="p">]</span>
+<span class="n">PLOT_CT</span> <span class="o">=</span> <span class="n">PLOT_ROW</span><span class="p">[</span><span class="s2">"ct"</span><span class="p">]</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"shape:"</span><span class="p">,</span> <span class="n">data_kline</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"tickers:"</span><span class="p">,</span> <span class="n">data_kline</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="o">.</span><span class="n">sort</span><span class="p">())</span><span class="o">.</span><span class="n">to_series</span><span class="p">()</span><span class="o">.</span><span class="n">to_list</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"plot contract:"</span><span class="p">,</span> <span class="n">PLOT_TICKER</span><span class="p">,</span> <span class="n">PLOT_CT</span><span class="p">)</span>
+<span class="n">data_kline</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">shape: (408782, 8)
+tickers: ['AP', 'RM', 'SA', 'al', 'eb', 'eg', 'fu', 'rb']
+plot contract: AP 205
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 8)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:00:00</td><td>8394.0</td><td>8394.0</td><td>8392.0</td><td>8392.0</td><td>1100.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:05:00</td><td>8385.0</td><td>8389.0</td><td>8348.0</td><td>8378.0</td><td>11169.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:10:00</td><td>8375.0</td><td>8376.0</td><td>8298.0</td><td>8302.0</td><td>14001.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:15:00</td><td>8301.0</td><td>8315.0</td><td>8271.0</td><td>8280.0</td><td>12839.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:20:00</td><td>8279.0</td><td>8285.0</td><td>8243.0</td><td>8246.0</td><td>11496.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:25:00</td><td>8243.0</td><td>8267.0</td><td>8220.0</td><td>8267.0</td><td>12307.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:30:00</td><td>8267.0</td><td>8325.0</td><td>8252.0</td><td>8323.0</td><td>10889.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:35:00</td><td>8323.0</td><td>8405.0</td><td>8315.0</td><td>8371.0</td><td>19223.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=253439be"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-%E6%9C%80%E5%9F%BA%E7%A1%80%E7%9A%84%E8%A1%A8%E8%BE%BE%E5%BC%8F%EF%BC%9A%E9%80%89%E6%8B%A9%E5%88%97%E3%80%81%E6%B4%BE%E7%94%9F%E5%88%97%E3%80%81%E8%B0%83%E7%94%A8-Polars-%E8%A1%A8%E8%BE%BE%E5%BC%8F">4. 最基础的表达式：选择列、派生列、调用 Polars 表达式</h2><p><code>col(...)</code> 是 qust 最常用的入口。</p>
+<p>常见写法：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>写法</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>col("close")</code></td>
+<td>选择一列</td>
+</tr>
+<tr>
+<td><code>col("open", "close")</code></td>
+<td>选择多列</td>
+</tr>
+<tr>
+<td><code>col.lit(1.0)</code></td>
+<td>字面量</td>
+</tr>
+<tr>
+<td><code>col("close") / col("open") - col.lit(1.0)</code></td>
+<td>qust 表达式运算</td>
+</tr>
+<tr>
+<td><code>col(pl.col("close").log().alias("log_close"))</code></td>
+<td>直接嵌入 Polars 表达式</td>
+</tr>
+</tbody>
+</table>
+<p>这点很重要：qust 不是要替代 Polars 的每个表达式，而是在 Polars 擅长的列计算之上，加上自己的状态上下文、金融算子、流式执行和 monitor UI。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=392e9c7e">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">basic_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="s2">"ticker"</span><span class="p">,</span>
+    <span class="s2">"datetime"</span><span class="p">,</span>
+    <span class="s2">"open"</span><span class="p">,</span>
+    <span class="s2">"close"</span><span class="p">,</span>
+    <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">/</span> <span class="n">col</span><span class="p">(</span><span class="s2">"open"</span><span class="p">)</span> <span class="o">-</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="mf">1.0</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"intrabar_ret"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"log_close"</span><span class="p">)),</span>
+<span class="p">)</span>
+
+<span class="n">basic_result</span> <span class="o">=</span> <span class="n">basic_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data_kline</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">10</span><span class="p">))</span>
+<span class="n">basic_result</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (10, 6)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>datetime</th><th>open</th><th>close</th><th>intrabar_ret</th><th>log_close</th></tr><tr><td>str</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>2022-01-04 09:00:00</td><td>8394.0</td><td>8392.0</td><td>-0.000238</td><td>9.035034</td></tr><tr><td>"AP"</td><td>2022-01-04 09:05:00</td><td>8385.0</td><td>8378.0</td><td>-0.000835</td><td>9.033365</td></tr><tr><td>"AP"</td><td>2022-01-04 09:10:00</td><td>8375.0</td><td>8302.0</td><td>-0.008716</td><td>9.024252</td></tr><tr><td>"AP"</td><td>2022-01-04 09:15:00</td><td>8301.0</td><td>8280.0</td><td>-0.00253</td><td>9.021598</td></tr><tr><td>"AP"</td><td>2022-01-04 09:20:00</td><td>8279.0</td><td>8246.0</td><td>-0.003986</td><td>9.017484</td></tr><tr><td>"AP"</td><td>2022-01-04 09:25:00</td><td>8243.0</td><td>8267.0</td><td>0.002912</td><td>9.020027</td></tr><tr><td>"AP"</td><td>2022-01-04 09:30:00</td><td>8267.0</td><td>8323.0</td><td>0.006774</td><td>9.026778</td></tr><tr><td>"AP"</td><td>2022-01-04 09:35:00</td><td>8323.0</td><td>8371.0</td><td>0.005767</td><td>9.032529</td></tr><tr><td>"AP"</td><td>2022-01-04 09:40:00</td><td>8374.0</td><td>8385.0</td><td>0.001314</td><td>9.0342</td></tr><tr><td>"AP"</td><td>2022-01-04 09:45:00</td><td>8388.0</td><td>8384.0</td><td>-0.000477</td><td>9.03408</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=7b773624"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-%E4%B8%8A%E4%B8%8B%E6%96%87%EF%BC%9Arolling%E3%80%81expanding%E3%80%81over%E3%80%81group_by">5. 上下文：rolling、expanding、over、group_by</h2><p>很多量化逻辑不是“当前行单独计算”，而是要依赖历史或分组。qust 把这些语义做成上下文：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>上下文</th>
+<th>典型含义</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rolling(n)</code></td>
+<td>固定长度滑动窗口</td>
+<td>20 根 K 线均线</td>
+</tr>
+<tr>
+<td><code>expanding()</code></td>
+<td>从开始到当前的累积状态</td>
+<td>累计收益、运行均值</td>
+</tr>
+<tr>
+<td><code>over("ticker")</code></td>
+<td>每个品种独立计算</td>
+<td>每个合约单独滚动均线</td>
+</tr>
+<tr>
+<td><code>group_by(...)</code></td>
+<td>按 key 聚合</td>
+<td>每日汇总、横截面聚合</td>
+</tr>
+</tbody>
+</table>
+<p>下面先生成每个品种内部的 20 窗口均线、滚动波动率和运行均值。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=07e444e3">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">feature_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="s2">"ticker"</span><span class="p">,</span>
+    <span class="s2">"ct"</span><span class="p">,</span>
+    <span class="s2">"datetime"</span><span class="p">,</span>
+    <span class="s2">"close"</span><span class="p">,</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ma20"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">.</span><span class="n">rolling</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"std20"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"running_mean"</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">)</span>
+
+<span class="n">feature_result</span> <span class="o">=</span> <span class="n">feature_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data_kline</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">30_000</span><span class="p">))</span>
+<span class="n">feature_result</span><span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_CT</span><span class="p">))</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 7)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>close</th><th>ma20</th><th>std20</th><th>running_mean</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:00:00</td><td>8392.0</td><td>null</td><td>null</td><td>8392.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:05:00</td><td>8378.0</td><td>null</td><td>null</td><td>8385.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:10:00</td><td>8302.0</td><td>null</td><td>null</td><td>8357.333333</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:15:00</td><td>8280.0</td><td>null</td><td>null</td><td>8338.0</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:20:00</td><td>8246.0</td><td>null</td><td>null</td><td>8319.6</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:25:00</td><td>8267.0</td><td>null</td><td>null</td><td>8310.833333</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:30:00</td><td>8323.0</td><td>null</td><td>null</td><td>8312.571429</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:35:00</td><td>8371.0</td><td>null</td><td>null</td><td>8319.875</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:40:00</td><td>8385.0</td><td>null</td><td>null</td><td>8327.111111</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:45:00</td><td>8384.0</td><td>null</td><td>null</td><td>8332.8</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:50:00</td><td>8378.0</td><td>null</td><td>null</td><td>8336.909091</td></tr><tr><td>"AP"</td><td>205</td><td>2022-01-04 09:55:00</td><td>8335.0</td><td>null</td><td>null</td><td>8336.75</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=8bfe1b17"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p><code>group_by</code> 用于把多行压成分组结果。下面把分钟 K 线按 <code>date + ticker</code> 汇总，得到每天每个品种的最后收盘价和总成交量。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=dc8cf951">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">daily_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">last_value</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"last_close"</span><span class="p">),</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">),</span>
+<span class="p">)</span><span class="o">.</span><span class="n">group_by</span><span class="p">(</span>
+    <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"date"</span><span class="p">),</span>
+    <span class="s2">"ticker"</span><span class="p">,</span>
+    <span class="s2">"ct"</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">daily_by_ticker</span> <span class="o">=</span> <span class="n">daily_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data_kline</span><span class="p">)</span>
+<span class="n">daily_by_ticker</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 5)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>ticker</th><th>ct</th><th>last_close</th><th>volume</th></tr><tr><td>date</td><td>str</td><td>i32</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2022-01-04</td><td>"AP"</td><td>205</td><td>8164.0</td><td>296870.0</td></tr><tr><td>2022-01-05</td><td>"AP"</td><td>205</td><td>8027.0</td><td>320800.0</td></tr><tr><td>2022-01-06</td><td>"AP"</td><td>205</td><td>8219.0</td><td>212764.0</td></tr><tr><td>2022-01-07</td><td>"AP"</td><td>205</td><td>8623.0</td><td>338351.0</td></tr><tr><td>2022-01-10</td><td>"AP"</td><td>205</td><td>8634.0</td><td>133660.0</td></tr><tr><td>2022-01-11</td><td>"AP"</td><td>205</td><td>8578.0</td><td>138517.0</td></tr><tr><td>2022-01-12</td><td>"AP"</td><td>205</td><td>8479.0</td><td>151540.0</td></tr><tr><td>2022-01-13</td><td>"AP"</td><td>205</td><td>8418.0</td><td>142607.0</td></tr><tr><td>2022-01-14</td><td>"AP"</td><td>205</td><td>8538.0</td><td>170271.0</td></tr><tr><td>2022-01-17</td><td>"AP"</td><td>205</td><td>8275.0</td><td>189910.0</td></tr><tr><td>2022-01-18</td><td>"AP"</td><td>205</td><td>8550.0</td><td>231909.0</td></tr><tr><td>2022-01-19</td><td>"AP"</td><td>205</td><td>8614.0</td><td>181748.0</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=59f9616f"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-monitor%EF%BC%9A%E6%8A%8A%E7%BB%93%E6%9E%9C%E7%9B%B4%E6%8E%A5%E7%94%BB%E5%87%BA%E6%9D%A5">6. monitor：把结果直接画出来</h2><p>qust 的 monitor 是交互式图表 UI。表达式仍然是 qust 写法：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"slot_id"</span><span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</pre></div>
+<p>这里的关键点：</p>
+<ol>
+<li><code>monitor.line()</code> 只是把当前表达式变成绘图表达式；</li>
+<li><code>.runtime()</code> 表示进入可运行的 DataFrame runtime；</li>
+<li><code>.plot(..., open_in_jupyter=True)</code> 会在 输出一个真实 iframe，不是静态 PNG。</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=67d0c4bc">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">contract_price</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">data_kline</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_CT</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">8_000</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">price_runtime</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"contract_close"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">line</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">price_runtime</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">contract_price</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">420</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="1-项目概览 monitor output 1" loading="lazy" src="../../assets/notebook-renders/tutorial-1-overview-01.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f932eeee5c0&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=98d16974">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">contract_daily_volume</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">daily_by_ticker</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_TICKER</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span> <span class="o">==</span> <span class="n">PLOT_CT</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">volume_runtime</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="p">(</span><span class="s2">"contract_daily_volume"</span><span class="p">,</span> <span class="n">show_axis_label</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">bar</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span>
+<span class="n">volume_runtime</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">contract_daily_volume</span><span class="p">,</span> <span class="n">open_in_jupyter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">auto_open</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">420</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea">
+<figure class="monitor-static"><img alt="1-项目概览 monitor output 2" loading="lazy" src="../../assets/notebook-renders/tutorial-1-overview-02.png"/><figcaption>Notebook output: static monitor image</figcaption></figure>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_text output_subarea output_execute_result">
+<pre class="code-block">&lt;qust.dataframe.dataframe.DataFrame at 0x7f932eeefcd0&gt;</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=028eff44"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-calc_data-%E5%92%8C%E6%B5%81%E5%BC%8F-calc_stream-%E7%9A%84%E5%8C%BA%E5%88%AB">7. <code>calc_data</code> 和流式 <code>calc_stream</code> 的区别</h2><p>很多新用户会被 <code>calc_data</code>、<code>runtime()</code>、<code>calc_stream</code> 搞混。可以按下面理解：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>方法</th>
+<th>输入</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>expr.calc_data(dataframe)</code></td>
+<td>一个已经在内存里的 DataFrame</td>
+<td>小中型研究、调试、单次计算</td>
+</tr>
+<tr>
+<td><code>expr.runtime().calc_stream(datasource)</code></td>
+<td>一个分批数据源</td>
+<td>大文件、实时行情、需要按 batch 持续更新状态</td>
+</tr>
+<tr>
+<td><code>expr.runtime().plot(data)</code></td>
+<td>数据或数据源</td>
+<td>计算后直接进入 monitor UI</td>
+</tr>
+</tbody>
+</table>
+<p>流式不是简单地“分块 collect 后拼起来”。关键在于：<code>rolling</code>、<code>expanding</code>、<code>over</code> 这类有状态算子会把状态留在执行器里，下一批数据到来时继续更新。</p>
+<p>下面用同一个运行均值表达式，分别对 DataFrame 和 parquet 数据源计算。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=f2c2e44e">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">running_mean_expr</span> <span class="o">=</span> <span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">expanding</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"running_mean_close"</span><span class="p">)</span>
+
+<span class="n">calc_data_tail</span> <span class="o">=</span> <span class="n">running_mean_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data_kline</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"close"</span><span class="p">))</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+
+<span class="n">stream_source</span> <span class="o">=</span> <span class="n">qds</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">data_kline</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"close"</span><span class="p">),</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">100_000</span><span class="p">)</span>
+<span class="n">calc_stream_tail</span> <span class="o">=</span> <span class="n">running_mean_expr</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span><span class="o">.</span><span class="n">calc_stream</span><span class="p">(</span><span class="n">stream_source</span><span class="p">)</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"calc_data tail:"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">calc_data_tail</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"calc_stream tail:"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">calc_stream_tail</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">calc_data tail:
+shape: (5, 1)
+┌────────────────────┐
+│ running_mean_close │
+│ ---                │
+│ f64                │
+╞════════════════════╡
+│ 7052.088246        │
+│ 7052.079106        │
+│ 7052.069952        │
+│ 7052.06079         │
+│ 7052.051634        │
+└────────────────────┘
+
+calc_stream tail:
+shape: (5, 1)
+┌────────────────────┐
+│ running_mean_close │
+│ ---                │
+│ f64                │
+╞════════════════════╡
+│ 7052.088246        │
+│ 7052.079106        │
+│ 7052.069952        │
+│ 7052.06079         │
+│ 7052.051634        │
+└────────────────────┘
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=c7d36a04"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-%E6%95%B0%E6%8D%AE%E6%BA%90%EF%BC%9ADataFrame%E3%80%81LazyFrame%E3%80%81parquet%E3%80%81ClickHouse">8. 数据源：DataFrame、LazyFrame、parquet、ClickHouse</h2><p>研究阶段通常从 <code>pl.read_parquet(...)</code> 开始；数据变大以后，可以切到 <code>qds.read_parquet(...)</code> 或 <code>qds.from_lazy(...)</code>，让 qust runtime 分批消费。</p>
+<p>ClickHouse 的典型写法如下。本节不直接连接数据库，所以这里作为模板保留：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">datetime</span> <span class="k">as</span> <span class="nn">dt</span>
+<span class="kn">import</span> <span class="nn">qust.datasource</span> <span class="k">as</span> <span class="nn">qds</span>
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span>
+
+<span class="n">chdb</span> <span class="o">=</span> <span class="n">qds</span><span class="o">.</span><span class="n">clickhouse</span><span class="p">(</span>
+    <span class="n">url</span><span class="o">=</span><span class="s2">"192.168.1.139:9000"</span><span class="p">,</span>
+    <span class="n">database</span><span class="o">=</span><span class="s2">"future_market_data"</span><span class="p">,</span>
+    <span class="n">username</span><span class="o">=</span><span class="s2">"bg"</span><span class="p">,</span>
+    <span class="n">password</span><span class="o">=</span><span class="s2">"***"</span><span class="p">,</span>
+    <span class="n">query</span><span class="o">=</span><span class="s2">"select * from gq_tick where trading_date &gt;= '2024-02-01'"</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">expr</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+    <span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"trading_date"</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2024</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)))</span>
+<span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="s2">"code"</span><span class="p">,</span>
+    <span class="s2">"datetime"</span><span class="p">,</span>
+    <span class="s2">"last"</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span><span class="o">.</span><span class="n">calc_stream</span><span class="p">(</span><span class="n">chdb</span><span class="p">)</span>
+</pre></div>
+<p>如果数据源支持谓词下推，过滤条件越靠近数据源越好；但具体能不能下推取决于 datasource 的实现、表达式是否能翻译成底层查询、以及文件/数据库本身的统计信息。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=55f75af9"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="9.-%E4%B8%BA%E4%BB%80%E4%B9%88-qust-%E9%80%82%E5%90%88%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6">9. 为什么 qust 适合量化研究</h2><p>qust 的优势主要不在“语法短”，而在这些地方：</p>
+<ol>
+<li><strong>表达式可组合</strong>：因子、信号、回测、统计、画图都能放进同一条表达式链。</li>
+<li><strong>上下文清晰</strong>：<code>rolling / expanding / over / group_by / batch</code> 明确告诉执行器状态怎么维护。</li>
+<li><strong>流式友好</strong>：同一个表达式可以先在历史数据上回测，再接流式数据做实时监控，减少研究和实盘之间的逻辑偏差。</li>
+<li><strong>金融算子内置</strong>：<code>ta</code>、<code>stra</code>、<code>bt</code>、<code>alpha</code>、<code>monitor</code>、<code>opt</code> 等命名空间把常见量化模块做成标准积木。</li>
+<li><strong>可以接 Polars</strong>：普通列计算仍然可以用 Polars 表达式，不需要为了用 qust 放弃 Polars 生态。</li>
+<li><strong>高性能执行器</strong>：核心执行路径在 Rust 里，适合批量跑因子、批量回测和多策略评估。</li>
+<li><strong>交互分析</strong>：monitor 可以把回测曲线、分布、热力图、K 线、散点等直接变成交互 UI。</li>
+</ol>
+<p>下一份 portfolio 教程 会把这些积木串起来：用两条内置策略生成 PnL，做等权组合，再用 <code>convex_sr</code> 求组合权重并画出组合曲线。</p>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../../site.js"></script>
+  </body>
+</html>
