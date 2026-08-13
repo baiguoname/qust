@@ -617,12 +617,14 @@ def collect_monitor_jobs(pages: list[NotebookPage], collection: str) -> list[dic
         soup = BeautifulSoup(raw_body, "html.parser")
         for idx, iframe in enumerate(soup.find_all("iframe")):
             src = iframe.get("src")
-            if not src:
+            srcdoc = iframe.get("srcdoc")
+            if not src and not srcdoc:
                 continue
             filename = static_render_name(collection, page.slug, idx)
             jobs.append(
                 {
                     "url": src,
+                    "html": srcdoc,
                     "out": str(STATIC_RENDER_DIR / filename),
                     "height": iframe_height(iframe),
                     "title": page.title,
@@ -660,7 +662,11 @@ const jobs = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
       deviceScaleFactor: 1,
     });
     try {
-      await page.goto(job.url, { waitUntil: "domcontentloaded", timeout: 6000 });
+      if (job.html) {
+        await page.setContent(job.html, { waitUntil: "domcontentloaded", timeout: 6000 });
+      } else {
+        await page.goto(job.url, { waitUntil: "domcontentloaded", timeout: 6000 });
+      }
       await page.waitForTimeout(1800);
       await page.screenshot({ path: job.out, fullPage: false });
       results.push({ ok: true, out: job.out, url: job.url });

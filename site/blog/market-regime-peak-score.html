@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="qust 高性能计算引擎：DataFrame、流计算、量化研究、ClickHouse 与高性能算子。">
+    <title>市场状态高峰：用 qust 检测期货市场 regime change | qust</title>
+    <link rel="stylesheet" href="../styles.css">
+  </head>
+  <body class="article-page">
+    <canvas class="market-canvas" aria-hidden="true"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="../index.html" aria-label="qust 首页">
+          <span class="brand-mark">q</span>
+          <span class="brand-text">qust</span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <a href="../tutorial.html">使用教程</a>
+          <a href="../blog.html">Blog</a>
+          <a href="../../examples/docs/index.html">Doc</a>
+          <a href="../service.html">服务</a>
+          <a href="https://baiguoname.github.io/qust/site">项目地址</a>
+          <a href="https://github.com/baiguoname/qust">git地址</a>
+          <a class="lang-switch" href="../en/blog/market-regime-peak-score.html">English</a>
+        </nav>
+      </header>
+    
+
+    <main class="article-layout">
+      <aside class="article-sidebar">
+        <a class="back-link" href="../blog.html">返回目录</a>
+        <div class="article-list">
+          <a class="article-link" href="bearish-engulfing.html">Bearish Engulfing</a><a class="article-link" href="breadth-thrust.html">Breadth Thrust</a><a class="article-link" href="bullish-harami.html">Bullish Harami</a><a class="article-link" href="descending-triangle.html">Descending Triangle</a><a class="article-link" href="donchian-channels.html">Donchian Channels</a><a class="article-link" href="double-top.html">Double Top</a><a class="article-link" href="gap.html">Gap</a><a class="article-link" href="ichimoku-cloud.html">Ichimoku Cloud</a><a class="article-link active" href="market-regime-peak-score.html">Market Regime Peak Score</a><a class="article-link" href="morning-star.html">Morning Star</a><a class="article-link" href="triple-bottom.html">Triple Bottom</a><a class="article-link" href="wedge.html">Wedge</a><a class="article-link" href="zig-zag.html">Zig Zag</a>
+        </div>
+      </aside>
+      <article class="notebook-article">
+        <div class="cell border-box-sizing text_cell rendered" id="cell-id=e05d6587"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="%E5%B8%82%E5%9C%BA%E7%8A%B6%E6%80%81%E9%AB%98%E5%B3%B0%EF%BC%9A%E7%94%A8-qust-%E6%A3%80%E6%B5%8B%E6%9C%9F%E8%B4%A7%E5%B8%82%E5%9C%BA-regime-change">市场状态高峰：用 qust 检测期货市场 regime change</h1><p><a href="https://baiguoname.github.io/qust/site">项目地址</a> · <a href="https://github.com/baiguoname/qust">git地址</a></p>
+<p>本节介绍 <code>daily_market_change_peak_score</code>：一个面向期货日线长表的市场状态变换高峰检测算子。</p>
+<p>它要回答的问题不是“今天涨了吗”，也不是“某个品种是不是突破了均线”，而是：</p>
+<blockquote>
+<p>从整个期货市场的横截面状态看，哪几个日期附近出现了最明显、最不寻常、并且跨多个观察尺度都能看到的结构变化？</p>
+</blockquote>
+<p>这里的“市场状态”不是单一价格序列，而是全市场合约在同一天共同形成的特征分布。一个 regime change 往往不是某一个合约单独变化，而是很多合约的收益、波动、上下行振幅、成交活跃度等特征一起发生变化。<code>daily_market_change_peak_score</code> 就是为了把这种变化压缩成每天一行的分数，并从连续高分里确认少数几个真正的高峰点。</p>
+<p>这不是投资建议，也不是一个直接买卖信号。它更适合用来做市场阶段划分、策略分段诊断、样本内外稳定性检查、以及策略参数是否需要分 regime 管理的辅助工具。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=ecd720b1"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="1.-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E8%BF%99%E7%A7%8D%E6%96%B9%E6%B3%95">1. 为什么需要这种方法</h2><p>做期货策略分析时，经常会遇到下面几类问题：</p>
+<ol>
+<li>同一个策略在某几年表现很好，换一段历史就明显变差；</li>
+<li>某些年份不是单纯收益变差，而是交易节奏、波动结构、趋势延续性、反转强度一起变了；</li>
+<li>单看某个品种容易误判，因为单品种变化可能只是品种自己的事件，不能代表整个市场；</li>
+<li>简单用收益率均值或波动率做分段，容易被某几个极端合约带偏；</li>
+<li>用固定窗口比较前后两段时，窗口长度一变，分数尺度也会变，导致不同窗口之间不好比较；</li>
+<li>市场结构变化通常会连续几天都给出高分，如果每天都当成一个 regime 点，结果会太密集，无法用于分析。</li>
+</ol>
+<p><code>daily_market_change_peak_score</code> 的设计目标就是解决这些问题：</p>
+<ul>
+<li>先把每个合约自己的价格变化标准化，降低不同品种波动水平差异的影响；</li>
+<li>再按交易日做横截面聚合，得到每天一行的全市场特征；</li>
+<li>用相邻窗口的分布差异，而不是单个均值，衡量前后市场状态是否发生改变；</li>
+<li>同时检查多个窗口尺度，让结果不只依赖某一个窗口长度；</li>
+<li>用每个尺度自己的历史分布做在线标准化，让不同尺度之间可以比较；</li>
+<li>对连续候选峰做间隔确认，只保留一段异常里的最高峰。</li>
+</ul>
+<p>所以它输出的不是密密麻麻的“每天变化分数”，而是更适合观察市场阶段切换的稀疏高峰。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=d356d812"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="2.-%E7%AE%97%E5%AD%90%E5%81%9A%E4%BA%86%E4%BB%80%E4%B9%88">2. 算子做了什么</h2><p>一行调用：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="n">res</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">regime</span><span class="o">.</span><span class="n">daily_market_change_peak_score</span><span class="p">()</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data_kline</span><span class="p">)</span>
+</pre></div>
+<p>输入是一张期货日线长表。每行通常是一根合约日 K 线，至少需要：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ticker</code></td>
+<td>品种名，例如 <code>rb</code>、<code>fu</code>、<code>SA</code></td>
+</tr>
+<tr>
+<td><code>ct</code></td>
+<td>合约编号，用于区分同一品种下不同合约</td>
+</tr>
+<tr>
+<td><code>datetime</code></td>
+<td>K 线时间戳，算子内部会取日期作为交易日</td>
+</tr>
+<tr>
+<td><code>open</code></td>
+<td>开盘价</td>
+</tr>
+<tr>
+<td><code>high</code></td>
+<td>最高价</td>
+</tr>
+<tr>
+<td><code>low</code></td>
+<td>最低价</td>
+</tr>
+<tr>
+<td><code>close</code></td>
+<td>收盘价</td>
+</tr>
+<tr>
+<td><code>volume</code></td>
+<td>成交量</td>
+</tr>
+</tbody>
+</table>
+<p>算子内部会按 <code>ticker, ct</code> 隔离每个合约的历史状态，再按 <code>date</code> 聚合成全市场特征。它并不要求用户提前 pivot，也不要求用户手动构造宽表。</p>
+<p>默认使用的多尺度窗口是：</p>
+<div class="highlight"><pre class="code-block"><span></span><span class="p">[(</span><span class="mi">21</span><span class="p">,</span> <span class="mi">21</span><span class="p">),</span> <span class="p">(</span><span class="mi">42</span><span class="p">,</span> <span class="mi">21</span><span class="p">),</span> <span class="p">(</span><span class="mi">63</span><span class="p">,</span> <span class="mi">21</span><span class="p">),</span> <span class="p">(</span><span class="mi">63</span><span class="p">,</span> <span class="mi">42</span><span class="p">),</span> <span class="p">(</span><span class="mi">126</span><span class="p">,</span> <span class="mi">42</span><span class="p">)]</span>
+</pre></div>
+<p>例如 <code>63x42</code> 表示：在当前观察日附近，拿切点前 63 个交易日和切点后 42 个交易日进行比较。尺度越短，对快速冲击越敏感；尺度越长，更偏向捕捉持续性的市场结构变化。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=5512f7f2">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="kn">import</span> <span class="nn">datetime</span> <span class="k">as</span> <span class="nn">dt</span>
+
+<span class="kn">import</span> <span class="nn">polars</span> <span class="k">as</span> <span class="nn">pl</span>
+<span class="kn">import</span> <span class="nn">qust</span> <span class="k">as</span> <span class="nn">qs</span>
+<span class="kn">from</span> <span class="nn">qust</span> <span class="kn">import</span> <span class="n">col</span>
+
+<span class="n">DATA_URL</span> <span class="o">=</span> <span class="s2">"https://github.com/baiguoname/qust/blob/main/examples/data/d1.parquet?raw=true"</span>
+
+<span class="n">data_kline</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="n">DATA_URL</span><span class="p">)</span>
+<span class="n">data_kline</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">))</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data_kline</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"shape:"</span><span class="p">,</span> <span class="n">data_kline</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"columns:"</span><span class="p">,</span> <span class="n">data_kline</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"date range:"</span><span class="p">,</span> <span class="n">data_kline</span><span class="p">[</span><span class="s2">"datetime"</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="s2">"-&gt;"</span><span class="p">,</span> <span class="n">data_kline</span><span class="p">[</span><span class="s2">"datetime"</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"ticker count:"</span><span class="p">,</span> <span class="n">data_kline</span><span class="p">[</span><span class="s2">"ticker"</span><span class="p">]</span><span class="o">.</span><span class="n">n_unique</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"contract count:"</span><span class="p">,</span> <span class="n">data_kline</span><span class="p">[</span><span class="s2">"ct"</span><span class="p">]</span><span class="o">.</span><span class="n">n_unique</span><span class="p">())</span>
+
+<span class="n">data_kline</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">shape: (118838, 9)
+columns: ['ticker', 'ct', 'datetime', 'open', 'high', 'low', 'close', 'volume', 'is_finished']
+date range: 2017-01-03 14:58:50 -&gt; 2026-07-01 14:59:00.093000
+ticker count: 79
+contract count: 161
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 9)</small><table border="1" class="dataframe-table"><thead><tr><th>ticker</th><th>ct</th><th>datetime</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th><th>is_finished</th></tr><tr><td>str</td><td>i32</td><td>datetime[ms]</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>bool</td></tr></thead><tbody><tr><td>"CF"</td><td>705</td><td>2017-01-03 14:58:50</td><td>15080.0</td><td>15300.0</td><td>15020.0</td><td>15105.0</td><td>182492.0</td><td>true</td></tr><tr><td>"FG"</td><td>705</td><td>2017-01-03 14:58:50</td><td>1224.0</td><td>1242.0</td><td>1199.0</td><td>1201.0</td><td>188062.0</td><td>true</td></tr><tr><td>"MA"</td><td>705</td><td>2017-01-03 14:58:50</td><td>2731.0</td><td>2770.0</td><td>2656.0</td><td>2658.0</td><td>681836.0</td><td>true</td></tr><tr><td>"OI"</td><td>705</td><td>2017-01-03 14:58:50</td><td>7220.0</td><td>7308.0</td><td>7174.0</td><td>7180.0</td><td>139364.0</td><td>true</td></tr><tr><td>"RM"</td><td>705</td><td>2017-01-03 14:58:50</td><td>2300.0</td><td>2324.0</td><td>2272.0</td><td>2275.0</td><td>363734.0</td><td>true</td></tr><tr><td>"SR"</td><td>705</td><td>2017-01-03 14:58:50</td><td>6848.0</td><td>6848.0</td><td>6727.0</td><td>6736.0</td><td>256334.0</td><td>true</td></tr><tr><td>"TA"</td><td>705</td><td>2017-01-03 14:58:50</td><td>5472.0</td><td>5544.0</td><td>5440.0</td><td>5448.0</td><td>2.083732e6</td><td>true</td></tr><tr><td>"zn"</td><td>1702</td><td>2017-01-03 14:58:50</td><td>21165.0</td><td>21350.0</td><td>20910.0</td><td>21000.0</td><td>146220.0</td><td>true</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=df529183"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="3.-%E8%AE%A1%E7%AE%97%E5%B8%82%E5%9C%BA%E7%8A%B6%E6%80%81%E9%AB%98%E5%B3%B0">3. 计算市场状态高峰</h2><p>下面是真正的计算代码。默认参数已经比较严格：</p>
+<ul>
+<li><code>baseline_window=756</code>：每个尺度最多用约三年历史分数做标准化；</li>
+<li><code>min_baseline=126</code>：某个尺度至少积累约半年历史分数后才开始输出 z-score；</li>
+<li><code>z_thre=4.0</code>：候选峰的综合强度要明显高于历史常态；</li>
+<li><code>rank_thre=0.98</code>：候选峰还要处在同尺度历史分布的极高分位；</li>
+<li><code>persistence_thre=0.4</code>：不只一个尺度异常，至少要有一定多尺度一致性；</li>
+<li><code>min_peak_distance=90</code>：连续异常不会每天都输出峰，而是在相隔足够远之后确认一段异常里的最高点。</li>
+</ul>
+<p>这些约束让输出更稀疏，也更适合拿来做 regime 分析。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=37ce3ecb">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">regime_expr</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">all</span><span class="o">.</span><span class="n">regime</span><span class="o">.</span><span class="n">daily_market_change_peak_score</span><span class="p">()</span>
+<span class="n">res</span> <span class="o">=</span> <span class="n">regime_expr</span><span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">data_kline</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"result shape:"</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">res</span><span class="o">.</span><span class="n">tail</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre class="code-block">result shape: (2236, 34)
+</pre>
+</div>
+</div>
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (8, 34)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>cut_date</th><th>prev_start</th><th>prev_end</th><th>curr_start</th><th>curr_end</th><th>confirmed_date</th><th>confirmed_cut_date</th><th>best_scale</th><th>confirmed_best_scale</th><th>prev_n</th><th>curr_n</th><th>baseline_n</th><th>scale_count</th><th>confirmed_prev_n</th><th>confirmed_curr_n</th><th>score_raw</th><th>score_z</th><th>score_rank</th><th>persistence</th><th>peak_score</th><th>energy_xy</th><th>energy_xx</th><th>energy_yy</th><th>energy_score</th><th>loc_score</th><th>scale_score</th><th>confirmed_score_raw</th><th>confirmed_score_z</th><th>confirmed_score_rank</th><th>confirmed_persistence</th><th>confirmed_peak_score</th><th>is_peak_candidate</th><th>is_peak</th></tr><tr><td>date</td><td>date</td><td>date</td><td>date</td><td>date</td><td>date</td><td>date</td><td>date</td><td>str</td><td>str</td><td>u64</td><td>u64</td><td>u64</td><td>u64</td><td>u64</td><td>u64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>bool</td><td>bool</td></tr></thead><tbody><tr><td>2026-06-18</td><td>2026-05-21</td><td>2026-04-17</td><td>2026-05-20</td><td>2026-05-21</td><td>2026-06-18</td><td>null</td><td>null</td><td>"21x21"</td><td>null</td><td>21</td><td>21</td><td>756</td><td>5</td><td>null</td><td>null</td><td>6.735323</td><td>6.595537</td><td>0.972222</td><td>0.6</td><td>5.44495</td><td>1.009005</td><td>0.752213</td><td>0.624338</td><td>6.735323</td><td>0.840266</td><td>0.127875</td><td>null</td><td>null</td><td>null</td><td>null</td><td>null</td><td>false</td><td>false</td></tr><tr><td>2026-06-22</td><td>2026-05-22</td><td>2026-04-20</td><td>2026-05-21</td><td>2026-05-22</td><td>2026-06-22</td><td>null</td><td>null</td><td>"21x21"</td><td>null</td><td>21</td><td>21</td><td>756</td><td>5</td><td>null</td><td>null</td><td>5.94252</td><td>5.729151</td><td>0.962963</td><td>0.4</td><td>5.083642</td><td>0.97979</td><td>0.777504</td><td>0.616121</td><td>5.94252</td><td>0.797558</td><td>0.161383</td><td>null</td><td>null</td><td>null</td><td>null</td><td>null</td><td>false</td><td>false</td></tr><tr><td>2026-06-23</td><td>2026-05-25</td><td>2026-04-21</td><td>2026-05-22</td><td>2026-05-25</td><td>2026-06-23</td><td>null</td><td>null</td><td>"21x21"</td><td>null</td><td>21</td><td>21</td><td>756</td><td>5</td><td>null</td><td>null</td><td>5.269585</td><td>4.994913</td><td>0.949735</td><td>0.4</td><td>4.80383</td><td>0.953731</td><td>0.778354</td><td>0.627243</td><td>5.269585</td><td>0.763144</td><td>0.151111</td><td>null</td><td>null</td><td>null</td><td>null</td><td>null</td><td>false</td><td>false</td></tr><tr><td>2026-06-24</td><td>2026-05-26</td><td>2026-03-23</td><td>2026-05-25</td><td>2026-05-26</td><td>2026-06-24</td><td>null</td><td>null</td><td>"42x21"</td><td>null</td><td>42</td><td>21</td><td>756</td><td>5</td><td>null</td><td>null</td><td>4.278427</td><td>3.578941</td><td>0.900794</td><td>0.4</td><td>3.277897</td><td>0.859439</td><td>0.835013</td><td>0.578263</td><td>4.278427</td><td>0.526649</td><td>0.25675</td><td>null</td><td>null</td><td>null</td><td>null</td><td>null</td><td>false</td><td>false</td></tr><tr><td>2026-06-25</td><td>2026-05-27</td><td>2026-03-24</td><td>2026-05-26</td><td>2026-05-27</td><td>2026-06-25</td><td>null</td><td>null</td><td>"42x21"</td><td>null</td><td>42</td><td>21</td><td>756</td><td>5</td><td>null</td><td>null</td><td>4.650354</td><td>3.938547</td><td>0.911376</td><td>0.4</td><td>3.163774</td><td>0.856291</td><td>0.795031</td><td>0.585382</td><td>4.650354</td><td>0.564489</td><td>0.209649</td><td>null</td><td>null</td><td>null</td><td>null</td><td>null</td><td>false</td><td>false</td></tr><tr><td>2026-06-26</td><td>2026-05-28</td><td>2026-03-25</td><td>2026-05-27</td><td>2026-05-28</td><td>2026-06-26</td><td>null</td><td>null</td><td>"42x21"</td><td>null</td><td>42</td><td>21</td><td>756</td><td>5</td><td>null</td><td>null</td><td>4.977271</td><td>4.249725</td><td>0.92328</td><td>0.2</td><td>3.063972</td><td>0.860135</td><td>0.782299</td><td>0.582452</td><td>4.977271</td><td>0.588077</td><td>0.199848</td><td>null</td><td>null</td><td>null</td><td>null</td><td>null</td><td>false</td><td>false</td></tr><tr><td>2026-06-29</td><td>2026-05-29</td><td>2026-03-26</td><td>2026-05-28</td><td>2026-05-29</td><td>2026-06-29</td><td>null</td><td>null</td><td>"42x21"</td><td>null</td><td>42</td><td>21</td><td>756</td><td>5</td><td>null</td><td>null</td><td>4.723949</td><td>4.005914</td><td>0.915344</td><td>0.2</td><td>2.680018</td><td>0.860059</td><td>0.786222</td><td>0.596471</td><td>4.723949</td><td>0.577011</td><td>0.189752</td><td>null</td><td>null</td><td>null</td><td>null</td><td>null</td><td>false</td><td>false</td></tr><tr><td>2026-06-30</td><td>2026-06-01</td><td>2026-03-27</td><td>2026-05-29</td><td>2026-06-01</td><td>2026-06-30</td><td>null</td><td>null</td><td>"42x21"</td><td>null</td><td>42</td><td>21</td><td>756</td><td>5</td><td>null</td><td>null</td><td>4.673313</td><td>3.896687</td><td>0.910053</td><td>0.2</td><td>2.540587</td><td>0.854949</td><td>0.788324</td><td>0.587766</td><td>4.673313</td><td>0.575087</td><td>0.200558</td><td>null</td><td>null</td><td>null</td><td>null</td><td>null</td><td>false</td><td>false</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=50a0ff82"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="4.-%E8%BE%93%E5%87%BA%E5%AD%97%E6%AE%B5%E6%80%8E%E4%B9%88%E8%AF%BB">4. 输出字段怎么读</h2><p><code>daily_market_change_peak_score</code> 每个有效交易日输出一行。可以把输出字段分成四类。</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>date</code></td>
+<td>当前输出行日期。若 <code>is_peak=True</code>，它是确认日，不一定是真正峰值发生日</td>
+</tr>
+<tr>
+<td><code>cut_date</code></td>
+<td>当前观察日下，最佳尺度估计出的市场结构切换点</td>
+</tr>
+<tr>
+<td><code>prev_start</code> / <code>prev_end</code></td>
+<td>当前最佳尺度左侧窗口的起点和终点</td>
+</tr>
+<tr>
+<td><code>curr_start</code> / <code>curr_end</code></td>
+<td>当前最佳尺度右侧窗口的起点和终点</td>
+</tr>
+<tr>
+<td><code>best_scale</code></td>
+<td>当前观察日贡献最大的尺度，例如 <code>21x21</code>、<code>63x42</code></td>
+</tr>
+<tr>
+<td><code>prev_n</code> / <code>curr_n</code></td>
+<td>当前最佳尺度左右窗口实际样本数</td>
+</tr>
+<tr>
+<td><code>baseline_n</code></td>
+<td>当前最佳尺度已经累积了多少个历史分数用于标准化</td>
+</tr>
+<tr>
+<td><code>scale_count</code></td>
+<td>当天有多少个尺度成功产出标准化分数</td>
+</tr>
+<tr>
+<td><code>energy_xy</code></td>
+<td>左右两段之间的平均距离</td>
+</tr>
+<tr>
+<td><code>energy_xx</code></td>
+<td>左侧窗口内部平均距离，不含对角线</td>
+</tr>
+<tr>
+<td><code>energy_yy</code></td>
+<td>右侧窗口内部平均距离，不含对角线</td>
+</tr>
+<tr>
+<td><code>energy_score</code></td>
+<td>分布差异主分数，越高说明左右两段整体差异越大</td>
+</tr>
+<tr>
+<td><code>loc_score</code></td>
+<td>均值位置变化解释项</td>
+</tr>
+<tr>
+<td><code>scale_score</code></td>
+<td>离散程度或波动尺度变化解释项</td>
+</tr>
+<tr>
+<td><code>score_raw</code></td>
+<td>当前最佳尺度的原始变化分数</td>
+</tr>
+<tr>
+<td><code>score_z</code></td>
+<td>当前最佳尺度相对自己历史分布的 robust z-score</td>
+</tr>
+<tr>
+<td><code>score_rank</code></td>
+<td>当前最佳尺度在自己历史分布中的在线分位</td>
+</tr>
+<tr>
+<td><code>persistence</code></td>
+<td>多尺度一致性，越高说明越多尺度同时异常</td>
+</tr>
+<tr>
+<td><code>peak_score</code></td>
+<td>当前观察日的最终候选高峰分数</td>
+</tr>
+<tr>
+<td><code>is_peak_candidate</code></td>
+<td>当前观察日是否进入候选峰簇</td>
+</tr>
+<tr>
+<td><code>is_peak</code></td>
+<td>当前行是否确认输出一个稀疏峰</td>
+</tr>
+<tr>
+<td><code>confirmed_date</code></td>
+<td>被确认的真实峰值观察日</td>
+</tr>
+<tr>
+<td><code>confirmed_cut_date</code></td>
+<td>被确认峰对应的估计结构切换点</td>
+</tr>
+<tr>
+<td><code>confirmed_best_scale</code></td>
+<td>被确认峰的最佳尺度</td>
+</tr>
+<tr>
+<td><code>confirmed_prev_n</code> / <code>confirmed_curr_n</code></td>
+<td>被确认峰左右窗口长度</td>
+</tr>
+<tr>
+<td><code>confirmed_score_raw</code></td>
+<td>被确认峰的原始变化分数</td>
+</tr>
+<tr>
+<td><code>confirmed_score_z</code></td>
+<td>被确认峰的 robust z-score</td>
+</tr>
+<tr>
+<td><code>confirmed_score_rank</code></td>
+<td>被确认峰的历史分位</td>
+</tr>
+<tr>
+<td><code>confirmed_persistence</code></td>
+<td>被确认峰的多尺度一致性</td>
+</tr>
+<tr>
+<td><code>confirmed_peak_score</code></td>
+<td>被确认峰的最终强度</td>
+</tr>
+</tbody>
+</table>
+<p>最容易误读的是 <code>date</code>、<code>confirmed_date</code> 和 <code>confirmed_cut_date</code>：</p>
+<ul>
+<li><code>date</code> 是当前输出行日期；</li>
+<li><code>confirmed_date</code> 是真正被选中的峰值观察日；</li>
+<li><code>confirmed_cut_date</code> 是算法估计的前后状态分界点。</li>
+</ul>
+<p>确认峰需要等待一段距离，所以 <code>is_peak=True</code> 往往晚于 <code>confirmed_date</code>。这是为了避免把未来确认结果回写到过去日期。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=43cfb478">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">confirmed</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span><span class="o">.</span><span class="n">all</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"is_peak"</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="s2">"date"</span><span class="p">,</span>
+        <span class="s2">"confirmed_date"</span><span class="p">,</span>
+        <span class="s2">"confirmed_cut_date"</span><span class="p">,</span>
+        <span class="s2">"confirmed_best_scale"</span><span class="p">,</span>
+        <span class="s2">"confirmed_prev_n"</span><span class="p">,</span>
+        <span class="s2">"confirmed_curr_n"</span><span class="p">,</span>
+        <span class="s2">"confirmed_score_raw"</span><span class="p">,</span>
+        <span class="s2">"confirmed_score_z"</span><span class="p">,</span>
+        <span class="s2">"confirmed_score_rank"</span><span class="p">,</span>
+        <span class="s2">"confirmed_persistence"</span><span class="p">,</span>
+        <span class="s2">"confirmed_peak_score"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">confirmed</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (7, 11)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>confirmed_date</th><th>confirmed_cut_date</th><th>confirmed_best_scale</th><th>confirmed_prev_n</th><th>confirmed_curr_n</th><th>confirmed_score_raw</th><th>confirmed_score_z</th><th>confirmed_score_rank</th><th>confirmed_persistence</th><th>confirmed_peak_score</th></tr><tr><td>date</td><td>date</td><td>date</td><td>str</td><td>u64</td><td>u64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td></tr></thead><tbody><tr><td>2018-05-14</td><td>2017-12-25</td><td>2017-11-27</td><td>"21x21"</td><td>21</td><td>21</td><td>4.26001</td><td>7.631313</td><td>1.0</td><td>0.6</td><td>6.498897</td></tr><tr><td>2019-10-28</td><td>2019-06-14</td><td>2019-05-10</td><td>"42x21"</td><td>42</td><td>21</td><td>4.862751</td><td>6.306955</td><td>1.0</td><td>0.6</td><td>5.658969</td></tr><tr><td>2020-06-16</td><td>2020-02-05</td><td>2019-12-24</td><td>"63x21"</td><td>63</td><td>21</td><td>9.214984</td><td>13.547902</td><td>1.0</td><td>1.0</td><td>12.209167</td></tr><tr><td>2021-04-28</td><td>2020-12-14</td><td>2020-10-16</td><td>"126x42"</td><td>126</td><td>42</td><td>8.298987</td><td>8.611475</td><td>1.0</td><td>0.6</td><td>6.260222</td></tr><tr><td>2022-03-18</td><td>2021-10-25</td><td>2021-09-16</td><td>"42x21"</td><td>42</td><td>21</td><td>12.566012</td><td>13.733735</td><td>0.998677</td><td>0.8</td><td>13.690608</td></tr><tr><td>2022-08-26</td><td>2022-04-18</td><td>2022-03-17</td><td>"21x21"</td><td>21</td><td>21</td><td>12.234699</td><td>11.653876</td><td>1.0</td><td>0.6</td><td>11.259495</td></tr><tr><td>2025-05-07</td><td>2024-12-17</td><td>2024-10-21</td><td>"63x42"</td><td>63</td><td>42</td><td>17.082798</td><td>8.967643</td><td>1.0</td><td>0.6</td><td>8.216243</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=597cbf13"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="5.-%E7%94%A8%E6%9F%B1%E7%8A%B6%E5%9B%BE%E7%9C%8B%E7%A1%AE%E8%AE%A4%E5%B3%B0">5. 用柱状图看确认峰</h2><p>下面的图只画已经确认的峰。横轴这里用 <code>date</code>，也就是确认输出日；柱子的高度是 <code>confirmed_peak_score</code>。</p>
+<p><code>confirmed_peak_score</code> 越高，表示这个确认峰在历史标准化之后越异常，并且越可能在多个尺度上同时显著。它不是收益率，也不代表方向；它表示“市场状态发生变化的强度”。</p>
+<p>实际分析时通常同时看三列：</p>
+<ul>
+<li><code>confirmed_peak_score</code>：强度有多高；</li>
+<li><code>confirmed_persistence</code>：有多少尺度同时支持这个变化；</li>
+<li><code>confirmed_best_scale</code>：这个变化更偏短期冲击还是中长期结构切换。</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=42630b0e">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"confirmed_peak_score"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">bar</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">460</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><figure class="monitor-static"><img alt="market-regime-peak-score monitor output 1" loading="lazy" src="../assets/notebook-renders/blog-market-regime-peak-score-01.png"/><figcaption>notebook 输出：monitor 静态图</figcaption></figure></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=33ba7273"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="6.-%E7%9C%8B%E6%AF%8F%E6%97%A5%E5%80%99%E9%80%89%E5%BC%BA%E5%BA%A6%E6%9B%B2%E7%BA%BF">6. 看每日候选强度曲线</h2><p>柱状图只显示最终确认峰。下面再看 <code>peak_score</code> 的每日曲线。</p>
+<p>这张图能看到一个重要现象：市场状态变化通常不是只有一天异常，而是会在一段时间内连续抬高。<code>daily_market_change_peak_score</code> 不会把这一段里的每一天都当成 regime 点，而是先形成候选簇，再用 <code>min_peak_distance</code> 确认其中最高的那个点。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=695e2891">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">peak_curve_data</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span><span class="o">.</span><span class="n">all</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"peak_score"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"peak_score"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">())</span>
+    <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">,</span> <span class="s2">"peak_score"</span><span class="p">)</span><span class="o">.</span><span class="n">monitor</span><span class="o">.</span><span class="n">line</span><span class="p">()</span><span class="o">.</span><span class="n">runtime</span><span class="p">()</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">peak_curve_data</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">460</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><figure class="monitor-static"><img alt="market-regime-peak-score monitor output 2" loading="lazy" src="../assets/notebook-renders/blog-market-regime-peak-score-02.png"/><figcaption>notebook 输出：monitor 静态图</figcaption></figure></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=d147bffd"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="7.-%E5%80%99%E9%80%89%E5%B3%B0%E5%92%8C%E7%A1%AE%E8%AE%A4%E5%B3%B0%E7%9A%84%E5%8C%BA%E5%88%AB">7. 候选峰和确认峰的区别</h2><p>候选峰是“当前已经很异常”的观察日；确认峰是“等待一段时间后，在候选簇中最终胜出的峰”。</p>
+<p>下面列出 <code>peak_score</code> 最高的一批候选点。可以看到同一个市场冲击附近会出现多天高分。例如 2021 年 10 月附近连续多天分数很高，但最终只确认一个峰。这样做的目的就是避免一段 regime change 被重复计数。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=e4636a09">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">top_candidates</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span><span class="o">.</span><span class="n">all</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="s2">"date"</span><span class="p">,</span>
+        <span class="s2">"cut_date"</span><span class="p">,</span>
+        <span class="s2">"best_scale"</span><span class="p">,</span>
+        <span class="s2">"score_raw"</span><span class="p">,</span>
+        <span class="s2">"score_z"</span><span class="p">,</span>
+        <span class="s2">"score_rank"</span><span class="p">,</span>
+        <span class="s2">"persistence"</span><span class="p">,</span>
+        <span class="s2">"peak_score"</span><span class="p">,</span>
+        <span class="s2">"is_peak_candidate"</span><span class="p">,</span>
+        <span class="s2">"is_peak"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"peak_score"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">())</span>
+    <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"peak_score"</span><span class="p">,</span> <span class="n">descending</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">top_candidates</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (20, 10)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>cut_date</th><th>best_scale</th><th>score_raw</th><th>score_z</th><th>score_rank</th><th>persistence</th><th>peak_score</th><th>is_peak_candidate</th><th>is_peak</th></tr><tr><td>date</td><td>date</td><td>str</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>bool</td><td>bool</td></tr></thead><tbody><tr><td>2021-10-25</td><td>2021-09-16</td><td>"42x21"</td><td>12.566012</td><td>13.733735</td><td>0.998677</td><td>0.8</td><td>13.690608</td><td>true</td><td>false</td></tr><tr><td>2021-10-22</td><td>2021-09-15</td><td>"42x21"</td><td>12.615961</td><td>13.792881</td><td>1.0</td><td>0.8</td><td>13.588023</td><td>true</td><td>false</td></tr><tr><td>2021-10-21</td><td>2021-09-14</td><td>"42x21"</td><td>12.277364</td><td>13.393107</td><td>1.0</td><td>0.8</td><td>13.153142</td><td>true</td><td>false</td></tr><tr><td>2021-10-14</td><td>2021-09-07</td><td>"21x21"</td><td>10.562806</td><td>13.481171</td><td>1.0</td><td>0.6</td><td>12.961316</td><td>true</td><td>false</td></tr><tr><td>2021-10-15</td><td>2021-09-08</td><td>"21x21"</td><td>10.958313</td><td>13.849832</td><td>1.0</td><td>0.6</td><td>12.880137</td><td>true</td><td>false</td></tr><tr><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr><tr><td>2021-10-18</td><td>2021-09-09</td><td>"21x21"</td><td>9.37616</td><td>11.740752</td><td>0.996032</td><td>0.6</td><td>11.239634</td><td>true</td><td>false</td></tr><tr><td>2020-02-10</td><td>2019-12-27</td><td>"63x21"</td><td>8.569971</td><td>12.556804</td><td>0.993701</td><td>1.0</td><td>11.190216</td><td>true</td><td>false</td></tr><tr><td>2022-04-19</td><td>2022-03-18</td><td>"21x21"</td><td>12.18053</td><td>11.5139</td><td>0.998677</td><td>0.6</td><td>11.026481</td><td>true</td><td>false</td></tr><tr><td>2022-04-22</td><td>2022-03-23</td><td>"42x21"</td><td>13.097706</td><td>11.181382</td><td>1.0</td><td>0.6</td><td>10.84742</td><td>true</td><td>false</td></tr><tr><td>2022-04-20</td><td>2022-03-21</td><td>"21x21"</td><td>11.275307</td><td>10.560786</td><td>0.996032</td><td>0.6</td><td>10.489593</td><td>true</td><td>false</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=ccb24660"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="8.-%E6%AF%8F%E4%B8%AA%E7%A1%AE%E8%AE%A4-regime-%E7%82%B9%E7%9A%84%E8%A7%A3%E9%87%8A">8. 每个确认 regime 点的解释</h2><p>下面先整理一张辅助解释表。表里比较的是每个确认峰对应的 <code>prev</code> 窗口和 <code>curr</code> 窗口：</p>
+<ul>
+<li><code>abs_ret_ratio</code>：右侧窗口平均绝对收益 / 左侧窗口平均绝对收益；</li>
+<li><code>range_ratio</code>：右侧窗口平均日内振幅 / 左侧窗口平均日内振幅；</li>
+<li><code>up_ratio_before</code> / <code>up_ratio_after</code>：切点前后上涨合约占比；</li>
+<li><code>up_range_ratio</code> / <code>down_range_ratio</code>：上行振幅、下行振幅的前后比值；</li>
+<li><code>volume_delta</code>：成交量变化特征的前后差值。</li>
+</ul>
+<p>这张表用于解释结果，不替代算子本身。最终 regime 点仍以 <code>confirmed_peak_score</code> 和确认峰输出为准。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=4521f489">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">peak_windows</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">res</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"is_peak"</span><span class="p">))</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="s2">"date"</span><span class="p">,</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"confirmed_date"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"peak_date"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"confirmed_cut_date"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"cut_date"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"confirmed_best_scale"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"scale"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"confirmed_peak_score"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"score"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"confirmed_persistence"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"persistence"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="n">res</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+            <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"peak_date"</span><span class="p">),</span>
+            <span class="s2">"prev_start"</span><span class="p">,</span>
+            <span class="s2">"prev_end"</span><span class="p">,</span>
+            <span class="s2">"curr_start"</span><span class="p">,</span>
+            <span class="s2">"curr_end"</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">on</span><span class="o">=</span><span class="s2">"peak_date"</span><span class="p">,</span>
+        <span class="n">how</span><span class="o">=</span><span class="s2">"left"</span><span class="p">,</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">contract_features</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">data_kline</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">,</span> <span class="s2">"datetime"</span><span class="p">])</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"datetime"</span><span class="p">)</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"feature_date"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">])</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"prev_close"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span><span class="o">.</span><span class="n">shift</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">over</span><span class="p">([</span><span class="s2">"ticker"</span><span class="p">,</span> <span class="s2">"ct"</span><span class="p">])</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"prev_volume"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">/</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"prev_close"</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">),</span>
+        <span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span> <span class="o">-</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">))</span> <span class="o">/</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"prev_close"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"range_pct"</span><span class="p">),</span>
+        <span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"high"</span><span class="p">)</span> <span class="o">-</span> <span class="n">pl</span><span class="o">.</span><span class="n">max_horizontal</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">))</span> <span class="o">/</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"prev_close"</span><span class="p">))</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_range_pct"</span><span class="p">),</span>
+        <span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">min_horizontal</span><span class="p">(</span><span class="s2">"open"</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">)</span> <span class="o">-</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"low"</span><span class="p">))</span> <span class="o">/</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"prev_close"</span><span class="p">))</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"down_range_pct"</span><span class="p">),</span>
+        <span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume"</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">()</span> <span class="o">-</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"prev_volume"</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">())</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"volume_chg"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"close"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"prev_close"</span><span class="p">))</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">Float64</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_flag"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">all_horizontal</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">,</span> <span class="s2">"range_pct"</span><span class="p">,</span> <span class="s2">"up_range_pct"</span><span class="p">,</span> <span class="s2">"down_range_pct"</span><span class="p">,</span> <span class="s2">"volume_chg"</span><span class="p">)</span><span class="o">.</span><span class="n">is_finite</span><span class="p">()))</span>
+<span class="p">)</span>
+
+<span class="n">window_rows</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">peak_windows</span>
+    <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">contract_features</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s2">"cross"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">when</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"feature_date"</span><span class="p">)</span><span class="o">.</span><span class="n">is_between</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"prev_start"</span><span class="p">),</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"prev_end"</span><span class="p">)))</span>
+        <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"before"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">when</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"feature_date"</span><span class="p">)</span><span class="o">.</span><span class="n">is_between</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"curr_start"</span><span class="p">),</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"curr_end"</span><span class="p">)))</span>
+        <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"after"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">otherwise</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"side"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"side"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">())</span>
+<span class="p">)</span>
+
+<span class="n">side_stats</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">window_rows</span>
+    <span class="o">.</span><span class="n">group_by</span><span class="p">(</span><span class="s2">"peak_date"</span><span class="p">,</span> <span class="s2">"cut_date"</span><span class="p">,</span> <span class="s2">"scale"</span><span class="p">,</span> <span class="s2">"score"</span><span class="p">,</span> <span class="s2">"persistence"</span><span class="p">,</span> <span class="s2">"side"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">agg</span><span class="p">(</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ticker"</span><span class="p">)</span><span class="o">.</span><span class="n">n_unique</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"tickers"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ct"</span><span class="p">)</span><span class="o">.</span><span class="n">n_unique</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"contracts"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"ret"</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"abs_ret"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"range_pct"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"range"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_range_pct"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_range"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"down_range_pct"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"down_range"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_flag"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_ratio"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume_chg"</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"volume_chg"</span><span class="p">),</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">key_cols</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"peak_date"</span><span class="p">,</span> <span class="s2">"cut_date"</span><span class="p">,</span> <span class="s2">"scale"</span><span class="p">,</span> <span class="s2">"score"</span><span class="p">,</span> <span class="s2">"persistence"</span><span class="p">]</span>
+<span class="n">before</span> <span class="o">=</span> <span class="n">side_stats</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"side"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"before"</span><span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="o">*</span><span class="n">key_cols</span><span class="p">,</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"abs_ret"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"abs_ret_before"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"range"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"range_before"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_range"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_range_before"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"down_range"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"down_range_before"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_ratio"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_ratio_before"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume_chg"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"volume_before"</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">after</span> <span class="o">=</span> <span class="n">side_stats</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"side"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"after"</span><span class="p">)</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+    <span class="o">*</span><span class="n">key_cols</span><span class="p">,</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"abs_ret"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"abs_ret_after"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"range"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"range_after"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_range"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_range_after"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"down_range"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"down_range_after"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_ratio"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_ratio_after"</span><span class="p">),</span>
+    <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume_chg"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"volume_after"</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">regime_notes</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">before</span>
+    <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">after</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="n">key_cols</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s2">"inner"</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"abs_ret_after"</span><span class="p">)</span> <span class="o">/</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"abs_ret_before"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"abs_ret_ratio"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"range_after"</span><span class="p">)</span> <span class="o">/</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"range_before"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"range_ratio"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_range_after"</span><span class="p">)</span> <span class="o">/</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_range_before"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_range_ratio"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"down_range_after"</span><span class="p">)</span> <span class="o">/</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"down_range_before"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"down_range_ratio"</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume_after"</span><span class="p">)</span> <span class="o">-</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume_before"</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"volume_delta"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">when</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"abs_ret_ratio"</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mf">1.35</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"range_ratio"</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mf">1.35</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"波动明显放大"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">when</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"abs_ret_ratio"</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mf">0.75</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"range_ratio"</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mf">0.85</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"波动明显收缩"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">otherwise</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"波动结构变化"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"vol_note"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">when</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_ratio_after"</span><span class="p">)</span> <span class="o">-</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_ratio_before"</span><span class="p">))</span> <span class="o">&gt;=</span> <span class="mf">0.08</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"上涨占比提高"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">when</span><span class="p">((</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_ratio_after"</span><span class="p">)</span> <span class="o">-</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_ratio_before"</span><span class="p">))</span> <span class="o">&lt;=</span> <span class="o">-</span><span class="mf">0.08</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"上涨占比下降"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">otherwise</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"涨跌占比变化不大"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"direction_note"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">when</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_range_ratio"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"down_range_ratio"</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1.2</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"上行波动相对增强"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">when</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"down_range_ratio"</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_range_ratio"</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1.2</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">then</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"下行波动相对增强"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">otherwise</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="s2">"上下行波动同步变化"</span><span class="p">))</span>
+        <span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"range_note"</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">with_columns</span><span class="p">(</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">concat_str</span><span class="p">(</span><span class="s2">"vol_note"</span><span class="p">,</span> <span class="s2">"direction_note"</span><span class="p">,</span> <span class="s2">"range_note"</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s2">"；"</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="s2">"peak_date"</span><span class="p">,</span>
+        <span class="s2">"cut_date"</span><span class="p">,</span>
+        <span class="s2">"scale"</span><span class="p">,</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"score"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"score"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"persistence"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"persistence"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"abs_ret_ratio"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"abs_ret_ratio"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"range_ratio"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"range_ratio"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_ratio_before"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_ratio_before"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_ratio_after"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_ratio_after"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"up_range_ratio"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"up_range_ratio"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"down_range_ratio"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"down_range_ratio"</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"volume_delta"</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">"volume_delta"</span><span class="p">),</span>
+        <span class="s2">"summary"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"peak_date"</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">regime_notes</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (7, 13)</small><table border="1" class="dataframe-table"><thead><tr><th>peak_date</th><th>cut_date</th><th>scale</th><th>score</th><th>persistence</th><th>abs_ret_ratio</th><th>range_ratio</th><th>up_ratio_before</th><th>up_ratio_after</th><th>up_range_ratio</th><th>down_range_ratio</th><th>volume_delta</th><th>summary</th></tr><tr><td>date</td><td>date</td><td>str</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>str</td></tr></thead><tbody><tr><td>2017-12-25</td><td>2017-11-27</td><td>"21x21"</td><td>6.499</td><td>0.6</td><td>1.28</td><td>1.16</td><td>0.54</td><td>0.47</td><td>1.05</td><td>1.15</td><td>0.01</td><td>"波动结构变化；涨跌占比变化不大；上下行波动同步变化"</td></tr><tr><td>2019-06-14</td><td>2019-05-10</td><td>"42x21"</td><td>5.659</td><td>0.6</td><td>1.32</td><td>1.29</td><td>0.5</td><td>0.5</td><td>1.25</td><td>1.25</td><td>0.01</td><td>"波动结构变化；涨跌占比变化不大；上下行波动同步变化"</td></tr><tr><td>2020-02-05</td><td>2019-12-24</td><td>"63x21"</td><td>12.209</td><td>1.0</td><td>1.39</td><td>1.09</td><td>0.48</td><td>0.5</td><td>1.06</td><td>0.91</td><td>-0.01</td><td>"波动明显放大；涨跌占比变化不大；上下行波动同步变化"</td></tr><tr><td>2020-12-14</td><td>2020-10-16</td><td>"126x42"</td><td>6.26</td><td>0.6</td><td>1.06</td><td>1.08</td><td>0.52</td><td>0.53</td><td>1.17</td><td>1.01</td><td>-0.01</td><td>"波动结构变化；涨跌占比变化不大；上下行波动同步变化"</td></tr><tr><td>2021-10-25</td><td>2021-09-16</td><td>"42x21"</td><td>13.691</td><td>0.8</td><td>1.57</td><td>1.96</td><td>0.52</td><td>0.48</td><td>1.83</td><td>1.71</td><td>0.0</td><td>"波动明显放大；涨跌占比变化不大；上下行波动同步变化"</td></tr><tr><td>2022-04-18</td><td>2022-03-17</td><td>"21x21"</td><td>11.259</td><td>0.6</td><td>0.71</td><td>0.76</td><td>0.55</td><td>0.53</td><td>0.82</td><td>0.78</td><td>-0.01</td><td>"波动明显收缩；涨跌占比变化不大；上下行波动同步变化"</td></tr><tr><td>2024-12-17</td><td>2024-10-21</td><td>"63x42"</td><td>8.216</td><td>0.6</td><td>0.82</td><td>0.86</td><td>0.46</td><td>0.47</td><td>0.86</td><td>1.02</td><td>-0.01</td><td>"波动结构变化；涨跌占比变化不大；上下行波动同步变化"</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=696a8943"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>逐个看这些点：</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>峰值观察日</th>
+<th>估计切点</th>
+<th>解读</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2017-12-25</td>
+<td>2017-11-27</td>
+<td><code>21x21</code> 短尺度峰，说明变化集中在约一个月级别。分数 6.50，<code>persistence=0.60</code>，不是全尺度最强冲击，但已经足够异常。辅助表显示前后波动结构发生变化，适合检查短周期策略在这一段前后的盈亏分布是否换挡。</td>
+</tr>
+<tr>
+<td>2019-06-14</td>
+<td>2019-05-10</td>
+<td><code>42x21</code> 中短尺度峰，分数 5.66，强度低于 2020、2021、2022 的大峰，但历史分位很高。它更像一段局部市场结构切换，适合观察品种间强弱扩散、趋势持续性和反转策略胜率是否同步改变。</td>
+</tr>
+<tr>
+<td>2020-02-05</td>
+<td>2019-12-24</td>
+<td><code>63x21</code> 峰，分数 12.21，<code>persistence=1.00</code>。这说明多个尺度同时认为状态差异显著，是非常典型的全市场级别变化。辅助表显示波动明显放大，这类阶段对持仓过长、止损较宽、依赖平稳波动假设的策略影响通常很大。</td>
+</tr>
+<tr>
+<td>2020-12-14</td>
+<td>2020-10-16</td>
+<td><code>126x42</code> 峰，分数 6.26。最佳尺度偏长，说明它不是单日冲击，而更像几个月维度的市场结构切换。遇到这种点，应重点检查策略参数是否对长期波动水平、趋势长度、回撤恢复速度过于敏感。</td>
+</tr>
+<tr>
+<td>2021-10-25</td>
+<td>2021-09-16</td>
+<td><code>42x21</code> 峰，分数 13.69，是本次默认结果中最强的一次。<code>persistence=0.80</code> 表明大部分尺度都支持这个变化。辅助表显示波动显著放大，上下行振幅也同步抬升。对策略来说，这通常意味着入场过滤、止盈止损、持仓周期都可能需要重新评估。</td>
+</tr>
+<tr>
+<td>2022-04-18</td>
+<td>2022-03-17</td>
+<td><code>21x21</code> 峰，分数 11.26，短尺度但强度很高。辅助表显示从前一段高波动状态切到相对收缩状态，说明 regime change 不只包括“波动变大”，也包括“波动从异常高位回落”。这类阶段下，追趋势策略可能失去此前的波动推动，均值回归策略可能重新变得可用。</td>
+</tr>
+<tr>
+<td>2024-12-17</td>
+<td>2024-10-21</td>
+<td><code>63x42</code> 峰，分数 8.22。这是一个中等偏长尺度的变化，说明前后两段市场横截面分布出现明显差别，但不是 2021 那种极端全尺度冲击。适合重点观察策略是否从单品种有效变成多品种同步有效，或者反过来从普遍有效变成只在少数品种有效。</td>
+</tr>
+</tbody>
+</table>
+<p>这些解释只基于数据里的价格、波动、上下行振幅和成交变化特征。它们不强行给出宏观事件标签，因为同一个日期附近可能有多个市场因素同时作用。更稳妥的做法是：先用算子找出结构变化日期，再回到策略信号、持仓、品种贡献和交易明细里逐段排查。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=6db193e2"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="9.-%E6%A0%B7%E6%9C%AC%E6%9C%AB%E7%AB%AF%E7%9A%84%E5%80%99%E9%80%89%E5%B3%B0">9. 样本末端的候选峰</h2><p>默认 <code>min_peak_distance=90</code> 会等待足够长的后续样本来确认峰值。如果数据已经接近末端，某些很高的候选峰可能还没有被确认。</p>
+<p>下面单独看 2026 年之后的高分候选。它们可以作为“需要持续观察”的市场状态变化线索，但在默认严格确认规则下还不会写入 <code>is_peak=True</code>。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=5f37e2a8">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">recent_candidates</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">col</span><span class="o">.</span><span class="n">all</span>
+    <span class="o">.</span><span class="n">select</span><span class="p">(</span>
+        <span class="s2">"date"</span><span class="p">,</span>
+        <span class="s2">"cut_date"</span><span class="p">,</span>
+        <span class="s2">"best_scale"</span><span class="p">,</span>
+        <span class="s2">"score_z"</span><span class="p">,</span>
+        <span class="s2">"score_rank"</span><span class="p">,</span>
+        <span class="s2">"persistence"</span><span class="p">,</span>
+        <span class="s2">"peak_score"</span><span class="p">,</span>
+        <span class="s2">"is_peak_candidate"</span><span class="p">,</span>
+        <span class="s2">"is_peak"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"date"</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">col</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="n">dt</span><span class="o">.</span><span class="n">date</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)))</span>
+    <span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">col</span><span class="p">(</span><span class="s2">"peak_score"</span><span class="p">)</span><span class="o">.</span><span class="n">is_not_null</span><span class="p">())</span>
+    <span class="o">.</span><span class="n">batch</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s2">"peak_score"</span><span class="p">,</span> <span class="n">descending</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">calc_data</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="n">recent_candidates</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (12, 9)</small><table border="1" class="dataframe-table"><thead><tr><th>date</th><th>cut_date</th><th>best_scale</th><th>score_z</th><th>score_rank</th><th>persistence</th><th>peak_score</th><th>is_peak_candidate</th><th>is_peak</th></tr><tr><td>date</td><td>date</td><td>str</td><td>f64</td><td>f64</td><td>f64</td><td>f64</td><td>bool</td><td>bool</td></tr></thead><tbody><tr><td>2026-05-12</td><td>2026-04-09</td><td>"42x21"</td><td>10.438989</td><td>1.0</td><td>1.0</td><td>10.24784</td><td>true</td><td>false</td></tr><tr><td>2026-05-11</td><td>2026-04-08</td><td>"42x21"</td><td>9.997591</td><td>1.0</td><td>1.0</td><td>9.961546</td><td>true</td><td>false</td></tr><tr><td>2026-05-13</td><td>2026-04-10</td><td>"42x21"</td><td>9.866745</td><td>0.997354</td><td>1.0</td><td>9.85968</td><td>true</td><td>false</td></tr><tr><td>2026-05-07</td><td>2026-04-03</td><td>"63x21"</td><td>9.676194</td><td>1.0</td><td>1.0</td><td>9.538182</td><td>true</td><td>false</td></tr><tr><td>2026-05-19</td><td>2026-03-17</td><td>"126x42"</td><td>10.012557</td><td>0.992063</td><td>1.0</td><td>9.152892</td><td>true</td><td>false</td></tr><tr><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr><tr><td>2026-05-22</td><td>2026-03-20</td><td>"126x42"</td><td>9.565874</td><td>0.986772</td><td>0.8</td><td>8.697273</td><td>true</td><td>false</td></tr><tr><td>2026-05-18</td><td>2026-03-16</td><td>"126x42"</td><td>9.491619</td><td>0.977513</td><td>1.0</td><td>8.689407</td><td>false</td><td>false</td></tr><tr><td>2026-05-15</td><td>2026-03-13</td><td>"126x42"</td><td>9.023423</td><td>0.972222</td><td>1.0</td><td>8.662637</td><td>false</td><td>false</td></tr><tr><td>2026-04-24</td><td>2026-03-26</td><td>"21x21"</td><td>9.098696</td><td>1.0</td><td>0.6</td><td>8.643262</td><td>true</td><td>false</td></tr><tr><td>2026-05-20</td><td>2026-03-18</td><td>"126x42"</td><td>9.468703</td><td>0.97619</td><td>0.8</td><td>8.609152</td><td>false</td><td>false</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=2d1822d8"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="10.-%E5%8F%82%E6%95%B0%E6%80%8E%E4%B9%88%E8%B0%83">10. 参数怎么调</h2><p>常用参数可以按下面方式理解。</p>
+<table class="dataframe-table">
+<thead>
+<tr>
+<th>参数</th>
+<th>调大时的效果</th>
+<th>调小时的效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scales</code></td>
+<td>更容易关注较长结构变化，但确认更慢</td>
+<td>更敏感，能看到短期冲击，但噪声更多</td>
+</tr>
+<tr>
+<td><code>baseline_window</code></td>
+<td>标准化参考更长，分数更稳</td>
+<td>更快适应近期市场，但历史可比性下降</td>
+</tr>
+<tr>
+<td><code>min_baseline</code></td>
+<td>更严格，前期不容易出分</td>
+<td>更早出分，但早期标准化不稳定</td>
+</tr>
+<tr>
+<td><code>z_thre</code></td>
+<td>候选峰更少</td>
+<td>候选峰更多</td>
+</tr>
+<tr>
+<td><code>rank_thre</code></td>
+<td>要求必须处在更极端历史分位</td>
+<td>更容易放出候选</td>
+</tr>
+<tr>
+<td><code>persistence_thre</code></td>
+<td>要求更多尺度同时异常</td>
+<td>单一尺度异常也更容易通过</td>
+</tr>
+<tr>
+<td><code>scale_z_thre</code></td>
+<td>单尺度进入 persistence 更难</td>
+<td>persistence 更容易升高</td>
+</tr>
+<tr>
+<td><code>min_peak_distance</code></td>
+<td>峰更稀疏，确认更慢</td>
+<td>峰更密集，确认更快</td>
+</tr>
+<tr>
+<td><code>top_k</code></td>
+<td>综合更多尺度，结果更平滑</td>
+<td>更依赖最高分尺度，结果更尖锐</td>
+</tr>
+<tr>
+<td><code>min_contracts</code></td>
+<td>每天至少需要更多合约参与，横截面更稳</td>
+<td>可用日期更多，但样本质量可能下降</td>
+</tr>
+</tbody>
+</table>
+<p>如果目的是做长期市场分段，通常应该提高 <code>min_peak_distance</code>、保留多个尺度，并关注 <code>confirmed_peak_score</code>。如果目的是做实时风控预警，可以同时观察 <code>peak_score</code> 和 <code>is_peak_candidate</code>，但要接受候选峰后续可能被同一簇里的更高点替代。</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered" id="cell-id=91c8f109">
+<div class="input">
+
+<div class="inner_cell">
+<div class="input_area">
+<div class="highlight hl-ipython3"><pre class="code-block"><span></span><span class="n">strict_peaks</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"is_peak"</span><span class="p">))</span><span class="o">.</span><span class="n">height</span>
+<span class="n">candidate_days</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">"is_peak_candidate"</span><span class="p">))</span><span class="o">.</span><span class="n">height</span>
+
+<span class="n">summary</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+    <span class="s2">"metric"</span><span class="p">:</span> <span class="p">[</span>
+        <span class="s2">"交易日数量"</span><span class="p">,</span>
+        <span class="s2">"候选峰日期数量"</span><span class="p">,</span>
+        <span class="s2">"确认峰数量"</span><span class="p">,</span>
+        <span class="s2">"最高 confirmed_peak_score"</span><span class="p">,</span>
+        <span class="s2">"最高 peak_score"</span><span class="p">,</span>
+    <span class="p">],</span>
+    <span class="s2">"value"</span><span class="p">:</span> <span class="p">[</span>
+        <span class="nb">float</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">height</span><span class="p">),</span>
+        <span class="nb">float</span><span class="p">(</span><span class="n">candidate_days</span><span class="p">),</span>
+        <span class="nb">float</span><span class="p">(</span><span class="n">strict_peaks</span><span class="p">),</span>
+        <span class="nb">float</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="s2">"confirmed_peak_score"</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+        <span class="nb">float</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="s2">"peak_score"</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+    <span class="p">],</span>
+<span class="p">})</span>
+
+<span class="n">summary</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="output_wrapper">
+<div class="output">
+<div class="output_area">
+
+<div class="output_html rendered_html output_subarea output_execute_result"><div><style>
+.dataframe > thead > tr,
+.dataframe > tbody > tr {
+  text-align: right;
+  white-space: pre-wrap;
+}
+</style>
+<small>shape: (5, 2)</small><table border="1" class="dataframe-table"><thead><tr><th>metric</th><th>value</th></tr><tr><td>str</td><td>f64</td></tr></thead><tbody><tr><td>"交易日数量"</td><td>2236.0</td></tr><tr><td>"候选峰日期数量"</td><td>261.0</td></tr><tr><td>"确认峰数量"</td><td>7.0</td></tr><tr><td>"最高 confirmed_peak_score"</td><td>13.690608</td></tr><tr><td>"最高 peak_score"</td><td>13.690608</td></tr></tbody></table></div></div>
+</div>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered" id="cell-id=26f7f65d"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="11.-%E4%BD%BF%E7%94%A8%E5%BB%BA%E8%AE%AE">11. 使用建议</h2><p><code>daily_market_change_peak_score</code> 更适合放在策略研究流程的上游：</p>
+<ol>
+<li>先用全市场日线数据计算 regime 点；</li>
+<li>再把策略回测结果按这些日期切段；</li>
+<li>分别比较每段的收益、回撤、交易次数、平均持仓、胜率、品种贡献；</li>
+<li>如果某个策略只在某个 regime 后有效，需要检查它依赖的是趋势延续、波动扩张、波动收缩、成交活跃度，还是品种间相关性变化；</li>
+<li>如果多个策略在同一个 regime 点前后同时失效，说明更可能是市场结构变化，而不是单个策略参数偶然失效。</li>
+</ol>
+<p>最重要的是：不要把 <code>confirmed_peak_score</code> 当成方向信号。它只告诉你“变化很强”，不告诉你应该做多还是做空。方向和交易动作仍然要回到具体策略信号、风险控制和持仓逻辑里判断。</p>
+</div>
+</div>
+</div>
+
+      </article>
+    </main>
+    
+    <script src="../site.js"></script>
+  </body>
+</html>
