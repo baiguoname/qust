@@ -20,8 +20,6 @@
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple qust
 ```
 
-(只支持windows和linux)
-
 # 目的
 
 量化框架的不可能三角：
@@ -90,9 +88,11 @@ shape: (10, 5)
 │ -0.46641  ┆ a    ┆ -0.70536  ┆ -1.018833    ┆ -0.571381     │
 │ 1.223008  ┆ b    ┆ -0.512523 ┆ -0.437369    ┆ -0.1542       │
 └───────────┴──────┴───────────┴──────────────┴───────────────┘
+
 ```python
 print(df.calc_data(data_next)) # df 里面的算子都状态保留
 ```
+
 shape: (10, 5)
 ┌───────────┬──────┬───────────┬──────────────┬───────────────┐
 │ factor    ┆ code ┆ cum_mean  ┆ rolling_mean ┆ cum_mean_over │
@@ -110,6 +110,7 @@ shape: (10, 5)
 │ 1.290463  ┆ a    ┆ -0.321879 ┆ 0.00468      ┆ -0.339821     │
 │ -0.01888  ┆ c    ┆ -0.306729 ┆ 0.259812     ┆ -0.286653     │
 └───────────┴──────┴───────────┴──────────────┴───────────────┘
+
 # 与polars语法比较
 
 ```python
@@ -125,6 +126,7 @@ df = qs.with_cols(
 )
 df.calc_data(data)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -142,6 +144,7 @@ col("a", "b") + col("c", "d")
 col("a", "b") + col("c")
 col("a", "b") & col("c")
 ```
+
 # 与polars性能比较
 
 ```python
@@ -152,6 +155,7 @@ data = pl.DataFrame({
     "code": np.random.choice(["a", "b"], size=n, replace=True),
 })
 ```
+
 ### 1. qust单线程 vs polars多线程
 
 ```python
@@ -167,8 +171,10 @@ _ = data.select(
 )
 print(f"polars: {(time.time() - s) * 1000.0}.ms")
 ```
+
 qust: 104.89392280578613.ms
 polars: 194.35358047485352.ms
+
 ### 2. qust多线程 vs polars多线程
 
 ```python
@@ -184,8 +190,10 @@ _ = data.select(
 )
 print(f"polars: {(time.time() - s) * 1000.0}.ms")
 ```
+
 qust: 137.73751258850098.ms
 polars: 382.92813301086426.ms
+
 ### 3. qust自定义算子 vs polars自定义算子
 
 ```python
@@ -221,8 +229,10 @@ _ = data.select(
 )
 print(f"polars: {(time.time() - s)}.s")
 ```
+
 qust: 1.3382771015167236.s
 polars: 51.07790398597717.s
+
 
 | 算子              | qust  | polars | 提速  |
 | ----------------- | ----- | ------ | ----- |
@@ -240,6 +250,7 @@ data_next = pl.DataFrame({
     "value": [3, 1, 10]
 })
 ```
+
 ### 1. 在qust里面使用polars
 
 ```python
@@ -250,6 +261,7 @@ qs.with_cols(
 
 ).calc_data(data)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -267,6 +279,7 @@ data.select(
     col("value").pl.rolling_mean(3).alias("value_mean2"),
 )
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -287,6 +300,7 @@ e_pl = e.cache("unique_id").pl
 # 可以写成 e.over("code").cache("unique_id").pl, 或者用 data.qs.df
 data.select(e_pl)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -299,6 +313,7 @@ data.select(e_pl)
 ```python
 data_next.select(e_pl)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -314,6 +329,7 @@ data_next.select(e_pl)
 qs.clear_cache("unique_id") # 单个清除
 qs.clear_cache() # 全部清除
 ```
+
 由于polars的限制，上面的算子无法多列返回, 所以如果有多列返回，返回的是多列组成的struct
 
 如果需要多列返回，只能这样写:
@@ -321,6 +337,7 @@ qs.clear_cache() # 全部清除
 ```python
 data.qs.select(e)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -334,6 +351,7 @@ data.qs.select(e)
 df = qs.select(e)
 data.qs.df(df)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -346,6 +364,7 @@ data.qs.df(df)
 ```python
 data_next.qs.df(df)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -414,6 +433,7 @@ shape: (3, 3)
 │ 8     ┆ 7.0          ┆ 2.44949  │
 └───────┴──────────────┴──────────┘
 ```
+
 在第一个调用`df.calc_data(data)`的时候，df内部的算子都有状态保留，所以在第二个调用`df.calc_data(data_next)`时候，没有重新计算
 
 实际情况是，绝大多数算子都有对应的事件驱动形式，少量的算子比如`pl.col("a").rank()`, 看起来不是事件驱动的形式（当前行的值受到未来行的值的影响），但是其实也可以变换成事件驱动形式，
@@ -475,6 +495,7 @@ shape: (7, 5)
 │ 1.735427  ┆ -2.403888 ┆ 1.207053  ┆ -0.29973        ┆ 0.849167        │
 └───────────┴───────────┴───────────┴─────────────────┴─────────────────┘
 ```
+
 多列返回我能想到以下好处
 
 * 多列返回在用一些比如k线合成算子，策略信号算子之类的比较方便
@@ -501,6 +522,7 @@ data_live = [data_kline[600000:601000], data_kline[601000:602000]]
 # 从github读取kine数据
 data_tick = pl.read_parquet("https://github.com/baiguoname/qust/blob/main/examples/data/data_tick.parquet?raw=true")
 ```
+
 ### 1. 有k线数据，实现一个双均线策略
 
 ```python
@@ -525,13 +547,16 @@ df_bt = qs.select(
 # 实盘
 df_live = qs.select(stra.expanding().select("hold").last_value())
 ```
+
 ```python
 %%time
 # 回测
 df_bt.calc_data(data_his)
 ```
+
 CPU times: user 37.2 ms, sys: 37 ms, total: 74.2 ms
 Wall time: 49.3 ms
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -553,6 +578,7 @@ for data_live_ in data_live: # 模拟实盘数据流, 实际中应该用异步
     print("------------------")
 # 可以看到虽然历史数据需要几十万，但是每次实盘计算的时间很短，因为是流式计算
 ```
+
 ----接收到实盘数据, 实时数据长度: 1000，开始一轮计算---
 shape: (1, 1)
 ┌──────┐
@@ -563,7 +589,8 @@ shape: (1, 1)
 │ 1.0  │
 └──────┘
 计算完成, 耗时: 0.002280712127685547
-------------------
+------------------------------------
+
 ----接收到实盘数据, 实时数据长度: 1000，开始一轮计算---
 shape: (1, 1)
 ┌──────┐
@@ -574,7 +601,8 @@ shape: (1, 1)
 │ 1.0  │
 └──────┘
 计算完成, 耗时: 0.001985788345336914
-------------------
+------------------------------------
+
 ### 2. 有数据源，这个数据源不断获取多个品种的tick数据，策略需要分品种将数据不断合成1min k线，并且生成双均线的开仓逻辑，然后用0.01止损作为出场
 
 ```python
@@ -640,9 +668,11 @@ df_bt_tick = (qs.select(
     )
 )
 ```
+
 ```python
 df_bt_price.calc_data(data_tick)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -655,6 +685,7 @@ df_bt_price.calc_data(data_tick)
 ```python
 df_bt_tick.calc_data(data_tick)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -737,9 +768,11 @@ df_bt_tick = (
     )
 )
 ```
+
 ```python
 df_bt_tick.calc_data(data_tick)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -762,6 +795,7 @@ df_bt_tick.calc_data(data_tick)
     ._line()
 )
 ```
+
 ### 5. 内置的tick因子与内置的k线策略结合
 
 ```python
@@ -796,6 +830,7 @@ df_bt_tick.calc_data(data_tick)
     .calc_data(data_tick)
 )
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -865,6 +900,7 @@ qs.with_cols(
     e.rolling_intra_day("intra_day", 3).alias("rolling_intraday").add_suffix("over"),
 ).calc_data(data_test)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -970,6 +1006,7 @@ class MartinGillStra(qs.UdfRow):
     # ._line(width = 800, height = 500)
 )
 ```
+
 # 参数调优
 
 `qust`中可以做可视化+交互式参数调优，只需要把原来的表达式中的固定参数换成范围参数，比如
@@ -986,6 +1023,7 @@ class MartinGillStra(qs.UdfRow):
 data_kline = pl.read_parquet("https://github.com/baiguoname/qust/blob/main/examples/data/data_kline2.parquet?raw=true") 
 # 从github读取数据，速度较慢, 建议用自己的数据
 ```
+
 ```python
 stra = (
     col(
@@ -1038,14 +1076,17 @@ df_bt = (qs
     )
 )
 ```
+
 ```python
 df_bt.opt_params(data_kline, True)
 ```
+
 ![交互式参数寻优](examples/data/view_params.gif)
 
 ```python
 pl.read_parquet("all_res.parquet")
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -1059,6 +1100,7 @@ pl.read_parquet("all_res.parquet")
 # 也可以直接循环所有参数
 df_bt.loop_all_params(data_kline)
 ```
+
 <div><style>
 .dataframe > thead > tr,
 .dataframe > tbody > tr {
@@ -1101,6 +1143,7 @@ qs.select(
     ).monitor.line()
 ).opt_params(data, True)
 ```
+
 ![交互式参数寻优](./examples/data/udf_params.gif)
 
 # 监控可视化
@@ -1123,12 +1166,14 @@ df = (qs
 )
 df.run_monitor_server(True)
 ```
+
 ```python
 import time
 for i in range(0, 1000, 10):
     df.calc_data(data_kline[i:i+10])
     time.sleep(0.05)
 ```
+
 ![监控](./examples/data/monitor.gif)
 
 # 内置策略
@@ -1146,6 +1191,7 @@ for i in range(0, 1000, 10):
 ```python
 data_kline = pl.read_parquet("https://github.com/baiguoname/qust/blob/main/examples/data/data_kline2.parquet?raw=true") 
 ```
+
 ```python
 monitor1 = qs.Monitor(url = "127.0.0.1:8800", background="black").make_grid([["a", "a"], ["b", "c"]])
 e0 = (
@@ -1196,6 +1242,7 @@ df = qs.with_cols(
 ).with_cols(e0).select(e1).select(e2, e3)
 df.opt_params(data_kline, True)
 ```
+
 ![监控](./examples/data/straselect.gif)
 
 也可以对两个策略测试信号融合
@@ -1215,6 +1262,7 @@ df = qs.with_cols(
 ).with_cols(e0).select(e1).select(e2, e3)
 df.opt_params(data_kline, True)
 ```
+
 就像要codex直接写代码，codex会给你整坨大的, 但是给codex定很多约束，codex写的代码质量出奇的好
 
 同样，直接叫ai去写策略，有点困难；但是如果给ai很多算子，并且告诉ai这些算子的作用，然后要ai整夜给你跑，组合出一个好的策略，说不定ai有奇效
