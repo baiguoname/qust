@@ -8,8 +8,6 @@
 * 算子丰富，内置丰富的金融算子，比如k线合成、回测、组合优化等等
 * 可拓展性强，底层基于rust的`datafusion`, 拓展到分布式很方便.
 
-[项目地址](https://baiguoname.github.io/qust/site)
-
 [git地址](https://github.com/baiguoname/qust)
 
 [demo地址](https://github.com/baiguoname/qust/blob/main/examples/demo.ipynb)
